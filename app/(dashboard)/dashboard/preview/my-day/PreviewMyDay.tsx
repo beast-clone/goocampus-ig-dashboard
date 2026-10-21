@@ -747,12 +747,38 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       <IconPencil size={12} stroke={1.9} />
     </button>
   );
+  // A publish-date move that is waiting for an admin, so the field can say so
+  // instead of looking as if the change was ignored.
+  const [pendingDate, setPendingDate] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/marketing-hub/date-change", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!alive) return; const q = (d?.requests || []).find((x: { postId: string; status: string }) => x.postId === task.id && x.status === "pending"); setPendingDate(q?.to ? String(q.to).slice(0, 10) : null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [task.id, task.due]);
   const saveEdit = async () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null } }) });
+      // The picker shows the PUBLISHING date, so that is what it changes. It used to
+      // write due_date — a field nobody sees here — so the date "changed but didn't
+      // reflect" (Nandu, 21 Oct). due_date follows publishing_date on the server.
+      // Only what actually changed. The panel used to carry the PREVIOUS task's form
+      // state into the next one (no key per task), so Save wrote another task's brief,
+      // priority and date over this one (Karnataka NEET PG Cut Off, 21 Oct). Keyed per
+      // task now; sending only changes is the second guard.
+      const fields: Record<string, unknown> = {};
+      if (prio !== task.detail.priority) fields.priority = prio;
+      if ((due || "") !== (task.due || "")) fields.publishing_date = due || null;
+      if (!Object.keys(fields).length) { setEditing(false); return; }
+      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields }) });
       const saved = await res.json().catch(() => null);
+      if (!res.ok) { showToast({ who: "Couldn't save", body: (saved as { error?: string } | null)?.error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); return; }
       if (saved?.updatedAt) setModifiedAt(saved.updatedAt);
+      if (saved?.pendingApproval?.to) {
+        setPendingDate(String(saved.pendingApproval.to).slice(0, 10));
+        showToast({ who: "Sent for admin approval", body: `The new publishing date shows once an admin approves it.`, color: "#3A57E8", av: "✓" });
+      }
       setEditing(false); onSaved?.();
     } finally { setBusy(false); }
   };
@@ -1099,6 +1125,11 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
         <div>
           <div className="mlbl">Published Date{editing && <Pen field="due" />}</div>
           <div className="mval" style={{ color: "#2138B0", fontWeight: 500 }}>{task.detail.publishes}</div>
+          {pendingDate && pendingDate !== task.due && (
+            <div style={{ fontSize: 11.5, color: "#B7791F", marginTop: 2 }}>
+              → {new Date(pendingDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}, waiting for admin approval
+            </div>
+          )}
           {editing && editField === "due" && <div className="fld-edit"><DatePicker value={due} onChange={(v) => setDue(v)} /></div>}
         </div>
         <div><div className="mlbl">{task.detail.endAt ? "Time taken" : "Status"}</div><div className="mval">{task.detail.endAt ? durBetween(task.detail.startAt, task.detail.endAt) : "In progress"}</div></div>
@@ -3879,10 +3910,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   <span style={{ display: "flex", alignItems: "center", gap: ".5rem" }}><span className="status-dot" style={{ background: "#1AA053" }} />Up for grabs — not yours yet. Claim it to start working on it.</span>
                   {claimConfirm !== peek.id && <button className="btn primary sm" onClick={() => setClaimConfirm(peek.id)}>Claim</button>}
                 </div>
-                <TaskBody task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
+                <TaskBody key={`peek-${peek.id}`} task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
               </>
             ) : null; })() || (task ? (
-              <TaskBody task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m, why, undoOf) => setDuration(task.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
+              <TaskBody key={`task-${task.id}`} task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m, why, undoOf) => setDuration(task.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
             ) : (
               // One entry point only: "+ New task" sits in the My tasks header, so the
               // resting panel stays empty rather than repeating the same button.
@@ -3984,7 +4015,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                         </div>
                         {openCreatedId === t.id && (
                           <div style={{ marginTop: ".8rem", borderTop: "1px solid var(--line, #EEF0F4)", paddingTop: ".8rem" }} onClick={(e) => e.stopPropagation()}>
-                            <TaskBody task={t} label="Tracking · read-only" uploadedBy={person} />
+                            <TaskBody key={`trk-${t.id}`} task={t} label="Tracking · read-only" uploadedBy={person} />
                           </div>
                         )}
                       </div>
@@ -4112,7 +4143,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         <div className="modal" onClick={() => setPlanModalId(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPlanModalId(null)} title="Close"><IconX size={14} stroke={2} /></button>
-            <TaskBody task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m, why, undoOf) => setDuration(planModalTask.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
+            <TaskBody key={`plan-${planModalTask.id}`} task={planModalTask} label="Today's plan · task" onStatusChange={(s) => setTaskStatus(planModalTask.id, s)} onSetDuration={(m, why, undoOf) => setDuration(planModalTask.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(planModalTask)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setPlanModalId(null); load(); }} />
             <div className="modal-foot">
               <span className="modal-foot-note">Didn’t finish? Roll it to next week. Done? Mark it complete.</span>
               <div className="modal-foot-acts">
