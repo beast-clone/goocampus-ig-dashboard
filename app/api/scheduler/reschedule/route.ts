@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
+import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
@@ -24,11 +25,14 @@ export async function POST(req: Request) {
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-    const { error } = await sb
+    const { data, error } = await sb
       .from("mh_posts")
       .update({ schedule_time: new Date(body.scheduleTime).toISOString(), publish_status: "scheduled" })
-      .eq("id", body.recordId);
+      .eq("id", body.recordId)
+      .or(NOT_PUBLISHING)   // never while the publisher is sending it
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!data?.length) return notUpdated(sb, body.recordId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Reschedule failed"), { status: 502 });

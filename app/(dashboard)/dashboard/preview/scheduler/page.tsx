@@ -436,8 +436,8 @@ function Scheduler() {
     });
   }, []);
 
-  const loadQueue = () => {
-    setQueueLoading(true);
+  const loadQueue = (quiet = false) => {
+    if (!quiet) setQueueLoading(true);
     setQueueError(null);
     const t0 = Date.now();
     fetch("/api/scheduler/queue", { cache: "no-store" })
@@ -457,6 +457,17 @@ function Scheduler() {
   };
 
   useEffect(() => { loadQueue(); }, []);
+  // While anything is due within 10 minutes or is being published, re-read the queue
+  // every 30 s, so a post the publisher has picked up shows "Publishing…" and then
+  // moves to Published by itself — instead of sitting at "Scheduled" on a page that
+  // was loaded before it went out (NEET PG - MCC NRI rules, 21 Oct).
+  useEffect(() => {
+    const soon = queue.some((p) => p.effectiveStatus === "publishing"
+      || (p.effectiveStatus === "scheduled" && p.scheduleTime && new Date(p.scheduleTime).getTime() - Date.now() < 10 * 60_000));
+    if (!soon) return;
+    const t = setInterval(() => loadQueue(true), 30_000);
+    return () => clearInterval(t);
+  }, [queue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Smart time suggestions — refetch when brand changes
   useEffect(() => {
@@ -910,7 +921,8 @@ function Scheduler() {
   // True count of produced content still awaiting a schedule action (the API now
   // returns the full set, so this decrements by one each time a post is scheduled).
   const toScheduleTotal = toSchedule.length;
-  const readyToSchedule = queueFiltered.filter((p) => p.effectiveStatus === "scheduled");
+  // Publishing stays in this list (marked) until it lands under Published.
+  const readyToSchedule = queueFiltered.filter((p) => p.effectiveStatus === "scheduled" || p.effectiveStatus === "publishing");
   const failed = queueFiltered.filter((p) => p.effectiveStatus === "failed");
   const publishedRecent = queueFiltered
     .filter((p) => p.effectiveStatus === "published")
@@ -1201,7 +1213,7 @@ function Scheduler() {
             {queueError && <span className="ml-2 text-rose-600">· Couldn&apos;t load the queue: {queueError}</span>}
           </div>
         </div>
-        <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={loadQueue} error={queueError} />
+        <LiveIndicator fetchedAt={queueFetchedAt} latencyMs={queueLatency} loading={queueLoading} onRefresh={() => loadQueue()} error={queueError} />
       </div>
 
       {/* Filters */}
@@ -1930,9 +1942,12 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
           <div className="text-xs text-gray-500 flex-shrink-0 text-right tabular-nums hidden sm:block">
             {fmt(p.effectiveStatus === "published" ? p.publishedAt : p.scheduleTime)}
           </div>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus}</span>
-          {/* Row actions — only for posts that are still actionable (not already published) */}
-          {p.effectiveStatus !== "published" && (
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus === "publishing" ? "Publishing…" : p.effectiveStatus}</span>
+          {p.effectiveStatus === "publishing" && (
+            <span className="text-xs text-gray-500 flex-shrink-0">Going out now — can't be changed</span>
+          )}
+          {/* Row actions — only for posts that are still actionable (not published, not mid-publish) */}
+          {p.effectiveStatus !== "published" && p.effectiveStatus !== "publishing" && (
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {/* Some posts are written to go out now, not at the time someone
                   picked earlier. Without this the only way was to reschedule to a

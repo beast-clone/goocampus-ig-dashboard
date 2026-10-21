@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
+import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 
 // POST /api/scheduler/set-media  { postId, mediaUrls: string[] }
@@ -18,11 +19,14 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const { error } = await sb
+    const { data, error } = await sb
       .from("mh_posts")
       .update({ media_urls: mediaUrls.length ? mediaUrls : null })
-      .eq("id", postId);
+      .eq("id", postId)
+      .or(NOT_PUBLISHING)   // never while the publisher is sending it
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!data?.length) return notUpdated(sb, postId);
 
     return NextResponse.json({ ok: true, count: mediaUrls.length });
   } catch (err) {
