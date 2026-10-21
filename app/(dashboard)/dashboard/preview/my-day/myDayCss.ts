@@ -125,6 +125,9 @@ export const MY_DAY_CSS = `
 .hmd .tl-blk.reel.high{background:linear-gradient(135deg,#F4565B,#E11D48)}
 .hmd .tl-blk.reel.high:hover{filter:brightness(1.06)}
 .hmd .tl-blk.lunch{background:repeating-linear-gradient(45deg,var(--cEAEDF5),var(--cEAEDF5) 6px,var(--cDFE3EE) 6px,var(--cDFE3EE) 12px);color:var(--muted);border-right:1px solid rgba(255,255,255,.5)}
+/* Work done earlier today: greyed out, before the now line; click opens it. */
+.hmd .tl-blk.done{background:var(--cDFE3EE);color:var(--muted);cursor:pointer;border-right:1px solid rgba(255,255,255,.7)}
+.hmd .tl-blk.done:hover{filter:brightness(.96)}
 .hmd .tl-blk.buffer{background:repeating-linear-gradient(45deg,var(--cF3F5F9),var(--cF3F5F9) 6px,var(--cE9ECF2) 6px,var(--cE9ECF2) 12px);color:var(--faint)}
 /* Samvaya / other-platform work — a distinct teal so it never reads as GooCampus work. */
 .hmd .tl-blk.reel.samvaya{background:linear-gradient(135deg,#12B3A6,#0E8E86)}

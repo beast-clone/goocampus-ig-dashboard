@@ -2590,6 +2590,40 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     return out;
   }, [claimedTasks, tasks, samvaya]);
   const availMin = workAvailFrom(liveNow ?? planStart, shiftStart);
+  // What was worked on earlier today, greyed out before the now line — once the plan
+  // runs from now, an empty morning read as "sat idle till 2:30" (Praveen, 21 Oct).
+  // A task's stretch runs from its start to when it was marked done; with no start
+  // recorded, its duration is counted back from the finish. Where two overlap, the
+  // one started later takes that stretch and the other resumes after it.
+  const doneBlocks = useMemo(() => {
+    if (liveNow == null) return [];
+    const today = new Date().toDateString();
+    const minOf = (iso: string) => { const d = new Date(iso); return !Number.isNaN(d.getTime()) && d.toDateString() === today ? d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60 : null; };
+    // Up to the start of this person's own in-progress work (or now).
+    const stop = Math.min(liveNow, ...myPlan.map((p) => startedToday.get(p.taskId) ?? -1).filter((v) => v >= 0));
+    const iv = uniqById([...claimedTasks, ...tasks, ...samvaya])
+      .filter((t) => t.detail.owner === me.name && t.status !== "Output - In Progress" && t.detail.endAt)
+      .flatMap((t) => {
+        const end = minOf(t.detail.endAt || "");
+        if (end == null) return [];
+        const from = t.detail.startAt ? minOf(t.detail.startAt) : null;
+        const start = Math.max(0, from ?? end - (t.detail.duration || estMins(t.detail.typeLine)));
+        return [{ id: t.id, title: t.title, start, end: Math.min(end, stop), from, to: end }];
+      })
+      .filter((x) => x.end > x.start);
+    const cuts = Array.from(new Set(iv.flatMap((x) => [x.start, x.end]).concat([LUNCH_AT, LUNCH_AT + LUNCH_MIN]))).sort((a, b) => a - b);
+    const out: { id: string; title: string; start: number; dur: number; from: number | null; to: number }[] = [];
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const a = cuts[i], b = cuts[i + 1];
+      if (a >= LUNCH_AT && b <= LUNCH_AT + LUNCH_MIN) continue;   // lunch stays lunch
+      const on = iv.filter((x) => x.start <= a && x.end >= b).sort((x, y) => y.start - x.start)[0];
+      if (!on) continue;
+      const last = out[out.length - 1];
+      if (last && last.id === on.id && last.start + last.dur === a) last.dur += b - a;
+      else out.push({ id: on.id, title: on.title, start: a, dur: b - a, from: on.from, to: on.to });
+    }
+    return out;
+  }, [liveNow, startedToday, myPlan, claimedTasks, tasks, samvaya, me.name]);
   const { fitPlan, spillPlan } = useMemo(() => {
     const fit: typeof myPlan = [], spill: typeof myPlan = [];
     const working = liveNow == null ? [] : myPlan.filter((p) => p.taskId && startedToday.has(p.taskId));
@@ -3842,6 +3876,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 </div>
                 );
               })}
+              {doneBlocks.map((b) => (
+                <div key={`done-${b.id}-${b.start}`} className="tl-blk done" onClick={() => setPlanModalId(b.id)}
+                  style={{ left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }}
+                  title={`Done · ${b.title} · ${b.from != null ? `${clockOf(b.from)} – ` : "finished "}${clockOf(b.to)} · click to open`}>
+                  <div className="tl-t">{b.title}</div>
+                  <div className="tl-m">Done</div>
+                </div>
+              ))}
               {showNow && <div className="now-line" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }}><span className="now-dot" /><span className="now-tag">● now</span></div>}
             </div>
           </div>
