@@ -33,7 +33,7 @@ export function DatePicker({ value, onChange }: { value: string; onChange: (v: s
   const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const sel = value ? new Date(value + "T00:00:00") : null;
   const now = new Date();
-  const startDow = new Date(view.y, view.m, 1).getDay();
+  const startDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7;   // weeks start on Monday
   const days = new Date(view.y, view.m + 1, 0).getDate();
   const cells: (number | null)[] = [...Array(startDow).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
   const label = sel ? sel.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "";
@@ -52,7 +52,7 @@ export function DatePicker({ value, onChange }: { value: string; onChange: (v: s
               <span className="dp-title">{MONTHS[view.m]} {view.y}</span>
               <div className="dp-nav"><button type="button" onClick={() => shift(-1)}>‹</button><button type="button" onClick={() => shift(1)}>›</button></div>
             </div>
-            <div className="dp-grid dp-dow">{["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
+            <div className="dp-grid dp-dow">{["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
             <div className="dp-grid">
               {cells.map((d, i) => d === null ? <span key={i} className="dp-empty" /> : (
                 <button key={i} type="button"

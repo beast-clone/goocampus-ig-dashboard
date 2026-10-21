@@ -1329,7 +1329,11 @@ function PersonPanel({ member, allRows, facets, onOpen, onClose }: {
   );
 }
 
-const MHCAL_DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MHCAL_DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];   // by getDay()
+// Weeks run Monday → Sunday, not Sunday → Saturday (Manya, 15 Oct). The header uses
+// this; MHCAL_DAY_LABELS stays indexed by getDay() for naming a given date.
+const MHCAL_WEEK_HEADER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const mondayOffset = (d: Date) => (d.getDay() + 6) % 7;   // days since Monday
 const MHCAL_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 // Status → pill palette. Mirrors the dashboard publishing calendar's approach: soft-tinted
@@ -1633,7 +1637,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const monthGrid = useMemo(() => {
     const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     const start = new Date(firstOfMonth);
-    start.setDate(start.getDate() - firstOfMonth.getDay());
+    start.setDate(start.getDate() - mondayOffset(firstOfMonth));
     const today = ymd(new Date());
     const cells: { date: Date; inMonth: boolean; isToday: boolean }[] = [];
     for (let i = 0; i < 42; i++) {
@@ -1644,7 +1648,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   }, [anchor]);
 
   const weekDays = useMemo(() => {
-    const start = new Date(anchor); start.setDate(anchor.getDate() - anchor.getDay());
+    const start = new Date(anchor); start.setDate(anchor.getDate() - mondayOffset(anchor));
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }, [anchor]);
 
@@ -1766,7 +1770,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
 
         {view === "month" && (
           <>
-            <div className="mhcal-dow">{MHCAL_DAY_LABELS.map((d) => <span key={d}>{d}</span>)}</div>
+            <div className="mhcal-dow">{MHCAL_WEEK_HEADER.map((d) => <span key={d}>{d}</span>)}</div>
             <div className="mhcal-grid">
               {monthGrid.map((cell) => {
                 const key = ymd(cell.date);

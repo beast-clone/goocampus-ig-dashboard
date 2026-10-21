@@ -67,7 +67,7 @@ export function PreviewDatePicker({
   });
 
   const monthLabel = new Date(view.y, view.m, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-  const firstDow = new Date(view.y, view.m, 1).getDay();
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7;   // weeks start on Monday
   const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
   const cells: (Date | null)[] = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
@@ -124,7 +124,7 @@ export function PreviewDatePicker({
             </div>
 
             <div className="grid grid-cols-7 gap-0.5 mb-1">
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
                 <div key={i} className="text-xs text-gray-400 text-center font-medium">{d}</div>
               ))}
             </div>

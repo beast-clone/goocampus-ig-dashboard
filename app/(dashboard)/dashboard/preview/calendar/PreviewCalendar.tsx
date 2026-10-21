@@ -71,7 +71,10 @@ export function accountKeyFor(publishToPage: string): AccountKey {
 }
 
 
-export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];   // by getDay()
+// Weeks run Monday → Sunday (Manya, 15 Oct) — same as the Content calendar.
+const WEEK_HEADER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const mondayOffset = (d: Date) => (d.getDay() + 6) % 7;
 export const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 export const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -222,7 +225,7 @@ export function PreviewCalendar() {
   const monthGrid = useMemo(() => {
     const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     const start = new Date(firstOfMonth);
-    start.setDate(start.getDate() - firstOfMonth.getDay());
+    start.setDate(start.getDate() - mondayOffset(firstOfMonth));
     const cells: { date: Date; inMonth: boolean; isToday: boolean }[] = [];
     const today = ymd(new Date());
     for (let i = 0; i < 42; i++) {
@@ -233,7 +236,7 @@ export function PreviewCalendar() {
   }, [anchor]);
 
   const weekDays = useMemo(() => {
-    const start = new Date(anchor); start.setDate(anchor.getDate() - anchor.getDay());
+    const start = new Date(anchor); start.setDate(anchor.getDate() - mondayOffset(anchor));
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }, [anchor]);
 
@@ -352,7 +355,7 @@ export function PreviewCalendar() {
 
         {view === "month" && (
           <>
-            <div className="hcal-dow">{DAY_LABELS.map((d) => <span key={d}>{d}</span>)}</div>
+            <div className="hcal-dow">{WEEK_HEADER.map((d) => <span key={d}>{d}</span>)}</div>
             <div className="hcal-grid">
               {monthGrid.map((cell, i) => {
                 const dayPosts = postsByDate.get(ymd(cell.date)) || [];
