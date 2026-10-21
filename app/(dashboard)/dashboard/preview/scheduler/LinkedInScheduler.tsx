@@ -172,6 +172,39 @@ export function LinkedInScheduler({ networkSwitch }: { networkSwitch?: React.Rea
   );
 }
 
+// LinkedIn's scheduled & posted list on its own, for the Scheduler's single tab —
+// posts are made from the Instagram/Facebook/LinkedIn ticks there now (21 Oct).
+export function LinkedInQueue() {
+  const [posts, setPosts] = useState<Post[] | null>(null);
+  const load = () => fetch("/api/scheduler/linkedin", { cache: "no-store" })
+    .then((r) => r.json()).then((d) => setPosts(d.posts || [])).catch(() => setPosts([]));
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!posts?.some((p) => p.status === "scheduled" || p.status === "publishing")) return;
+    const t = setTimeout(load, 8000);
+    return () => clearTimeout(t);
+  }, [posts]);
+  const cancel = async (id: string) => {
+    if (!await confirmDialog({ title: "Cancel this scheduled post?", body: "It won't be published.", action: "Cancel post", danger: true })) return;
+    await fetch(`/api/scheduler/linkedin?id=${id}`, { method: "DELETE", credentials: "same-origin" });
+    load();
+  };
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-brand-light text-brand"><IconBrandLinkedin size={15} /></span>
+        <div className="text-[13.5px] font-semibold text-[#232D42]">LinkedIn · scheduled &amp; posted</div>
+      </div>
+      {!posts ? <div className="h-24 flex items-center justify-center"><LoadingBlock label="Loading posts…" /></div> :
+        posts.length === 0 ? <div className="text-[13px] text-gray-400 py-4 text-center">Nothing on LinkedIn yet.</div> : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto">
+          {posts.map((p) => <QueueRow key={p.id} p={p} onCancel={cancel} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatusPill({ s }: { s: Post["status"] }) {
   const map = {
     published: { c: "bg-emerald-50 text-emerald-700", i: <IconCircleCheck size={12} />, t: "Published" },

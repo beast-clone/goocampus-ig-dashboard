@@ -8,7 +8,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { AutoTextarea } from "@/components/AutoTextarea";
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook } from "@tabler/icons-react";
-import { LinkedInScheduler } from "./LinkedInScheduler";
+import { LinkedInQueue } from "./LinkedInScheduler";
 import { ReelThumbnail } from "./ReelThumbnail";
 import { CollaboratorPicker } from "./CollaboratorPicker";
 import { CopyrightCheck } from "./CopyrightCheck";
@@ -96,15 +96,18 @@ function linkedInKeyFor(page: string): string | null {
 }
 
 const PAGE_OPTIONS: { value: PublishToPage; label: string; subtitle: string }[] = [
-  { value: "GooCampus Main",     label: "GooCampus Main",       subtitle: "@goocampus + 2 FB pages" },
+  { value: "GooCampus Main",     label: "GooCampus",            subtitle: "@goocampus + 2 FB pages" },
   { value: "GooCampus World",    label: "GooCampus World",      subtitle: "@goocampusworld + GooCampus World page" },
   { value: "12Plus / GC India",  label: "12thPlus.com",          subtitle: "@12thplusdotcom + GC India page" },
 ];
 
+// What people see for a stored page value — "GooCampus Main" is just "GooCampus".
+const pageLabel = (v: string) => PAGE_OPTIONS.find((o) => o.value === v)?.label || v;
+
 // Our own handles, offered before anyone types — collaborating with a sister
 // account is the common case and should not need a lookup.
 const OWN_IG_ACCOUNTS = [
-  { username: "goocampus", label: "GooCampus Main" },
+  { username: "goocampus", label: "GooCampus" },
   { username: "goocampusworld", label: "GooCampus World" },
   { username: "12thplusdotcom", label: "12thPlus.com" },
 ];
@@ -153,29 +156,12 @@ export default function SchedulerPage() {
 // self-contained LinkedIn scheduler (its own queue + cron worker). WhatsApp has
 // its own tab — Community Broadcast — because it is not a social post at all.
 function SchedulerTabs() {
-  const [tab, setTab] = useState<"meta" | "linkedin">("meta");
-
-  // Same segmented control as the To schedule / Calendar / Top performers row
-  // below it. Two switches doing the same job in two different shapes and two
-  // different sizes read as an accident, because that is what it was.
-  const networkSwitch = (
-    <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 gap-1">
-      {([["meta", "Instagram & Facebook", IconBrandMeta], ["linkedin", "LinkedIn", IconBrandLinkedin]] as const).map(([id, label, Icon]) => (
-        <button key={id} onClick={() => setTab(id)}
-          className={`inline-flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-md transition ${tab === id ? "bg-brand text-white" : "text-gray-600 hover:text-gray-900"}`}>
-          <Icon size={15} /> {label}
-        </button>
-      ))}
-    </div>
-  );
-  return (
-    <div>
-      {tab === "meta" ? <Scheduler networkSwitch={networkSwitch} /> : <LinkedInScheduler networkSwitch={networkSwitch} />}
-    </div>
-  );
+  // One tab for every network. LinkedIn had its own tab, which the team never found;
+  // it is now a tick next to Instagram and Facebook (Praveen, 21 Oct).
+  return <Scheduler />;
 }
 
-function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
+function Scheduler() {
   const sbus = useSbus();   // live brand list (sql/027)
   // Form state
   const [particulars, setParticulars] = useState("");
@@ -365,6 +351,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
     setComposePages(t.defaultPage ? [t.defaultPage] : []);
+    setAlsoLinkedIn(!!(t.defaultPage && linkedInKeyFor(t.defaultPage)));
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setShowCreateForm(true);
@@ -377,6 +364,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
     setComposePages(t.defaultPage ? [t.defaultPage] : []);
+    setAlsoLinkedIn(!!(t.defaultPage && linkedInKeyFor(t.defaultPage)));
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setScheduleEnabled(false);
@@ -586,7 +574,8 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
   const linkedInMediaUrl = pdfUrls[0] || metaMediaUrls[0];
   // PDF and nothing else → there is nothing for Instagram/Facebook to post, so
   // this becomes a LinkedIn-only post and the Meta queue is skipped entirely.
-  const linkedInOnly = pdfUrls.length > 0 && metaMediaUrls.length === 0;
+  // Same when Instagram and Facebook are both unticked — LinkedIn is all that's left.
+  const linkedInOnly = (pdfUrls.length > 0 && metaMediaUrls.length === 0) || (!toInstagram && !toFacebook);
   // Exactly one video and nothing else — the only shape a reel can be.
   const singleVideoUrl = useMemo(
     () => (metaMediaUrls.length === 1 && /\.mp4($|\?)/i.test(metaMediaUrls[0]) ? metaMediaUrls[0] : ""),
@@ -623,9 +612,11 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     cleanMediaUrls.length === 0 && "At least one image or video",
     // LinkedIn is ticked automatically, so this only fires if it was turned off
     // on a post whose only file is a PDF — nothing left to publish anywhere.
-    linkedInOnly && !(alsoLinkedIn && linkedInAvailable) && "Somewhere to post the PDF — turn LinkedIn back on, or add an image",
+    linkedInOnly && !(alsoLinkedIn && linkedInAvailable) && (toInstagram || toFacebook
+      ? "Somewhere to post the PDF — turn LinkedIn back on, or add an image"
+      : "Somewhere to post — tick Instagram, Facebook or LinkedIn"),
     scheduleEnabled && !(scheduleDate && scheduleTime) && "A date and time to publish",
-  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, linkedInAvailable, scheduleEnabled, scheduleDate, scheduleTime]);
+  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, linkedInAvailable, scheduleEnabled, scheduleDate, scheduleTime, toInstagram, toFacebook]);
   const canSubmit = missingToPublish.length === 0 && !submitting;
 
   // Posts already committed to the same local day for a given account (scheduled,
@@ -738,6 +729,54 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
     setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
     setFormat("post"); setCoverUrl(""); setSplitCaption(false); setCaptionFb(""); setSbu("");
   }
+
+  // Instagram, Facebook and LinkedIn in one row — in Create post AND in the panel a
+  // ready task opens in. LinkedIn used to sit on its own tab and the task panel had
+  // no network ticks at all, so nobody could find it (Praveen, 21 Oct).
+  const channelTicks = (
+    <div>
+      <div className="flex items-center gap-4 flex-wrap">
+        {([["Instagram", toInstagram, setToInstagram], ["Facebook", toFacebook, setToFacebook]] as const).map(([label, on, set]) => (
+          <label key={label} className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} className="w-4 h-4 accent-[#3A57E8]" />
+            <span className="text-sm text-gray-800">{label}</span>
+          </label>
+        ))}
+        <label className={`flex items-center gap-2 ${linkedInAvailable ? "cursor-pointer" : "cursor-not-allowed"}`}>
+          <input type="checkbox" checked={alsoLinkedIn && linkedInAvailable} disabled={!linkedInAvailable}
+            onChange={(e) => setAlsoLinkedIn(e.target.checked)} className="w-4 h-4 accent-[#3A57E8] disabled:opacity-40" />
+          <span className={`text-sm ${linkedInAvailable ? "text-gray-800" : "text-gray-400"}`}>LinkedIn</span>
+        </label>
+        <span className="text-xs text-gray-500 ml-auto">
+          {!linkedInAvailable ? "12thPlus.com has no LinkedIn page"
+            : alsoLinkedIn ? `LinkedIn page: ${linkedInPages.map((k) => (k === "world" ? "GooCampus World" : "GooCampus")).join(" · ")}` : ""}
+        </span>
+      </div>
+      {!toInstagram && !toFacebook && !(alsoLinkedIn && linkedInAvailable) && (
+        <div className="text-xs text-[#C0392B] mt-1">Tick at least one, or this goes nowhere.</div>
+      )}
+      {cleanMediaUrls.length > 0 && (
+        <div className="mt-2 text-xs space-y-1">
+          <div className="flex gap-2">
+            <span className="text-gray-500 w-[150px] shrink-0">Instagram + Facebook</span>
+            <span className={metaMediaUrls.length && (toInstagram || toFacebook) ? "text-[#232D42]" : "text-gray-400"}>
+              {!toInstagram && !toFacebook ? "not posting" : metaMediaUrls.length ? `${metaMediaUrls.length} image${metaMediaUrls.length === 1 ? "" : "s"}` : "nothing to post"}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-gray-500 w-[150px] shrink-0">LinkedIn</span>
+            {pdfUrls.length === 0 ? (
+              <span className="text-gray-400">{alsoLinkedIn && metaMediaUrls.length ? "first image" : "nothing to post"}</span>
+            ) : alsoLinkedIn ? (
+              <span className="text-[#232D42]">{pdfName(pdfUrls[0])}</span>
+            ) : (
+              <span className="text-[#C0392B]">{pdfName(pdfUrls[0])} — not being posted, LinkedIn is off</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   // Scheduled → the LinkedIn queue + cron; publish-now → the immediate route.
   // Sends the PDF when there is one, so the post lands as a document carousel.
@@ -938,12 +977,6 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
 
   return (
     <div>
-      {/* The three views are sidebar entries under Scheduler now, so the only thing
-          left on this row is the network, still directly above Create post. */}
-      <div className="flex items-center justify-end mb-5">
-        {networkSwitch}
-      </div>
-
       {schedTab === "to_schedule" && (
         <div>
           {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
@@ -1024,6 +1057,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</label>
                                 <div className="mt-1"><PageCheckboxes value={composePages} onChange={setComposePages} /></div>
+                                <div className="mt-2">{channelTicks}</div>
                               </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Collaborator</label>
@@ -1146,6 +1180,9 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
               onPublishNow={(p) => setPublishNowPost(p)}
               onDelete={(p) => setDeletePost(p)}
             />
+          )}
+          {listFilter !== "ready" && listFilter !== "failed" && (
+            <div className="mt-5"><LinkedInQueue /></div>
           )}
         </div>
       )}
@@ -1285,7 +1322,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
                 {gapWarn.minutes === 0 ? "Another post is already at that time" : `Only ${gapWarn.minutes} minutes apart`}
               </h3>
               <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
-                <b className="font-medium">{gapWarn.page}</b> already has
+                <b className="font-medium">{pageLabel(gapWarn.page)}</b> already has
                 {" "}<b className="font-medium">&ldquo;{gapWarn.other.particulars || "a post"}&rdquo;</b> at {gapWarn.whenLabel}.
               </p>
               <p className="mt-2.5 text-[11.5px] leading-relaxed text-[#8A92A6]">
@@ -1430,54 +1467,7 @@ function Scheduler({ networkSwitch }: { networkSwitch?: React.ReactNode }) {
         <div className="w-[600px] shrink-0 space-y-4 pb-1">
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
             <PageCheckboxes value={composePages} onChange={setComposePages} />
-            <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-gray-100">
-              <span className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</span>
-              {([["Instagram", toInstagram, setToInstagram], ["Facebook", toFacebook, setToFacebook]] as const).map(([label, on, set]) => (
-                <label key={label} className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)}
-                    className="w-4 h-4 accent-[#3A57E8]" />
-                  <span className="text-sm text-gray-800">{label}</span>
-                </label>
-              ))}
-              {!toInstagram && !toFacebook && (
-                <span className="text-xs text-[#C0392B]">Tick at least one, or nothing goes to Meta.</span>
-              )}
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-gray-100">
-              <input type="checkbox" checked={alsoLinkedIn && linkedInAvailable} disabled={!linkedInAvailable}
-                onChange={(e) => setAlsoLinkedIn(e.target.checked)}
-                className="w-4 h-4 accent-[#3A57E8] disabled:opacity-40" />
-              <span className={`text-sm inline-flex items-center gap-1.5 ${linkedInAvailable ? "text-gray-800" : "text-gray-400"}`}>
-                <IconBrandLinkedin size={16} className={linkedInAvailable ? "text-brand" : "text-gray-300"} /> Also post to LinkedIn
-              </span>
-              <span className="text-xs text-gray-500 ml-auto">
-                {!linkedInAvailable
-                  ? "12thPlus.com has no LinkedIn page"
-                  : alsoLinkedIn ? linkedInPages.map((k) => (k === "world" ? "World" : "GooCampus")).join(" · ") : ""}
-              </span>
-            </label>
-            {/* Where each file actually goes. Two lines, no paragraph — the
-                split is automatic, so it only needs stating, not explaining. */}
-            {cleanMediaUrls.length > 0 && (
-              <div className="mt-2 text-xs space-y-1">
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-[150px] shrink-0">Instagram + Facebook</span>
-                  <span className={metaMediaUrls.length ? "text-[#232D42]" : "text-gray-400"}>
-                    {metaMediaUrls.length ? `${metaMediaUrls.length} image${metaMediaUrls.length === 1 ? "" : "s"}` : "nothing to post"}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-[150px] shrink-0">LinkedIn</span>
-                  {pdfUrls.length === 0 ? (
-                    <span className="text-gray-400">{alsoLinkedIn && metaMediaUrls.length ? "first image" : "nothing to post"}</span>
-                  ) : alsoLinkedIn ? (
-                    <span className="text-[#232D42]">{pdfName(pdfUrls[0])}</span>
-                  ) : (
-                    <span className="text-[#C0392B]">{pdfName(pdfUrls[0])} — not being posted, LinkedIn is off</span>
-                  )}
-                </div>
-              </div>
-            )}
+            <div className="mt-2.5 pt-2.5 border-t border-gray-100">{channelTicks}</div>
           </Card>
 
           {format !== "story" && (
@@ -2299,7 +2289,7 @@ function ScheduleNowModal({ post, onClose, onConfirm }: {
                     className="w-4 h-4 accent-[#3A57E8]"
                   />
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-gray-900">{page}</div>
+                    <div className="text-xs font-medium text-gray-900">{pageLabel(page)}</div>
                     <div className="text-xs text-gray-500">{handle}</div>
                   </div>
                   {page === post.publishToPage && (
@@ -3259,7 +3249,7 @@ function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: st
       {open && (
         <div role="listbox" style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
           className="absolute left-0 right-0 top-[calc(100%+4px)] z-40 bg-white border border-gray-200 rounded overflow-hidden">
-          <div className="px-3 pt-2.5 pb-1.5 text-[13px] font-semibold text-[#232D42]">Post to Instagram and Facebook</div>
+          <div className="px-3 pt-2.5 pb-1.5 text-[13px] font-semibold text-[#232D42]">Brand pages</div>
           {PAGE_OPTIONS.map((o) => {
             const checked = value.includes(o.value);
             const isPrimary = value[0] === o.value;
