@@ -26,8 +26,8 @@ export const MY_DAY_CSS = `
 .hmd .sidebar-brand{display:flex;align-items:center;gap:10px;padding:20px 8px 16px}
 .hmd .sidebar-brand .logo{width:32px;height:32px;border-radius:9px;background:var(--brand);display:grid;place-items:center;color:#fff;transform:rotate(45deg);flex:0 0 32px}
 .hmd .sidebar-brand .logo svg{color:#fff}
-.hmd .sidebar-brand .brandname{font-weight:700;font-size:16px;color:var(--ink)}
-.hmd .navgroup{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:700;padding:13px 10px 5px}
+.hmd .sidebar-brand .brandname{font-weight:500;font-size:16px;color:var(--ink)}
+.hmd .navgroup{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:500;padding:13px 10px 5px}
 .hmd .navitem{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:14px;font-weight:500;color:var(--ink-soft);cursor:pointer;margin-bottom:1px;text-decoration:none}
 .hmd .navitem:hover{background:var(--panel-2)}
 .hmd .navitem.active{background:var(--brand);color:#fff;box-shadow:0 6px 14px rgba(58,87,232,.24)}
@@ -35,7 +35,7 @@ export const MY_DAY_CSS = `
 @media(min-width:1100px){.hmd .main.chatpad{padding-right:calc(clamp(296px,19vw,348px) + 1.6rem)}}
 .hmd .banner{font-size:14px;color:var(--muted);margin:0;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
 .hmd .banner b{color:var(--ink-soft)}
-.hmd .tagchg{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:600}
+.hmd .tagchg{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);background:var(--brand-soft);border-radius:5px;padding:.15em .5em;font-weight:500}
 .hmd .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.55rem}
 .hmd .icons{display:flex;align-items:center;gap:.5rem;position:relative}
 .hmd .topdivider{width:1px;height:22px;background:var(--line);margin:0 .35rem;flex:none}
@@ -44,7 +44,7 @@ export const MY_DAY_CSS = `
 .hmd .iconbtn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
 .hmd .iconbtn:disabled{opacity:.32;cursor:default;box-shadow:none}
 .hmd .iconbtn:disabled:hover{border-color:var(--line);color:var(--ink-soft)}
-.hmd .badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel)}
+.hmd .badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--brand);color:#fff;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel)}
 .hmd .badge.rose{background:var(--rose)}
 .hmd .backdrop{position:fixed;inset:0;z-index:30}
 .hmd .popover{position:absolute;top:46px;right:0;width:300px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 46px rgba(20,22,40,.16);padding:.9rem;z-index:50}
@@ -53,17 +53,17 @@ export const MY_DAY_CSS = `
 .hmd .empty{font-size:14px;color:var(--muted);padding:.6rem 0;text-align:center}
 .hmd .claim-row{display:flex;align-items:center;gap:.6rem;padding:.55rem .1rem;border-bottom:1px solid var(--line-2)}
 .hmd .claim-row:last-child{border-bottom:0}
-.hmd .claim-title{font-size:14px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmd .claim-title{font-size:14px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .claim-meta{font-size:12px;color:var(--muted);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .claim-row .btn{margin-left:auto;flex-shrink:0}
 .hmd .task.just-claimed{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
 .hmd .card{background:var(--panel);border:1px solid var(--line);border-radius:4px;box-shadow:var(--shadow)}
 .hmd .pad{padding:.75rem .9rem}
 .hmd .muted{color:var(--muted)}
-.hmd .lbl{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
-.hmd .pill{display:inline-flex;align-items:center;gap:.3em;font-size:12px;font-weight:600;padding:.16em .5em;border-radius:6px;white-space:nowrap}
+.hmd .lbl{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:500}
+.hmd .pill{display:inline-flex;align-items:center;gap:.3em;font-size:12px;font-weight:500;padding:.16em .5em;border-radius:6px;white-space:nowrap}
 .hmd .dot{width:8px;height:8px;border-radius:3px;display:inline-block}
-.hmd .btn{display:inline-flex;align-items:center;justify-content:center;gap:.35em;white-space:nowrap;font-size:14px;font-weight:600;border-radius:9px;padding:.5em .9em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer;transition:all .12s}
+.hmd .btn{display:inline-flex;align-items:center;justify-content:center;gap:.35em;white-space:nowrap;font-size:14px;font-weight:500;border-radius:9px;padding:.5em .9em;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer;transition:all .12s}
 .hmd .btn:hover{border-color:var(--cD9DEEA)}
 .hmd .btn.primary{background:var(--brand);color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(58,87,232,.24)}
 .hmd .btn.primary:hover{background:var(--brand-ink)}
@@ -74,14 +74,14 @@ export const MY_DAY_CSS = `
 .hmd .stats-wrap{display:flex;align-items:center;justify-content:flex-end;gap:1.6rem;flex-wrap:wrap}
 .hmd .dayctl{display:flex;align-items:center;gap:.5rem;padding-right:1.2rem;border-right:1px solid var(--line)}
 @media(max-width:900px){.hmd .dayctl{border-right:none;padding-right:0}}
-.hmd .who .hi{font-size:1.25rem;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.hmd .who .hi{font-size:1.25rem;font-weight:500;letter-spacing:-.01em;line-height:1.2}
 .hmd .who .sub{font-size:14px;color:var(--muted);margin-top:.2rem}
 .hmd .switch{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.2rem;gap:.15rem}
-.hmd .switch button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:.32em .7em;border-radius:7px;cursor:pointer}
+.hmd .switch button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:500;color:var(--muted);padding:.32em .7em;border-radius:7px;cursor:pointer}
 .hmd .switch button.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
 .hmd .stats{display:flex;gap:1.4rem;justify-content:flex-end;flex-wrap:wrap}
 @media(max-width:900px){.hmd .stats{justify-content:flex-start}}
-.hmd .stat .n{font-size:1.15rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.hmd .stat .n{font-size:1.15rem;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
 .hmd .stat .n.g{color:var(--good)}.hmd .stat .n.w{color:var(--warn)}.hmd .stat .n.b{color:var(--brand)}
 .hmd .stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:.1rem}
 .hmd .hero{margin-top:.6rem}
@@ -93,7 +93,7 @@ export const MY_DAY_CSS = `
 .hmd .legend span{display:inline-flex;gap:.3em;align-items:center}
 .hmd .timeline{display:flex;gap:.4rem;height:74px}
 .hmd .blk{flex:1;border-radius:10px;padding:.5rem .6rem;font-size:12px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
-.hmd .blk .t{font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hmd .blk .t{font-weight:500;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .hmd .blk .m{font-size:12px;opacity:.85}
 .hmd .blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
 .hmd .blk.reel2{background:linear-gradient(135deg,#7385F2,#4C63E8)}
@@ -116,7 +116,7 @@ export const MY_DAY_CSS = `
 .hmd .tl-blk.has-ext .tl-t,.hmd .tl-blk.has-ext .tl-m{padding-right:52px}
 .hmd .tl-ext{position:absolute;top:50%;right:5px;transform:translateY(-50%);z-index:2;pointer-events:none;
   background:#FFC24D;color:#4A3000;border:1px solid rgba(255,255,255,.65);border-radius:6px;
-  font-size:11px;font-weight:700;line-height:1;padding:.22em .42em;white-space:nowrap;font-variant-numeric:tabular-nums;
+  font-size:11px;font-weight:500;line-height:1;padding:.22em .42em;white-space:nowrap;font-variant-numeric:tabular-nums;
   box-shadow:0 1px 2px rgba(20,22,40,.22)}
 .hmd .tl-blk:last-child{border-right:0}
 .hmd .tl-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8);cursor:grab}
@@ -129,8 +129,8 @@ export const MY_DAY_CSS = `
 /* Samvaya / other-platform work — a distinct teal so it never reads as GooCampus work. */
 .hmd .tl-blk.reel.samvaya{background:linear-gradient(135deg,#12B3A6,#0E8E86)}
 .hmd .tl-blk.reel.samvaya:hover{filter:brightness(1.06)}
-.hmd .tl-tag{display:inline-block;background:rgba(255,255,255,.24);font-size:12px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;margin-right:.35rem;vertical-align:middle;text-transform:uppercase}
-.hmd .tl-t{font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmd .tl-tag{display:inline-block;background:rgba(255,255,255,.24);font-size:12px;font-weight:500;letter-spacing:.03em;padding:1px 5px;border-radius:5px;margin-right:.35rem;vertical-align:middle;text-transform:uppercase}
+.hmd .tl-t{font-weight:500;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .tl-m{font-size:12px;opacity:.85;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hmd .tl-nudge{position:absolute;top:50%;transform:translateY(-50%);width:18px;height:40px;border:none;border-radius:6px;background:rgba(255,255,255,.26);color:#fff;font-size:16px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;display:flex;align-items:center;justify-content:center;z-index:3;padding:0}
 .hmd .tl-blk.reel:hover .tl-nudge{opacity:1}
@@ -139,9 +139,9 @@ export const MY_DAY_CSS = `
 .hmd .tl-nudge.r{right:3px}
 .hmd .now-line{position:absolute;top:0;bottom:0;width:2px;background:#DC2E2E;z-index:5;pointer-events:none}
 .hmd .now-dot{position:absolute;top:3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#DC2E2E}
-.hmd .now-tag{position:absolute;top:2px;left:4px;background:#DC2E2E;color:#fff;font-size:12px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
+.hmd .now-tag{position:absolute;top:2px;left:4px;background:#DC2E2E;color:#fff;font-size:12px;font-weight:500;letter-spacing:.03em;padding:1px 5px;border-radius:5px;white-space:nowrap;z-index:6;pointer-events:none}
 .hmd .tl-guide{position:absolute;top:0;bottom:0;width:2px;background:#3A57E8;z-index:8;pointer-events:none;box-shadow:0 0 0 1px rgba(58,87,232,.25)}
-.hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:12px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap}
+.hmd .tl-guide-tag{position:absolute;top:4px;left:4px;background:#3A57E8;color:#fff;font-size:12px;font-weight:500;padding:2px 6px;border-radius:6px;white-space:nowrap}
 .hmd .work{display:grid;grid-template-columns:minmax(300px,.72fr) 2fr;gap:.75rem;margin-top:.6rem;align-items:stretch}
 @media(max-width:980px){.hmd .work{grid-template-columns:1fr}}
 /* The task-detail card scrolls INSIDE itself so a long brief/creatives list can
@@ -156,7 +156,7 @@ export const MY_DAY_CSS = `
 /* Filter bar: its own line, with room between each control. */
 .hmd .created-filters{display:flex;align-items:flex-end;gap:.9rem;flex-wrap:wrap;padding:.75rem .85rem;margin-bottom:.9rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
 .hmd .created-f{display:flex;flex-direction:column;gap:.3rem;min-width:0}
-.hmd .created-f-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.hmd .created-f-lbl{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
 .hmd .created-custom{flex-direction:row;align-items:center;gap:.4rem}
 .hmd .created-custom .created-f-lbl{align-self:center}
 .hmd .created-range{min-width:150px}
@@ -181,7 +181,7 @@ export const MY_DAY_CSS = `
 .hmd .tasklist::-webkit-scrollbar{width:6px}
 .hmd .tasklist::-webkit-scrollbar-thumb{background:var(--cE3E6EE);border-radius:3px}
 .hmd .task-tabs{display:flex;gap:.25rem;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:.2rem;margin-bottom:.7rem}
-.hmd .task-tab{flex:1;border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:.35em .3em;white-space:nowrap;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.3rem}
+.hmd .task-tab{flex:1;border:none;background:transparent;font:inherit;font-size:12px;font-weight:500;color:var(--muted);padding:.35em .3em;white-space:nowrap;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.3rem}
 .hmd .task-tab.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}
 .hmd .task-tab-n{font-size:12px;background:var(--cEDEFF4);color:var(--muted);border-radius:7px;padding:0 .35em;min-width:15px;text-align:center}
 .hmd .task-tab.on .task-tab-n{background:var(--brand-soft);color:var(--brand-ink)}
@@ -200,21 +200,21 @@ export const MY_DAY_CSS = `
 .hmd .profchip .profname{font-size:12px;font-weight:500}
 .hmd .profmenu{position:absolute;top:calc(100% + 6px);right:0;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.4rem;min-width:190px;box-shadow:0 10px 28px rgba(23,43,77,.14)}
 .hmd .profhead{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem .6rem;border-bottom:1px solid var(--line-2);margin-bottom:.35rem}
-.hmd .profhead-n{font-size:14px;font-weight:600;color:var(--ink)}
+.hmd .profhead-n{font-size:14px;font-weight:500;color:var(--ink)}
 .hmd .profhead-r{font-size:12px;color:var(--muted)}
 .hmd .profitem{display:flex;align-items:center;gap:.5rem;width:100%;padding:.5rem .55rem;border:none;background:transparent;border-radius:8px;font-size:14px;color:#C03221;cursor:pointer;text-align:left}
 .hmd .profitem:hover{background:var(--cFCEBEA)}
 .hmd .logout-screen{position:fixed;inset:0;z-index:120;background:rgba(246,247,251,.86);backdrop-filter:blur(3px);display:grid;place-items:center}
 .hmd .logout-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:2.4rem 2.6rem;text-align:center;max-width:380px;box-shadow:0 18px 50px rgba(23,43,77,.16)}
-.hmd .logout-badge{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:1.1rem;font-weight:600;margin-bottom:1rem}
-.hmd .logout-h{font-size:1.15rem;font-weight:600;color:var(--ink);margin-bottom:.4rem}
+.hmd .logout-badge{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--brand);color:#fff;font-size:1.1rem;font-weight:500;margin-bottom:1rem}
+.hmd .logout-h{font-size:1.15rem;font-weight:500;color:var(--ink);margin-bottom:.4rem}
 .hmd .logout-p{font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:1.4rem}
 .hmd .logout-card .btn{width:100%;justify-content:center}
 .hmd .logout-note{font-size:12px;color:var(--faint);margin-top:.9rem}
-.hmd .due-chip{display:inline-flex;align-items:center;gap:.25rem;font-size:12px;font-weight:600;color:var(--muted);flex-shrink:0;white-space:nowrap}
+.hmd .due-chip{display:inline-flex;align-items:center;gap:.25rem;font-size:12px;font-weight:500;color:var(--muted);flex-shrink:0;white-space:nowrap}
 .hmd .due-chip svg{width:11px;height:11px;flex:none;opacity:.9}
 .hmd .due-chip.od{color:#C03221}
-.hmd .task .tt{font-weight:600;font-size:14px;line-height:1.25}
+.hmd .task .tt{font-weight:500;font-size:14px;line-height:1.25}
 .hmd .task .mm{font-size:12px;color:var(--muted);margin:.2rem 0 .35rem}
 /* One line for "Carousel · owned by Praveen" + the status pill, so each card is a
    row shorter and more tasks fit without scrolling. */
@@ -224,8 +224,8 @@ export const MY_DAY_CSS = `
 /* Dates and state, right-aligned in their own column so they line up row to row. */
 .hmd .task .task-side{display:flex;flex-direction:column;align-items:flex-end;gap:.25rem;flex:none}
 /* A quieter pill for the list — the status is context here, not the headline. */
-.hmd .pill.xs{font-size:11px;font-weight:600;padding:.1em .42em;border-radius:5px}
-.hmd .detail .d-title{font-size:1.1rem;font-weight:700;letter-spacing:-.01em}
+.hmd .pill.xs{font-size:11px;font-weight:500;padding:.1em .42em;border-radius:5px}
+.hmd .detail .d-title{font-size:1.1rem;font-weight:500;letter-spacing:-.01em}
 .hmd .d-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
 .hmd .d-head-main{min-width:0}
 .hmd .status-box{flex-shrink:0;text-align:right}
@@ -233,9 +233,9 @@ export const MY_DAY_CSS = `
 /* task duration control (next to the status dropdown) */
 .hmd .dur-ctl{display:inline-flex;align-items:center;gap:.3rem;margin-top:.5rem;margin-left:.5rem;border:1px solid var(--line);border-radius:8px;padding:.25rem .4rem;background:var(--panel-2)}
 .hmd .dur-ic{font-size:14px}
-.hmd .dur-select{border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--ink-soft);cursor:pointer;outline:none}
+.hmd .dur-select{border:none;background:transparent;font:inherit;font-size:12px;font-weight:500;color:var(--ink-soft);cursor:pointer;outline:none}
 /* claim-pool modal + claim-pool button badge */
-.hmd .teamcap-n{background:var(--brand);color:#fff;font-size:12px;font-weight:700;border-radius:8px;min-width:16px;height:16px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;margin-left:.1rem}
+.hmd .teamcap-n{background:var(--brand);color:#fff;font-size:12px;font-weight:500;border-radius:8px;min-width:16px;height:16px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;margin-left:.1rem}
 .hmd .claim-list{display:flex;flex-direction:column;gap:.5rem;max-height:52vh;overflow:auto}
 .hmd .claim-card{display:flex;align-items:center;gap:.7rem;border:1px solid var(--line);border-radius:11px;padding:.7rem .85rem}
 .hmd .claim-card:hover{border-color:var(--cD9DEEA);background:var(--panel-2)}
@@ -257,9 +257,9 @@ export const MY_DAY_CSS = `
 .hmd .apprstrip{width:100%;margin-top:1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem;border:1px solid var(--cE9ECFB);border-left:3px solid var(--brand);background:var(--panel);border-radius:12px;padding:.7rem .95rem;cursor:pointer;transition:all .12s;text-align:left}
 .hmd .apprstrip:hover{background:var(--cFAFBFF);border-color:var(--cD9DEEA)}
 .hmd .apprstrip-l{display:flex;align-items:center;gap:.55rem;color:var(--c232D42);font-size:14px}
-.hmd .apprstrip-l b{font-weight:600}
+.hmd .apprstrip-l b{font-weight:500}
 .hmd .apprstrip-l svg{color:var(--brand);flex-shrink:0}
-.hmd .apprstrip-cta{display:inline-flex;align-items:center;gap:.3rem;color:var(--brand);font-weight:600;font-size:12px;flex-shrink:0}
+.hmd .apprstrip-cta{display:inline-flex;align-items:center;gap:.3rem;color:var(--brand);font-weight:500;font-size:12px;flex-shrink:0}
 
 /* Yesterday's radar, one line. Deliberately lighter than .apprstrip — an approval is
    waiting ON you, where this is a thing that already happened. The only colour is one
@@ -274,7 +274,7 @@ export const MY_DAY_CSS = `
 .hmd .rcrumb-dot{width:7px;height:7px;border-radius:50%;background:#C03221;flex:none}
 .hmd .rcrumb-dot.ok{background:#1AA053}
 .hmd .rcrumb-txt{flex:1;font-size:13.8px;color:var(--c232D42)}
-.hmd .rcrumb-txt b{font-weight:700}
+.hmd .rcrumb-txt b{font-weight:500}
 .hmd .rcrumb-sep{color:var(--faint);font-size:13px}
 .hmd .rcrumb-when{font-size:12.5px;color:var(--faint)}
 .hmd .rcrumb-chev{color:var(--muted);font-size:12px;transition:transform .15s}
@@ -288,14 +288,14 @@ export const MY_DAY_CSS = `
   border-top:1px solid var(--line-2);font-size:14px}
 .hmd .rcrumb-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c232D42)}
 .hmd .rcrumb-src{font-size:12px;color:var(--faint);white-space:nowrap}
-.hmd .rcrumb-write{font-size:13px;font-weight:600;color:var(--brand);white-space:nowrap;text-decoration:none}
+.hmd .rcrumb-write{font-size:13px;font-weight:500;color:var(--brand);white-space:nowrap;text-decoration:none}
 .hmd .rcrumb-write:hover{text-decoration:underline}
 .hmd .rcrumb-foot{padding-top:.6rem;margin-top:.15rem;border-top:1px solid var(--line-2);
   font-size:12.5px;color:var(--faint)}
 .hmd .rcrumb-foot a{color:var(--brand);text-decoration:none}
 .hmd .appr-card{display:flex;flex-direction:column;gap:.4rem;border:1px solid var(--line);border-radius:11px;padding:.8rem .9rem}
 .hmd .appr-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-.hmd .appr-title{font-size:14px;font-weight:600;color:var(--c232D42);text-decoration:none;border-bottom:1px dashed var(--cB9C2E0)}
+.hmd .appr-title{font-size:14px;font-weight:500;color:var(--c232D42);text-decoration:none;border-bottom:1px dashed var(--cB9C2E0)}
 .hmd .appr-title:hover{color:var(--brand)}
 .hmd .appr-type{font-size:12px;background:var(--panel-2);color:var(--c3B4457);border-radius:99px;padding:1px 8px;font-weight:500}
 .hmd .appr-move{font-size:14px;color:var(--c232D42);display:flex;align-items:center;gap:.35rem}
@@ -303,20 +303,20 @@ export const MY_DAY_CSS = `
 .hmd .appr-move .to{color:var(--brand)}
 .hmd .appr-move .arw{color:#8A92A6}
 .hmd .appr-meta{font-size:12px;color:#8A92A6;line-height:1.55}
-.hmd .appr-meta b{color:var(--c3B4457);font-weight:600}
+.hmd .appr-meta b{color:var(--c3B4457);font-weight:500}
 .hmd .appr-reason{font-size:12px;color:var(--c3B4457);background:var(--cFAFBFF);border:1px solid var(--cEEF1FD);border-radius:8px;padding:.4rem .6rem}
 .hmd .appr-reason .muted{color:#8A92A6}
 .hmd .appr-actions{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.15rem}
 .hmd .status-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
 .hmd .status-caret{position:absolute;right:.65rem;top:50%;width:0;height:0;margin-top:-2px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;pointer-events:none}
 .hmd .status-dd{position:relative;display:inline-block}
-.hmd .status-dd-btn{position:relative;display:inline-flex;align-items:center;gap:.45rem;border:1px solid rgba(35,45,66,.08);border-radius:9px;padding:.42rem 1.55rem .42rem .65rem;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.hmd .status-dd-btn{position:relative;display:inline-flex;align-items:center;gap:.45rem;border:1px solid rgba(35,45,66,.08);border-radius:9px;padding:.42rem 1.55rem .42rem .65rem;font:inherit;font-size:14px;font-weight:500;cursor:pointer}
 .hmd .status-dd-val{white-space:nowrap}
 .hmd .status-dd-back{position:fixed;inset:0;z-index:40}
 .hmd .status-dd-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 46px rgba(20,22,40,.16);padding:.35rem;min-width:238px;max-height:344px;overflow:auto}
 .hmd .status-dd-item{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;border:none;background:transparent;font:inherit;font-size:14px;font-weight:500;color:var(--ink);padding:.5rem .6rem;border-radius:8px;cursor:pointer}
 .hmd .status-dd-item:hover{background:var(--panel-2)}
-.hmd .status-dd-item.on{font-weight:700;background:var(--panel-2)}
+.hmd .status-dd-item.on{font-weight:500;background:var(--panel-2)}
 .hmd .status-dd-item-lbl{flex:1;white-space:nowrap}
 .hmd .status-dd-check{color:var(--brand);font-weight:800}
 /* header capsule row — In Progress · duration · live countdown, all equal height */
@@ -326,7 +326,7 @@ export const MY_DAY_CSS = `
 /* generic themed dropdown — swaps the off-brand native <select> everywhere */
 .hmd .ui-dd{position:relative;display:inline-block}
 .hmd .ui-dd.wide{display:block;width:100%}
-.hmd .ui-dd-btn{position:relative;display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:.42rem 1.55rem .42rem .7rem;font:inherit;font-size:14px;font-weight:600;color:var(--ink-soft);cursor:pointer}
+.hmd .ui-dd-btn{position:relative;display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:.42rem 1.55rem .42rem .7rem;font:inherit;font-size:14px;font-weight:500;color:var(--ink-soft);cursor:pointer}
 .hmd .ui-dd.wide .ui-dd-btn{width:100%;justify-content:flex-start}
 .hmd .ui-dd-btn:hover{border-color:var(--brand)}
 .hmd .ui-dd-val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -336,11 +336,11 @@ export const MY_DAY_CSS = `
 .hmd .ui-dd-menu{position:absolute;top:calc(100% + 6px);z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 46px rgba(20,22,40,.16);padding:.35rem;min-width:180px;max-height:300px;overflow:auto}
 .hmd .ui-dd-item{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;border:none;background:transparent;font:inherit;font-size:14px;font-weight:500;color:var(--ink);padding:.5rem .6rem;border-radius:8px;cursor:pointer}
 .hmd .ui-dd-item:hover{background:var(--panel-2)}
-.hmd .ui-dd-item.on{font-weight:700;background:var(--panel-2)}
+.hmd .ui-dd-item.on{font-weight:500;background:var(--panel-2)}
 .hmd .ui-dd-item-lbl{flex:1;white-space:nowrap}
 .hmd .ui-dd-check{color:var(--brand);font-weight:800}
 /* live countdown capsule in the task header (brand → amber when over) */
-.hmd .sw-btn{display:inline-flex;align-items:center;gap:.35rem;border-radius:9px;padding:0 .8rem;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer;border:1px solid transparent}
+.hmd .sw-btn{display:inline-flex;align-items:center;gap:.35rem;border-radius:9px;padding:0 .8rem;font-size:14px;font-weight:500;white-space:nowrap;cursor:pointer;border:1px solid transparent}
 .hmd .sw-btn.start{background:var(--brand);color:#fff}
 .hmd .sw-btn.start:hover{background:#2138B0}
 .hmd .sw-btn.stop{background:var(--cFCEBEC);color:var(--cC0201F);border-color:var(--cF3C6CE)}
@@ -349,8 +349,8 @@ export const MY_DAY_CSS = `
 .hmd .sw-btn.cancel{background:var(--panel);color:var(--muted);border-color:var(--line)}
 .hmd .sw-btn.cancel:hover{background:var(--panel-2);color:var(--ink-soft);border-color:var(--cD9DEEA)}
 /* The planned time while the clock runs: shown, not editable. */
-.hmd .dur-locked{display:inline-flex;align-items:center;gap:.35rem;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:0 .7rem;font-size:13px;font-weight:600;white-space:nowrap;cursor:default}
-.hmd .cap-timer{display:inline-flex;align-items:center;border:1px solid var(--cD5DCF8);border-radius:9px;background:var(--brand-soft);color:var(--brand-ink);padding:0 .7rem;font-size:14px;font-weight:700;white-space:nowrap}
+.hmd .dur-locked{display:inline-flex;align-items:center;gap:.35rem;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:0 .7rem;font-size:13px;font-weight:500;white-space:nowrap;cursor:default}
+.hmd .cap-timer{display:inline-flex;align-items:center;border:1px solid var(--cD5DCF8);border-radius:9px;background:var(--brand-soft);color:var(--brand-ink);padding:0 .7rem;font-size:14px;font-weight:500;white-space:nowrap}
 .hmd .cap-timer.over{background:var(--warn-soft);border-color:var(--cF3D9AE);color:var(--c8A5A00)}
 .hmd .collab-cell{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
 /* Each collaborator is its own chip so it can carry a remove control. The × only
@@ -363,7 +363,7 @@ export const MY_DAY_CSS = `
 .hmd .detail .d-sub{font-size:12px;color:var(--muted);margin-top:.3rem}
 .hmd .detail .d-meta{font-size:12px;color:var(--muted);margin:.25rem 0 .8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
 .hmd .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.9rem;padding:.8rem 0;border-top:1px solid var(--line-2)}
-.hmd .mlbl{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem;font-weight:600}
+.hmd .mlbl{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem;font-weight:500}
 .hmd .mval{font-size:14px;color:var(--ink-soft);font-weight:500}
 .hmd .collab{display:flex;align-items:center;gap:.4rem;margin-top:.9rem;flex-wrap:wrap}
 .hmd .collab .mlbl{margin:0 .3rem 0 0}
@@ -376,12 +376,12 @@ export const MY_DAY_CSS = `
 .hmd .collab-opt{display:flex;align-items:center;gap:.45rem;width:100%;padding:.4rem .5rem;border:none;background:transparent;border-radius:8px;font-size:14px;color:var(--ink-soft);cursor:pointer;text-align:left}
 .hmd .collab-opt:hover{background:var(--panel-2)}
 .hmd .collab-opt:disabled{opacity:.5;cursor:default}
-.hmd .section-lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin:1.15rem 0 .5rem}
+.hmd .section-lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:500;margin:1.15rem 0 .5rem}
 .hmd .brief{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:.8rem .9rem;font-size:14px;color:var(--ink-soft);line-height:1.6}
 .hmd .brief-full{white-space:pre-wrap;word-break:break-word}
 .hmd .section-head{display:flex;align-items:center;justify-content:space-between;margin:1.15rem 0 .5rem}
 .hmd .section-head .section-lbl{margin:0}
-.hmd .copy-btn{font-size:12px;font-weight:600;color:var(--brand-ink);background:var(--brand-soft);border:1px solid transparent;border-radius:7px;padding:.3em .65em;cursor:pointer;transition:background .12s}
+.hmd .copy-btn{font-size:12px;font-weight:500;color:var(--brand-ink);background:var(--brand-soft);border:1px solid transparent;border-radius:7px;padding:.3em .65em;cursor:pointer;transition:background .12s}
 .hmd .copy-btn:hover{background:var(--cDCE1FA)}
 .hmd .brief .para{margin:0 0 .7rem}
 .hmd .brief .para:last-child{margin-bottom:0}
@@ -395,12 +395,12 @@ export const MY_DAY_CSS = `
 .hmd .thumb-add{width:104px;height:132px;border:1.5px dashed var(--cC7CEDD);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;color:var(--muted);cursor:pointer;background:var(--panel-2);transition:all .12s}
 .hmd .thumb-add:hover{border-color:var(--brand);color:var(--brand-ink)}
 .hmd .thumb-add-plus{font-size:1.25rem;line-height:1}
-.hmd .thumb-add-lbl{font-size:12px;font-weight:600}
+.hmd .thumb-add-lbl{font-size:12px;font-weight:500}
 .hmd .upload-drop{display:flex;align-items:center;gap:.7rem;border:1px dashed var(--cC7CEDD);border-radius:4px;padding:.55rem .75rem;cursor:pointer;background:var(--panel-2);transition:border-color .12s}
 .hmd .upload-drop:hover{border-color:var(--brand)}
 .hmd .fld-pen{margin-left:.35rem;border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:1px 3px;cursor:pointer;color:var(--muted);vertical-align:middle;line-height:0}
 .hmd .fld-pen:hover{border-color:var(--brand);color:var(--brand)}
-.hmd .fld-hint{margin-left:.3rem;color:var(--brand);font-weight:700}
+.hmd .fld-hint{margin-left:.3rem;color:var(--brand);font-weight:500}
 .hmd .fld-edit{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem;padding:.4rem;border:1px solid var(--line);border-radius:4px;background:var(--panel-2)}
 .hmd .fld-dd{position:absolute;z-index:30;margin-top:.3rem;min-width:150px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:4px;box-shadow:0 12px 32px rgba(35,45,66,.16);overflow:hidden}
 .hmd .fld-dd-item{display:flex;align-items:center;gap:.4rem;border:none;background:none;padding:.4rem .55rem;cursor:pointer;text-align:left;font:inherit}
@@ -421,7 +421,7 @@ export const MY_DAY_CSS = `
 .hmd .cv-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;border:none;font-size:1.3rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1}
 .hmd .cv-nav.prev{left:10px}.hmd .cv-nav.next{right:10px}
 .hmd .cv-nav:hover{background:rgba(0,0,0,.68)}
-.hmd .cv-count{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;font-weight:600;padding:.15rem .5rem;border-radius:20px}
+.hmd .cv-count{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;font-weight:500;padding:.15rem .5rem;border-radius:20px}
 .hmd .cv-name{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#fff;font-size:14px;padding:.6rem .2rem 0}
 .hmd .cv-fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
 .hmd .cv-dots{display:flex;gap:5px;flex:0 0 auto}
@@ -429,13 +429,13 @@ export const MY_DAY_CSS = `
 .hmd .cv-dot.on{background:#fff;width:18px;border-radius:4px}
 .hmd .activity{display:flex;flex-direction:column;gap:.4rem}
 .hmd .act-row{font-size:12px;color:var(--muted);line-height:1.4}
-.hmd .act-row b{color:var(--ink-soft);font-weight:600}
+.hmd .act-row b{color:var(--ink-soft);font-weight:500}
 .hmd .act-time{color:var(--faint)}
 .hmd .mini-tl{display:flex;gap:.3rem;margin-top:.9rem}
 .hmd .step{flex:1;text-align:center;font-size:12px;color:var(--muted)}
 .hmd .step .bar{height:5px;border-radius:4px;background:var(--line);margin-bottom:.35rem}
 .hmd .step.done .bar{background:var(--good)}.hmd .step.now .bar{background:var(--brand)}
-.hmd .step.done{color:var(--good)}.hmd .step.now{color:var(--brand-ink);font-weight:600}
+.hmd .step.done{color:var(--good)}.hmd .step.now{color:var(--brand-ink);font-weight:500}
 .hmd .d-actions{display:flex;gap:.5rem;margin-top:1.1rem;flex-wrap:wrap}
 .hmd .note{display:flex;gap:.5rem;align-items:flex-start;font-size:14px;padding:.42rem 0;border-bottom:1px solid var(--line-2);cursor:pointer}
 .hmd .note:last-of-type{border-bottom:0}
@@ -457,11 +457,11 @@ export const MY_DAY_CSS = `
 .hmd .chat-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem .75rem;border-bottom:1px solid var(--line)}
 .hmd .chat-head h3{margin:0;font-size:14.5px;display:flex;align-items:center;gap:.5rem}
 .hmd .chat-head-acts{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
-.hmd .pinbtn{font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;padding:.3em .55em;cursor:pointer;display:inline-flex;align-items:center;gap:.3em;white-space:nowrap;flex-shrink:0}
+.hmd .pinbtn{font-size:12px;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;padding:.3em .55em;cursor:pointer;display:inline-flex;align-items:center;gap:.3em;white-space:nowrap;flex-shrink:0}
 .hmd .pinbtn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
 .hmd .closebtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;display:inline-grid;place-items:center;flex-shrink:0}
 .hmd .closebtn:hover{color:var(--ink);border-color:var(--cD9DEEA)}
-.hmd .online{font-size:12px;color:var(--good);font-weight:600}
+.hmd .online{font-size:12px;color:var(--good);font-weight:500}
 .hmd .chat-scroll{flex:1;min-height:0;overflow:auto;padding:.3rem 1.1rem}
 .hmd .chat-foot{padding:.7rem 1.1rem;border-top:1px solid var(--line)}
 .hmd .chat-day{text-align:center;font-size:12px;color:var(--faint);margin:.7rem 0 .3rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
@@ -479,8 +479,8 @@ export const MY_DAY_CSS = `
 .hmd .chat-msg:last-child{border-bottom:0}
 .hmd .chat-msg.me .body{color:var(--brand-ink)}
 .hmd .chat-scroll{padding:.2rem 1rem}
-.hmd .av{width:26px;height:26px;border-radius:50%;flex:0 0 26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
-.hmd .chat-msg .who2{font-weight:600;font-size:12px}.hmd .chat-msg .tm{color:var(--faint);font-size:12px;margin-left:.35rem}
+.hmd .av{width:26px;height:26px;border-radius:50%;flex:0 0 26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff}
+.hmd .chat-msg .who2{font-weight:500;font-size:12px}.hmd .chat-msg .tm{color:var(--faint);font-size:12px;margin-left:.35rem}
 .hmd .chat-msg .body{color:var(--ink-soft);line-height:1.35}
 /* WhatsApp-style thread bubbles — mine right (blue), theirs left (white) */
 .hmd .chat-scroll.thread{background:var(--bg);padding:.5rem .8rem}
@@ -490,7 +490,7 @@ export const MY_DAY_CSS = `
 .hmd .bubble{max-width:78%;padding:.4rem .55rem .3rem;border-radius:13px;font-size:14px;line-height:1.35;box-shadow:0 1px 1px rgba(20,22,40,.05)}
 .hmd .bubble-row:not(.me) .bubble{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px;color:var(--ink)}
 .hmd .bubble-row.me .bubble{background:var(--brand);color:#fff;border-bottom-right-radius:4px}
-.hmd .bubble-who{font-size:12px;font-weight:700;margin-bottom:.05rem}
+.hmd .bubble-who{font-size:12px;font-weight:500;margin-bottom:.05rem}
 .hmd .bubble-body{white-space:pre-wrap;word-break:break-word}
 .hmd .bubble-tm{display:block;text-align:right;font-size:12px;margin-top:.1rem}
 .hmd .bubble-row.me .bubble-tm{color:rgba(255,255,255,.8)}
@@ -504,18 +504,18 @@ export const MY_DAY_CSS = `
 .hmd .chat-list-row:hover{background:var(--panel-2)}
 .hmd .chat-list-row .av{width:38px;height:38px;font-size:14px;flex:0 0 38px}
 .hmd .cl-mid{flex:1;min-width:0}
-.hmd .cl-name{font-size:14px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:.35rem}
+.hmd .cl-name{font-size:14px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:.35rem}
 .hmd .cl-dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:0 0 7px}
 .hmd .cl-last{font-size:12px;color:var(--muted);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmd .cl-right{display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;flex-shrink:0}
 .hmd .cl-time{font-size:12px;color:var(--faint)}
-.hmd .cl-unread{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.hmd .cl-unread{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--brand);color:#fff;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center}
 /* toast */
 .hmd .toast{position:fixed;bottom:22px;right:22px;width:308px;background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:0 18px 48px rgba(20,22,40,.18);padding:.7rem .85rem;display:flex;gap:.6rem;align-items:center;z-index:60;cursor:pointer;animation:hmdslide .3s ease}
 @keyframes hmdslide{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
-.hmd .toast .who2{font-weight:600;font-size:12px;color:var(--ink)}
+.hmd .toast .who2{font-weight:500;font-size:12px;color:var(--ink)}
 .hmd .toast .body{font-size:12px;color:var(--ink-soft);line-height:1.3}
-.hmd .toast-cta{margin-left:auto;font-size:12px;font-weight:700;color:var(--brand-ink)}
+.hmd .toast-cta{margin-left:auto;font-size:12px;font-weight:500;color:var(--brand-ink)}
 /* prominent handoff card (right side, before demoting to the bell) */
 .hmd .handoff-card{position:fixed;top:74px;right:22px;width:320px;background:var(--panel);border:1px solid var(--brand);border-radius:14px;box-shadow:0 20px 50px rgba(58,87,232,.20);padding:.9rem 1rem;z-index:55;animation:hmdslide .3s ease}
 /* task popup */
@@ -532,22 +532,22 @@ export const MY_DAY_CSS = `
 .hmd .nt-card{max-width:520px}
 .hmd .nt-field{margin-bottom:.9rem}
 .hmd .nt-row{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
-.hmd .nt-label{display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.35rem}
+.hmd .nt-label{display:block;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.35rem}
 .hmd .nt-input{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:.55rem .65rem;outline:none}
 .hmd .nt-input:focus{border-color:var(--brand)}
 .hmd .nt-textarea{resize:vertical;min-height:98px;line-height:1.5}
 .hmd .nt-hint{font-weight:400;font-size:12px;color:var(--faint);text-transform:none;letter-spacing:0;margin-left:.4rem}
-.hmd .nt-req{font-weight:600;font-size:12px;color:#C03221;background:var(--cFBE7E4);border-radius:5px;padding:.05em .4em;text-transform:uppercase;letter-spacing:.03em;margin-left:.35rem}
+.hmd .nt-req{font-weight:500;font-size:12px;color:#C03221;background:var(--cFBE7E4);border-radius:5px;padding:.05em .4em;text-transform:uppercase;letter-spacing:.03em;margin-left:.35rem}
 .hmd .nt-thumb{border:1px solid var(--line);border-radius:12px;background:var(--panel-2);padding:.8rem .9rem;margin-bottom:.9rem}
 .hmd .nt-thumb-ask{display:flex;align-items:center;gap:.5rem;cursor:pointer}
-.hmd .nt-thumb-asktext{font-size:14px;font-weight:600;color:var(--ink)}
-.hmd .nt-thumb-type{font-size:12px;font-weight:600;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:.1em .45em}
+.hmd .nt-thumb-asktext{font-size:14px;font-weight:500;color:var(--ink)}
+.hmd .nt-thumb-type{font-size:12px;font-weight:500;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:.1em .45em}
 .hmd .nt-thumb-body{margin-top:.85rem;padding-top:.85rem;border-top:1px solid var(--line)}
 .hmd .nt-thumb-who{display:grid;gap:.45rem}
 .hmd .nt-thumb-opt{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:.55rem .7rem;font:inherit;cursor:pointer;transition:border-color .12s,background .12s}
 .hmd .nt-thumb-opt:hover{border-color:var(--cD9DEEA)}
 .hmd .nt-thumb-opt.on{border-color:var(--brand);background:var(--brand-soft)}
-.hmd .nt-thumb-opt-lbl{display:block;font-size:14px;font-weight:600;color:var(--ink)}
+.hmd .nt-thumb-opt-lbl{display:block;font-size:14px;font-weight:500;color:var(--ink)}
 .hmd .nt-thumb-opt-sub{display:block;font-size:12px;color:var(--muted);margin-top:.15rem;line-height:1.45}
 .hmd .nt-thumb-opt.on .nt-thumb-opt-sub{color:var(--brand-ink)}
 .hmd .nt-thumb-note{font-size:12px;color:var(--muted);line-height:1.5}
@@ -561,20 +561,20 @@ export const MY_DAY_CSS = `
 .hmd .dp-backdrop{position:fixed;inset:0;z-index:80}
 .hmd .dp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:81;width:266px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 46px rgba(20,22,40,.18);padding:.8rem;animation:hmdslide .16s ease}
 .hmd .dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
-.hmd .dp-title{font-size:14px;font-weight:700;color:var(--ink)}
+.hmd .dp-title{font-size:14px;font-weight:500;color:var(--ink)}
 .hmd .dp-nav{display:flex;gap:.3rem}
 .hmd .dp-nav button{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
 .hmd .dp-nav button:hover{background:var(--panel-2);color:var(--brand-ink);border-color:var(--cD9DEEA)}
 .hmd .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
 .hmd .dp-dow{margin-bottom:2px}
-.hmd .dp-dow span{text-align:center;font-size:12px;font-weight:700;color:var(--faint);text-transform:uppercase;padding:.25rem 0}
+.hmd .dp-dow span{text-align:center;font-size:12px;font-weight:500;color:var(--faint);text-transform:uppercase;padding:.25rem 0}
 .hmd .dp-day{aspect-ratio:1;border:none;background:transparent;border-radius:8px;font:inherit;font-size:12px;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s}
 .hmd .dp-day:hover{background:var(--brand-soft);color:var(--brand-ink)}
-.hmd .dp-day.today{color:var(--brand-ink);font-weight:700;box-shadow:inset 0 0 0 1.5px var(--brand-soft)}
-.hmd .dp-day.sel{background:var(--brand);color:#fff;font-weight:700;box-shadow:0 4px 10px rgba(58,87,232,.3)}
+.hmd .dp-day.today{color:var(--brand-ink);font-weight:500;box-shadow:inset 0 0 0 1.5px var(--brand-soft)}
+.hmd .dp-day.sel{background:var(--brand);color:#fff;font-weight:500;box-shadow:0 4px 10px rgba(58,87,232,.3)}
 .hmd .dp-empty{aspect-ratio:1}
 .hmd .dp-foot{display:flex;justify-content:space-between;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--line-2)}
-.hmd .dp-link{border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--brand-ink);cursor:pointer}
+.hmd .dp-link{border:none;background:transparent;font:inherit;font-size:12px;font-weight:500;color:var(--brand-ink);cursor:pointer}
 .hmd .dp-link:hover{text-decoration:underline}
 .hmd .nt-assign{display:flex;align-items:flex-start;gap:.5rem;font-size:14px;color:var(--ink-soft);line-height:1.4;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.65rem .75rem;margin:.3rem 0 1.2rem}
 .hmd .nt-assign .status-dot{margin-top:.35rem}
@@ -591,14 +591,14 @@ export const MY_DAY_CSS = `
 .hmd .nt-route-dot.on{background:var(--good)}
 .hmd .nt-route-dot.pool{background:var(--brand)}
 .hmd .nt-route-dot.wait{background:var(--warn)}
-.hmd .nt-route-headline{font-size:13.5px;font-weight:600;color:var(--ink)}
+.hmd .nt-route-headline{font-size:13.5px;font-weight:500;color:var(--ink)}
 .hmd .nt-route-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem .9rem}
 .hmd .nt-route-why{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--line)}
 .hmd .collab-chip.off{opacity:.45;filter:grayscale(1)}
-.hmd .collab-auto{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--cEDEFF4);border-radius:5px;padding:.1em .35em;margin-left:.1rem}
+.hmd .collab-auto{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:500;color:var(--muted);background:var(--cEDEFF4);border-radius:5px;padding:.1em .35em;margin-left:.1rem}
 /* The panel at rest — nothing open, so it offers the one thing you'd want next. */
 .hmd .panel-rest{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;text-align:center;padding:3.2rem 1rem;min-height:220px}
-.hmd .panel-rest-title{font-size:15px;font-weight:600;color:var(--ink-soft)}
+.hmd .panel-rest-title{font-size:15px;font-weight:500;color:var(--ink-soft)}
 .hmd .panel-rest-sub{font-size:13px;color:var(--muted);max-width:34ch;line-height:1.45}
 .hmd .panel-rest .btn{margin-top:.5rem}
 /* ── Grouped reminders ──────────────────────────────────────────────────── */
@@ -607,9 +607,9 @@ export const MY_DAY_CSS = `
 .hmd .rem-head:hover{background:var(--panel-2)}
 .hmd .rem-caret{display:inline-block;color:var(--faint);font-size:15px;line-height:1;transition:transform .15s ease;flex:none}
 .hmd .rem-caret.on{transform:rotate(90deg)}
-.hmd .rem-head-lbl{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);flex:none}
+.hmd .rem-head-lbl{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);flex:none}
 .hmd .rem-head-peek{font-size:13px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
-.hmd .rem-head-act{font-size:12px;font-weight:600;color:var(--brand);margin-left:auto;flex:none}
+.hmd .rem-head-act{font-size:12px;font-weight:500;color:var(--brand);margin-left:auto;flex:none}
 .hmd .rem-body{padding:0 .9rem .8rem;border-top:1px solid var(--line)}
 .hmd .rem-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:.45rem 0;border-bottom:1px solid var(--line-2)}
 .hmd .rem-row:last-child{border-bottom:0}
@@ -632,26 +632,26 @@ export const MY_DAY_CSS = `
 .hmd .ref-url .nt-input{flex:1}
 /* notification stack — sits at the top of the chat panel, pushes chat down */
 .hmd .notif-stack{flex:0 0 auto;max-height:44%;overflow:auto;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--cF3F1FE),transparent);padding:.6rem .6rem .5rem}
-.hmd .nstack-head{display:flex;align-items:center;justify-content:space-between;padding:0 .25rem .45rem;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
-.hmd .nstack-clear{border:none;background:transparent;font-size:12px;color:var(--brand-ink);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0}
+.hmd .nstack-head{display:flex;align-items:center;justify-content:space-between;padding:0 .25rem .45rem;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+.hmd .nstack-clear{border:none;background:transparent;font-size:12px;color:var(--brand-ink);cursor:pointer;font-weight:500;text-transform:none;letter-spacing:0}
 .hmd .pnotif{display:flex;gap:.55rem;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:.55rem .6rem;margin-bottom:.45rem;box-shadow:0 3px 10px rgba(35,45,66,.05);animation:hmdslide .26s ease}
 .hmd .pnotif:last-child{margin-bottom:0}
 .hmd .pnotif.urgent{border-color:var(--cF4C4C9);background:linear-gradient(180deg,var(--cFEF3F4),var(--panel))}
 .hmd .pn-ic{width:28px;height:28px;border-radius:8px;flex:0 0 28px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
 .hmd .pn-ic.urgent{background:var(--rose)} .hmd .pn-ic.claim{background:var(--good)} .hmd .pn-ic.freed{background:var(--good)} .hmd .pn-ic.message{background:var(--brand)}
 .hmd .pn-body{flex:1;min-width:0}
-.hmd .pn-eyebrow{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--cC0201F)}
-.hmd .pn-title{font-size:14px;font-weight:600;line-height:1.25;margin-top:.05rem}
+.hmd .pn-eyebrow{font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--cC0201F)}
+.hmd .pn-title{font-size:14px;font-weight:500;line-height:1.25;margin-top:.05rem}
 .hmd .pn-sub{font-size:12px;color:var(--muted);margin-top:.12rem;line-height:1.35}
 .hmd .pn-acts{display:flex;gap:.4rem;margin-top:.5rem}
 .hmd .pn-x{border:none;background:transparent;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:.1rem .2rem;flex:0 0 auto}
 .hmd .pn-x:hover{color:var(--ink)}
 /* accept & work / ask-manya modals */
 .hmd .aw-card{max-width:440px}
-.hmd .aw-h{font-size:16px;font-weight:700}
+.hmd .aw-h{font-size:16px;font-weight:500}
 .hmd .aw-p{font-size:14px;color:var(--muted);line-height:1.45;margin:.4rem 0 .9rem}
 .hmd .aw-task{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:.65rem .75rem;margin:.85rem 0}
-.hmd .aw-task .tt{font-size:14px;font-weight:600}
+.hmd .aw-task .tt{font-size:14px;font-weight:500}
 .hmd .aw-task .tm{font-size:12px;color:var(--muted);margin-top:.12rem}
 .hmd .impact{display:flex;gap:.55rem;align-items:flex-start;font-size:14px;line-height:1.45;background:var(--warn-soft);border:1px solid var(--cF3DCB4);border-radius:10px;padding:.65rem .75rem;color:var(--c7A4E0B)}
 .hmd .impact.ok{background:var(--good-soft);border-color:var(--cBFE6CD);color:var(--c155E37)}
@@ -662,33 +662,33 @@ export const MY_DAY_CSS = `
 .hmd .tchip{display:flex;align-items:center;gap:.6rem;border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;background:var(--panel)}
 .hmd .tchip.movable{border-style:dashed;border-color:var(--cC7CEDD)}
 .hmd .tchip .cmid{flex:1;min-width:0}
-.hmd .tchip .ct{font-size:14px;font-weight:600}
+.hmd .tchip .ct{font-size:14px;font-weight:500}
 .hmd .tchip .cs{font-size:12px;color:var(--muted);margin-top:.1rem}
-.hmd .pri{font-size:12px;font-weight:700;padding:.14em .5em;border-radius:6px;white-space:nowrap}
+.hmd .pri{font-size:12px;font-weight:500;padding:.14em .5em;border-radius:6px;white-space:nowrap}
 .hmd .pri.low{background:var(--cEEF0F5);color:var(--c7A8296)}
 /* Manya reschedule card */
 .hmd .manya-resched{border-color:var(--cF4C4C9);background:linear-gradient(180deg,var(--cFEF6F0),var(--panel))}
 .hmd .mr-h{display:flex;gap:.7rem;align-items:flex-start}
 .hmd .mr-ic{width:34px;height:34px;border-radius:9px;flex:0 0 34px;background:var(--cFEE9D6);display:flex;align-items:center;justify-content:center;font-size:16px}
-.hmd .mr-t{font-size:16px;font-weight:700}
+.hmd .mr-t{font-size:16px;font-weight:500}
 .hmd .mr-d{font-size:12px;color:var(--muted);margin-top:.15rem;line-height:1.45}
 .hmd .mr-foot{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding-top:.9rem;border-top:1px solid var(--line)}
 .hmd .mr-note{font-size:12px;color:var(--muted)}
-.hmd .cap-badge{font-size:12px;font-weight:700;padding:.22em .55em;border-radius:7px;white-space:nowrap}
+.hmd .cap-badge{font-size:12px;font-weight:500;padding:.22em .55em;border-radius:7px;white-space:nowrap}
 .hmd .cap-badge.full{background:var(--rose-soft,var(--cFCEBEC));color:var(--cC0201F)}
 .hmd .cap-badge.some{background:var(--warn-soft);color:var(--c7A4E0B)}
 .hmd .cap-badge.free{background:var(--good-soft);color:var(--good)}
 /* team capacity board */
-.hmd .tcb-head{font-size:16px;font-weight:700;margin-bottom:.6rem}
+.hmd .tcb-head{font-size:16px;font-weight:500;margin-bottom:.6rem}
 .hmd .tcb-sub{font-size:12px;font-weight:400;color:var(--muted);margin-left:.5rem}
 .hmd .tcb-row{display:grid;grid-template-columns:158px 1fr auto;gap:.8rem;align-items:center;padding:.55rem 0;border-top:1px solid var(--line-2)}
 .hmd .tcb-row:first-of-type{border-top:0}
 .hmd .tcb-who{display:flex;align-items:center;gap:.55rem}
 .hmd .tcb-who .av{width:30px;height:30px;font-size:12px;flex:0 0 30px}
-.hmd .tcb-n{font-size:14px;font-weight:600}
+.hmd .tcb-n{font-size:14px;font-weight:500}
 .hmd .tcb-r{font-size:12px;color:var(--muted)}
 .hmd .tcb-tl{display:flex;height:40px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel-2)}
-.hmd .tcb-blk{color:#fff;font-size:12px;font-weight:600;padding:0 .5rem;display:flex;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.16)}
+.hmd .tcb-blk{color:#fff;font-size:12px;font-weight:500;padding:0 .5rem;display:flex;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.16)}
 .hmd .tcb-blk:last-child{border-right:0}
 .hmd .tcb-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
 .hmd .tcb-blk.design{background:linear-gradient(135deg,#8E7BF0,#6D5CE7)}
@@ -697,15 +697,15 @@ export const MY_DAY_CSS = `
 .hmd .tcb-note{font-size:12px;color:var(--ink-soft);background:var(--brand-soft);border:1px solid var(--cD5DCFB);border-radius:10px;padding:.6rem .75rem;margin-top:.85rem;line-height:1.45}
 .hmd .tcb-note b{color:var(--brand-ink)}
 /* Start / End day control */
-.hmd .daybtn{display:inline-flex;align-items:center;gap:.4rem;font-size:12px;font-weight:600;border-radius:9px;padding:.5em .8em;border:1px solid transparent;background:var(--good);color:#fff;cursor:pointer}
+.hmd .daybtn{display:inline-flex;align-items:center;gap:.4rem;font-size:12px;font-weight:500;border-radius:9px;padding:.5em .8em;border:1px solid transparent;background:var(--good);color:#fff;cursor:pointer}
 .hmd .daybtn:hover{background:#158A46}
 .hmd .daybar{display:inline-flex;align-items:center;gap:.4rem}
-.hmd .daychip{display:inline-flex;align-items:center;gap:.4rem;font-size:12px;font-weight:600;border-radius:9px;padding:.45em .7em;background:var(--good-soft);color:var(--c0F6E3C);border:1px solid var(--cBFE6CD);white-space:nowrap}
+.hmd .daychip{display:inline-flex;align-items:center;gap:.4rem;font-size:12px;font-weight:500;border-radius:9px;padding:.45em .7em;background:var(--good-soft);color:var(--c0F6E3C);border:1px solid var(--cBFE6CD);white-space:nowrap}
 .hmd .daychip .pulse{width:8px;height:8px;border-radius:50%;background:var(--good);animation:hmdpl 1.6s infinite}
 @keyframes hmdpl{0%{box-shadow:0 0 0 0 rgba(26,160,83,.45)}70%{box-shadow:0 0 0 6px rgba(26,160,83,0)}100%{box-shadow:0 0 0 0 rgba(26,160,83,0)}}
-.hmd .endbtn{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:12px;font-weight:600;background:var(--cFCEBEC);border-color:var(--cF3C6CE);color:var(--cB0203A)}
+.hmd .endbtn{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:12px;font-weight:500;background:var(--cFCEBEC);border-color:var(--cF3C6CE);color:var(--cB0203A)}
 .hmd .endbtn:hover{background:var(--cF9DADE);border-color:var(--cE7A9B3)}
-.hmd .teamcapbtn{display:inline-flex;align-items:center;gap:.4rem;font-size:12px;font-weight:600;border-radius:9px;padding:.5em .8em;border:1px solid var(--cCBD5FA);background:var(--brand-soft);color:var(--brand-ink);cursor:pointer;white-space:nowrap}
+.hmd .teamcapbtn{display:inline-flex;align-items:center;gap:.4rem;font-size:12px;font-weight:500;border-radius:9px;padding:.5em .8em;border:1px solid var(--cCBD5FA);background:var(--brand-soft);color:var(--brand-ink);cursor:pointer;white-space:nowrap}
 .hmd .teamcapbtn:hover{border-color:var(--brand)}
 .hmd .teamcapbtn.on{background:var(--brand);color:#fff;border-color:transparent}
 /* Team-capacity page */
@@ -717,7 +717,7 @@ export const MY_DAY_CSS = `
 .hmd .timer-strip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;background:var(--brand-soft);border:1px solid var(--cD5DCF8);border-radius:10px;padding:.55rem .85rem;margin:.7rem 0 .2rem;font-size:14px;color:var(--brand-ink)}
 .hmd .timer-strip.over{background:var(--warn-soft);border-color:var(--cF3D9AE);color:var(--c8A5A00)}
 .hmd .timer-strip.idle{background:var(--panel-2);border-color:var(--line);color:var(--ink-soft)}
-.hmd .timer-acts{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-weight:600}
+.hmd .timer-acts{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-weight:500}
 .hmd .ext-wrap{position:relative;display:inline-flex}
 .hmd .ext-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(35,45,66,.12);padding:.5rem;display:flex;flex-direction:column;gap:.4rem;min-width:214px}
 .hmd .ext-row{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
@@ -729,30 +729,30 @@ export const MY_DAY_CSS = `
 .hmd .ext-log{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:.65rem .8rem;margin:.7rem 0 .2rem}
 .hmd .ext-log-row{display:flex;align-items:baseline;gap:.6rem;padding:.3rem 0;border-bottom:1px solid var(--line-2);font-size:13px;flex-wrap:wrap}
 .hmd .ext-log-row:last-child{border-bottom:0}
-.hmd .ext-log-amt{font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;flex:none}
+.hmd .ext-log-amt{font-weight:500;color:var(--warn);font-variant-numeric:tabular-nums;flex:none}
 .hmd .ext-log-amt.neg{color:var(--good)}
 /* An entry that was taken back stays on the record, just quietened and struck through. */
 .hmd .ext-log-row.undone .ext-log-amt,.hmd .ext-log-row.undone .ext-log-why{text-decoration:line-through;opacity:.55}
-.hmd .ext-log-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--good);background:var(--good-soft);border-radius:5px;padding:.1em .35em;margin-right:.4rem}
-.hmd .ext-log-undone-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--cEDEFF4);border-radius:5px;padding:.1em .35em;flex:none}
-.hmd .ext-log-undo{border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);font:inherit;font-size:11px;font-weight:600;border-radius:6px;padding:.12em .5em;cursor:pointer;flex:none}
+.hmd .ext-log-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:500;color:var(--good);background:var(--good-soft);border-radius:5px;padding:.1em .35em;margin-right:.4rem}
+.hmd .ext-log-undone-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:500;color:var(--muted);background:var(--cEDEFF4);border-radius:5px;padding:.1em .35em;flex:none}
+.hmd .ext-log-undo{border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);font:inherit;font-size:11px;font-weight:500;border-radius:6px;padding:.12em .5em;cursor:pointer;flex:none}
 .hmd .ext-log-undo:hover{border-color:var(--brand);color:var(--brand)}
 .hmd .ext-log-why{color:var(--ink);flex:1;min-width:0}
 .hmd .ext-log-who{font-size:12px;color:var(--muted);flex:none}
 .hmd .tc-back{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:1.1rem;color:var(--ink-soft)}
 .hmd .tc-back:hover{border-color:var(--cD9DEEA)}
-.hmd .tcp-title{font-size:1.2rem;font-weight:700}
+.hmd .tcp-title{font-size:1.2rem;font-weight:500}
 .hmd .tcp-title span{font-size:14px;font-weight:500;color:var(--muted);margin-left:.4rem}
 .hmd .tcp-card{margin-bottom:1rem}
 .hmd .tcp-top{display:flex;align-items:center;gap:.7rem;margin-bottom:.7rem}
-.hmd .tcp-n{font-size:14px;font-weight:700}
+.hmd .tcp-n{font-size:14px;font-weight:500}
 .hmd .tcp-r{font-size:12px;color:var(--muted)}
 .hmd .tcp-status{margin-left:auto;display:flex;align-items:center;gap:.5rem}
-.hmd .st-badge{font-size:12px;font-weight:700;padding:.22em .55em;border-radius:7px}
+.hmd .st-badge{font-size:12px;font-weight:500;padding:.22em .55em;border-radius:7px}
 .hmd .st-badge.working{background:var(--good-soft);color:var(--c0F6E3C)}
 .hmd .tcp-ticks{display:flex;padding:0 1px;margin-bottom:.3rem}
 .hmd .tcp-track{position:relative;display:flex;height:56px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
-.hmd .tcp-blk{color:#fff;font-size:12px;font-weight:600;padding:.35rem .5rem;display:flex;flex-direction:column;justify-content:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.16);position:relative}
+.hmd .tcp-blk{color:#fff;font-size:12px;font-weight:500;padding:.35rem .5rem;display:flex;flex-direction:column;justify-content:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.16);position:relative}
 .hmd .tcp-blk:last-child{border-right:0}
 .hmd .tcp-bm{font-size:12px;opacity:.85;font-weight:500}
 .hmd .tcp-blk.reel{background:linear-gradient(135deg,#5A6FF0,#3A57E8)}
@@ -766,8 +766,8 @@ export const MY_DAY_CSS = `
 .hmd .tcp-week{display:flex;gap:.5rem}
 .hmd .tcp-day{flex:1;display:flex;flex-direction:column;gap:.3rem;min-width:0}
 .hmd .tcp-day-h{display:flex;align-items:center;justify-content:center;gap:.3rem;font-size:12px;color:var(--muted)}
-.hmd .tcp-day.today .tcp-day-h{color:var(--ink);font-weight:700}
-.hmd .tcp-day-now{color:#DC2E2E;font-size:12px;font-weight:700;letter-spacing:.02em}
+.hmd .tcp-day.today .tcp-day-h{color:var(--ink);font-weight:500}
+.hmd .tcp-day-now{color:#DC2E2E;font-size:12px;font-weight:500;letter-spacing:.02em}
 .hmd .tcp-day-bar{height:64px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);display:flex;flex-direction:column-reverse;overflow:hidden}
 .hmd .tcp-day.today .tcp-day-bar{border-color:#DC2E2E;box-shadow:inset 0 0 0 1px #DC2E2E}
 .hmd .tcp-day.over .tcp-day-bar{border-color:#E11D48}
@@ -786,7 +786,7 @@ export const MY_DAY_CSS = `
 .hmd .eod-cb{width:18px;height:18px;border-radius:5px;border:1.6px solid var(--cCBD2E0);flex:0 0 18px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:#fff}
 .hmd .eod-cb.on{background:var(--good);border-color:var(--good)}
 .hmd .eod-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hmd .eod-tag{font-size:12px;font-weight:700;padding:.14em .5em;border-radius:6px;white-space:nowrap}
+.hmd .eod-tag{font-size:12px;font-weight:500;padding:.14em .5em;border-radius:6px;white-space:nowrap}
 .hmd .eod-tag.done{background:var(--good-soft);color:var(--c0F6E3C)}.hmd .eod-tag.roll{background:var(--warn-soft);color:var(--c7A4E0B)}
 .hmd .eod-reason{width:100%;margin:.1rem 0 .55rem 2rem;max-width:calc(100% - 2rem);border:1px solid var(--line);border-radius:8px;padding:.4rem .55rem;font-size:12px;color:var(--ink-soft);background:var(--panel-2)}
 /* ── Wrap up your day: one task per line ─────────────────────────────────── */
@@ -795,22 +795,22 @@ export const MY_DAY_CSS = `
 /* Fixed layout: the columns keep their widths and a long task name truncates,
    instead of one headline stretching the table into a sideways scroll. */
 .hmd .eod-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px}
-.hmd .eod-table thead th{position:sticky;top:0;z-index:2;background:var(--panel);text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+.hmd .eod-table thead th{position:sticky;top:0;z-index:2;background:var(--panel);text-align:left;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);padding:.4rem .5rem;border-bottom:1px solid var(--line)}
 .hmd .eod-table td{padding:.4rem .5rem;border-bottom:1px solid var(--line-2);vertical-align:middle;overflow:hidden}
 .hmd .eod-table .c-cb{width:34px}
 .hmd .eod-table .c-pub{width:130px;color:var(--ink-soft);white-space:nowrap}
-.hmd .eod-table .c-pub.near{color:var(--c8A5A00);font-weight:600}
+.hmd .eod-table .c-pub.near{color:var(--c8A5A00);font-weight:500}
 .hmd .eod-table .c-act{width:270px}
 .hmd .eod-table th.c-pub,.hmd .eod-table th.c-act{text-align:left}
 .hmd .eod-grouprow td{background:var(--panel-2);border-bottom:1px solid var(--line);padding:.35rem .5rem}
 .hmd .eod-grouprow .eod-group-n{margin-left:.4rem}
-.hmd .eod-table .eod-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--ink)}
+.hmd .eod-table .eod-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink)}
 .hmd .eod-table tr.done .eod-title{color:var(--muted);font-weight:500}
 .hmd .eod-table .eod-reason{margin:0;width:100%;max-width:100%;padding:.3rem .5rem;font-size:12px}
 .hmd .eod-group{margin-bottom:.5rem}
 .hmd .eod-group-head{display:flex;align-items:center;gap:.45rem;padding:.5rem .15rem .3rem;border-bottom:1px solid var(--line);margin-bottom:.15rem;position:sticky;top:0;background:var(--panel);z-index:1}
-.hmd .eod-group-n{font-size:11px;font-weight:700;color:var(--muted);background:var(--cEDEFF4);border-radius:7px;padding:0 .4em}
-.hmd .eod-group-note{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-left:auto}
+.hmd .eod-group-n{font-size:11px;font-weight:500;color:var(--muted);background:var(--cEDEFF4);border-radius:7px;padding:0 .4em}
+.hmd .eod-group-note{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-left:auto}
 /* The publishing date, in its own column so the eye can run down it. */
 .hmd .eod-list{max-height:56vh;overflow-y:auto;overflow-x:hidden;margin:.2rem 0 .1rem}
 /* Due TODAY is not the same as already late: amber, and the row is tinted so it reads
@@ -839,4 +839,33 @@ html[data-theme="dark"] .hmd{
   --cD9DEEA:#3A4159;--cEAEDF5:#272C3E;--cDFE3EE:#3A4159;--cF3F5F9:#272C3E;--cE9ECF2:#272C3E;--cE3E6EE:#3A4159;--cEDEFF4:#272C3E;--cFDECEA:rgba(220,46,46,.16);--cFFF7F6:rgba(220,46,46,.16);--cF1C4BD:rgba(220,46,46,.42);--cEAA99F:rgba(220,46,46,.42);--cFCEBEA:rgba(220,46,46,.16);--cE9ECFB:#2C3666;--cFAFBFF:#272C3E;--c232D42:#E8EBF3;--cB9C2E0:#3A4159;--c3B4457:#C2C8D6;--cEEF1FD:#2C3666;--cFCEBEC:rgba(220,46,46,.16);--cC0201F:#F2907F;--cF3C6CE:rgba(220,46,46,.42);--cF9DADE:rgba(220,46,46,.16);--cD5DCF8:#2C3666;--cF3D9AE:rgba(217,119,6,.42);--c8A5A00:#E2B366;--cDCE1FA:#2C3666;--cC7CEDD:#3A4159;--cEEF1FB:#2C3666;--cFBE7E4:rgba(220,46,46,.16);--cF3F1FE:#2C3666;--cF4C4C9:rgba(220,46,46,.42);--cFEF3F4:rgba(220,46,46,.16);--cF3DCB4:rgba(217,119,6,.42);--c7A4E0B:#E2B366;--cBFE6CD:rgba(26,160,83,.42);--c155E37:#61CE9C;--c5A3906:#E2B366;--c0E4A2A:#61CE9C;--cEEF0F5:#272C3E;--c7A8296:#959DB1;--cFEF6F0:rgba(217,119,6,.16);--cFEE9D6:rgba(217,119,6,.16);--cD5DCFB:#2C3666;--c0F6E3C:#61CE9C;--cB0203A:#F2907F;--cE7A9B3:rgba(220,46,46,.42);--cCBD5FA:#2C3666;--cEDEEF2:#272C3E;--cCBD2E0:#3A4159;
 }
 
+
+/* ── Compact (Praveen, 21 Oct) ───────────────────────────────────────────────
+   "At 100% it's too big and cluttered; 90% feels right." Rather than zoom the page
+   (which would throw off dragging on the timeline), the sizes come down: body 13px,
+   headings one step smaller, ~15% less padding, and no heavy bold — weights 400/500
+   only, as the dashboard theme says. History & comments is a quieter side column. */
+.hmd{font-size:13.5px}
+.hmd .who .hi{font-size:18px}
+.hmd .who .sub,.hmd .banner,.hmd .claim-title,.hmd .mval,.hmd .task .tt{font-size:13px}
+.hmd .stat .n{font-size:16px}
+.hmd .hero-head h2,.hmd .colhead h3{font-size:14px}
+.hmd .detail .d-title{font-size:16px}
+.hmd .btn{font-size:13px;padding:.42em .8em}
+.hmd .btn.sm{padding:.3em .62em}
+.hmd .pad{padding:.62rem .78rem}
+.hmd .task{padding:.5rem .6rem}
+.hmd .work{gap:.6rem}
+.hmd .colhead{margin-bottom:.7rem}
+.hmd .meta-grid{gap:.7rem;padding:.65rem 0}
+.hmd .section-lbl{margin:.9rem 0 .4rem}
+.hmd .brief{padding:.65rem .75rem;font-size:13px;line-height:1.55}
+.hmd .gc-rtf-body{font-size:13px;line-height:20px}
+.hmd .gc-rtf-body p{min-height:20px}
+.hmd .hist-side{font-size:12px}
+.hmd .hist-side .section-lbl{font-size:11px}
+.hmd .hist-side .btn{font-size:12px}
+.hmd .hist-side textarea{font-size:12px}
+.hmd .hist-side [class*="text-[14px]"],.hmd .hist-side [class*="text-[13px]"],.hmd .hist-side [class*="text-sm"]{font-size:12px!important;line-height:17px!important}
+.hmd .hist-side [class*="text-[12px]"],.hmd .hist-side [class*="text-[11px]"],.hmd .hist-side [class*="text-xs"]{font-size:11px!important}
 `;

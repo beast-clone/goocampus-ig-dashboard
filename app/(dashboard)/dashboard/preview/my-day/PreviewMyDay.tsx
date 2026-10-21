@@ -1198,7 +1198,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           producer can't miss what to fix. */}
       {task.status === "Incorporating Feedback" && task.detail.feedback && (
         <div style={{ margin: "0 0 .9rem", padding: ".7rem .85rem", borderRadius: 10, background: "#FCE8EC", border: "1px solid #F3C0CB" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "#B0203A", marginBottom: 3, display: "flex", alignItems: "center", gap: 4 }}>{IWARN} Feedback from Manya</div>
+          <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: ".04em", color: "#B0203A", marginBottom: 3, display: "flex", alignItems: "center", gap: 4 }}>{IWARN} Feedback from Manya</div>
           <ClampBox maxHeight={200}><div style={{ fontSize: 13, color: "#7A1327", lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{task.detail.feedback}</div></ClampBox>
         </div>
       )}
@@ -1229,7 +1229,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
 
     </div>
-    <aside style={{ flex: "0 1 300px", minWidth: 260, borderLeft: "1px solid var(--line)", paddingLeft: "1rem" }}>
+    {/* Narrower and quieter — history is reference, not the focus (Praveen, 21 Oct). */}
+    <aside className="hist-side" style={{ flex: "0 1 240px", minWidth: 210, borderLeft: "1px solid var(--line)", paddingLeft: ".8rem" }}>
       <div className="section-lbl" style={{ marginTop: 0 }}>History &amp; comments</div>
       <TaskFeed key={`feed-${task.id}`} postId={task.id} />
     </aside>
@@ -1285,7 +1286,7 @@ function DurationPicker({ value, onChange, open: openProp, onOpenChange, title }
     row: { display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid #F0F1F5", paddingTop: 10 },
     num: { width: 46, textAlign: "center", fontSize: 13, border: "1px solid #E6E8EE", borderRadius: 7, padding: "5px 4px", outline: "none" },
     set: { marginLeft: "auto", fontSize: 12, fontWeight: 500, background: "#3A57E8", color: "#fff", border: "none", borderRadius: 7, padding: "6px 12px", cursor: "pointer" },
-    lbl: { fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 },
+    lbl: { fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: ".04em", color: "#8A92A6", marginBottom: 6 },
   };
   return (
     <span style={{ position: "relative", display: "inline-block" }}>
@@ -3727,7 +3728,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               <h2>Today’s plan</h2>
               <span className="prog">{planStart > shiftStart && <>Started {clockOf(planStart)} · </>}<b style={{ color: "#232D42" }}>{fmtDur(plannedMin)}</b> planned · 1h lunch · 1h buffer for urgent work · {fmtDur(Math.max(0, availMin - BUFFER_MIN - plannedMin))} free
                 {atRisk.length > 0
-                  ? <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 600, whiteSpace: "nowrap" }}>· {IWARN} {atRisk.length} due by tomorrow won&apos;t fit</span>
+                  ? <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 500, whiteSpace: "nowrap" }}>· {IWARN} {atRisk.length} due by tomorrow won&apos;t fit</span>
                   : spillPlan.length > 0 && <span style={{ marginLeft: 8, whiteSpace: "nowrap" }}>· {spillPlan.length} more planned{nextDue ? ` · next due ${new Date(nextDue + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}` : ""}</span>}
               </span>
               <span className="qmark" title="8-hour workday (9 AM–6 PM) with a protected 1-hour lunch. Tasks are ordered by publishing date, earliest first; work due later is pulled forward whenever there's room. The last hour is kept free for urgent work — Urgent/High tasks jump to the front and may use it. Drag a task along the timeline to move it earlier or later in the order; use ‹ › to nudge it one place. Anything overdue or high priority asks for a reason before it slips later.">?</span>
