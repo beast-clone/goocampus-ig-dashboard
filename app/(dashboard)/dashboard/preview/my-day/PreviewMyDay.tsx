@@ -2918,7 +2918,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // its own optimistic row on the board, so the mapping lives here, in the one place
   // that needs it.
   const createFromDraft = (d: NewTaskDraft) => {
-    const publishes = new Date(d.publishDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const publishes = d.publishDate ? new Date(d.publishDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "No date yet";
     const t: Task = {
       id: `t${Date.now()}`,
       title: d.title,

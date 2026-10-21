@@ -390,8 +390,9 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
 
   const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null }): Promise<ApprovalOutcome> => {
     if (dayOf(a.from) === dayOf(a.to)) return "applied"; // no-op: same day
-    // Admin edits apply immediately — no approval, no popup.
-    if (viewer.isAdmin) {
+    // Admin edits apply immediately — no approval, no popup. So does a dateless
+    // task getting its first date: that isn't a move (the server agrees).
+    if (viewer.isAdmin || !a.from) {
       const r = await saveField(a.id, { publishing_date: a.to });
       return r.ok ? "applied" : "error";
     }

@@ -170,17 +170,17 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   const thumbTitleFinal = thumbTitle.trim() || (title.trim() ? `${title.trim()} — Thumbnail` : "");
   const thumbOn = canHaveThumb && wantsThumb;
 
+  // Only the title is needed to create a task — "I want the task to be created first
+  // and then to add the content, remove extra barriers" (Manya, 12 Oct). The date and
+  // the content are only demanded when filing straight at Content - Approved, because
+  // the server won't approve without them. (It no longer needs a collaborator.)
+  const approving = status === "Content - Approved";
   const missing = [
     !title.trim() && "Particulars (the title)",
-    !publishDate && "Publishing date",
     !sbu && "SBU (which brand it's for)",
-    !content.trim() && "Content (the brief)",
+    approving && !publishDate && "Publishing date (needed to approve)",
+    approving && !content.trim() && "Content (needed to approve)",
     thumbOn && !thumbContent.trim() && "Thumbnail brief",
-    // The server refuses to approve a task with nobody attached to it, so filing one
-    // straight at Content - Approved needs a collaborator now. Without this the form
-    // happily promises a handoff ("goes to the claim pool") that the save then can't
-    // deliver, and the task quietly stays at Content - Pending with the writer.
-    status === "Content - Approved" && collabKeys.length === 0 && "At least one collaborator (needed to approve)",
   ].filter((x): x is string => !!x);
   const canSubmit = missing.length === 0;
   const [gate, setGate] = useState(false);
@@ -226,7 +226,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
         <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "Urgent" | "High" | "Medium" | "Low")} options={["Urgent", "High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>
       </div>
-      <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-req">required</span> <span className="nt-hint">the writer sets this — no auto-date</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
+      <div className="nt-field"><label className="nt-label">Publishing date <span className="nt-hint">optional — add it now or later</span></label><DatePicker value={publishDate} onChange={setPublishDate} /></div>
       <div className="nt-row">
         <div className="nt-field"><label className="nt-label">SBU</label><MenuDropdown wide align="left" value={sbu} onChange={setSbu} options={sbus.map((s) => ({ value: s, label: s }))} /></div>
         <div className="nt-field"><label className="nt-label">Status</label><MenuDropdown wide align="left" value={status} onChange={(v) => setStatus(v as NewTaskStatus)} options={NEW_TASK_STATUSES.map((s) => ({ value: s, label: s }))} /></div>
@@ -297,7 +297,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         <div className="nt-route-why">{route.why}</div>
       </div>
 
-      <div className="nt-field"><label className="nt-label">Content <span className="nt-req">required</span> <span className="nt-hint">the write-up · the main thing</span></label><AutoTextarea className="nt-input nt-textarea" value={content} onChange={setContent} minHeight={140} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
+      <div className="nt-field"><label className="nt-label">Content <span className="nt-hint">optional — you can write it after creating the task</span></label><AutoTextarea className="nt-input nt-textarea" value={content} onChange={setContent} minHeight={140} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>
       {/* Reels + YouTube long-form: the thumbnail is part of the same job, so it is
           asked here rather than filed as an unrelated task later. Who MAKES it is a
           separate question, because these days the editor who cuts the reel usually

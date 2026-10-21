@@ -183,7 +183,10 @@ export async function PATCH(req: Request) {
       const no = await requireCapability("approve_content");
       if (no) return no;
     }
-    if (("publishing_date" in clean && day(clean.publishing_date) !== day(preRow.publishing_date))
+    // Giving a dateless task its FIRST date isn't moving it — tasks can now be created
+    // with just a name (Manya, 12 Oct) — so it needs neither this switch nor Maheen.
+    const firstDate = !preRow.publishing_date;
+    if (("publishing_date" in clean && !firstDate && day(clean.publishing_date) !== day(preRow.publishing_date))
       || ("due_date" in clean && "due_date" in body.fields && day(clean.due_date) !== day(preRow.due_date))) {
       const no = await requireCapability("reschedule");
       if (no) return no;
@@ -248,7 +251,7 @@ export async function PATCH(req: Request) {
     // other field in the same patch still saves.
     const gateActor = ((typeof (body as { actor?: string }).actor === "string" ? (body as { actor?: string }).actor! : getSessionUserId()) || "").toLowerCase();
     let pendingApproval: { from: string | null; to: string | null } | null = null;
-    if ("publishing_date" in clean && gateActor !== APPROVER_KEY) {
+    if ("publishing_date" in clean && gateActor !== APPROVER_KEY && !firstDate) {
       const oldDate = (preRow.publishing_date as string | null) ?? null;
       const newDate = (clean.publishing_date as string | null) ?? null;
       const day = (d: string | null) => (d ? String(d).slice(0, 10) : null);
