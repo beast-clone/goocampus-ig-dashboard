@@ -27,7 +27,9 @@ export const ATTACHMENT_LABEL = "an image, video, pdf, Word, Excel, PowerPoint o
 
 // Files go browser → storage directly (attach/sign + attach/complete), so the hosting
 // limit on a request body (~6 MB on Netlify) no longer applies; this is our own cap.
-export const MAX_MB = 50;
+// 300 MB since the project moved to the Pro plan and the Supabase global limit and
+// the scheduler-media bucket were raised to match (21 Oct).
+export const MAX_MB = 300;
 
 export const asKind = (v: unknown): AttachKind => (v === "reference" || v === "attachment" ? v : "creative");
 
