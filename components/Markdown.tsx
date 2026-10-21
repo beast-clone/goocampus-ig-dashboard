@@ -32,7 +32,8 @@ const MD_NUMBER = /^\s*(\d+)[.)]\s+(.*)$/;
 // swallowed them and italicised the link — the text came out as "utmsource=igweb".
 // Mangling a link people have to copy is far worse than not rendering _italics_,
 // which nobody here writes anyway.
-const MD_INLINE = /(\*\*|__)(.+?)\1|\*([^*\n]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)/g;
+// …and a bare https:// link, so a pasted Instagram link is clickable (Manya, 16 Oct).
+const MD_INLINE = /(\*\*|__)(.+?)\1|\*([^*\n]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g;
 
 export function inlineMd(text: string, k: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -43,12 +44,21 @@ export function inlineMd(text: string, k: string): ReactNode[] {
     if (m[2] !== undefined) out.push(<strong key={`${k}b${i}`} className="font-semibold text-[#2B3445]">{m[2]}</strong>);
     else if (m[3] !== undefined) out.push(<em key={`${k}i${i}`}>{m[3]}</em>);
     else if (m[4] !== undefined) out.push(<code key={`${k}c${i}`} className="rounded bg-gray-100 px-1 py-0.5 text-[13px]">{m[4]}</code>);
+    else if (m[7] !== undefined) out.push(<a key={`${k}u${i}`} href={m[7]} target="_blank" rel="noreferrer" className="text-brand underline break-all">{m[7]}</a>);
     else out.push(<a key={`${k}a${i}`} href={m[6]} target="_blank" rel="noreferrer" className="text-brand underline break-all">{m[5]}</a>);
     last = m.index + m[0].length;
     i++;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
+}
+
+const BARE_URL = /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g;
+/** Plain text with its links made clickable — nothing else interpreted (comments). */
+export function linkify(text: string): ReactNode[] {
+  return text.split(BARE_URL).map((part, i) => (i % 2
+    ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-brand underline break-all">{part}</a>
+    : part));
 }
 
 export function Markdown({ value }: { value: string }) {

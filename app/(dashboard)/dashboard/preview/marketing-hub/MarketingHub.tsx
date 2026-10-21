@@ -17,6 +17,7 @@ import { useSbus } from "@/lib/use-sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { MultiPick } from "@/components/MultiPick";
 import { RichTextField } from "@/components/RichTextField";
+import { linkify } from "@/components/Markdown";
 import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
@@ -3565,7 +3566,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                       {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
                     </div>
                     {it.kind === "comment" ? (
-                      <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5">{it.body}</div>
+                      <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5">{linkify(it.body || "")}</div>
                     ) : stFrom || stTo ? (
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {it.from && <span className="text-[11px] px-2 py-0.5 rounded-full line-through" style={{ background: stFrom!.bg, color: stFrom!.text }}>{it.from}</span>}
