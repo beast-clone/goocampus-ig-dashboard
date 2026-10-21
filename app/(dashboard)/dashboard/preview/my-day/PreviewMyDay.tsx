@@ -11,6 +11,8 @@ import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
+import { RichTextField } from "@/components/RichTextField";
+import { Markdown } from "@/components/Markdown";
 import { playChime } from "../notifChime";
 import { NOTIF_COUNT, NOTIF_CENTER } from "../NotificationHost";
 import { notifIconFor } from "../NotifIcon";
@@ -732,7 +734,6 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const [busy, setBusy] = useState(false);
   const [prio, setPrio] = useState(task.detail.priority);
   const [due, setDue] = useState(task.due || "");
-  const [contentEdit, setContentEdit] = useState(task.detail.content || ""); // the brief — editable even after approval
   // Edit turns the fields themselves editable rather than opening a panel of its
   // own. One field at a time, opened by the pencil that sits beside its label.
   const [editField, setEditField] = useState<null | "owner" | "prio" | "due">(null);
@@ -749,7 +750,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   const saveEdit = async () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null, content: contentEdit } }) });
+      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { priority: prio, due_date: due || null } }) });
       const saved = await res.json().catch(() => null);
       if (saved?.updatedAt) setModifiedAt(saved.updatedAt);
       setEditing(false); onSaved?.();
@@ -922,7 +923,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
             {canEdit && !editing && <button className="btn sm" onClick={() => { setEditing(true); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
             {canEdit && editing && <>
               <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
-              <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); setContentEdit(task.detail.content || ""); }}>Cancel</button>
+              <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); }}>Cancel</button>
             </>}
             {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
             {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
@@ -1176,11 +1177,22 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       <div className="section-head">
         <span className="section-lbl">Content brief</span>
       </div>
-      {/* Full write-up, exactly as typed — every line/paragraph preserved, no inner
-          scroll (the section grows; you scroll the card/page to read it all). */}
-      {editing
-        ? <textarea className="nt-input nt-textarea" style={{ width: "100%", minHeight: "5rem", resize: "vertical", marginTop: ".2rem" }} value={contentEdit} onChange={(e) => setContentEdit(e.target.value)} placeholder="The write-up / brief — hook, body, CTA, specs…" />
-        : <div className="brief brief-full">{task.detail.content}</div>}
+      {/* The same always-editable editor as the hub's task window — headings, bullets,
+          shortcuts, pasted lists kept — saving by itself (Praveen, 21 Oct: "add the
+          editor in My Day too"). Edit → Save changes no longer touches the brief, so
+          it can't write an older copy over what was typed here. */}
+      <div className="brief">
+        {canEdit !== false
+          ? <RichTextField key={`brief-${task.id}`} value={task.detail.content || ""} placeholder="The write-up / brief — hook, body, CTA, specs…"
+              onSave={async (next) => {
+                const r = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields: { content: next } }) });
+                if (!r.ok) { const j = await r.json().catch(() => ({})); showToast({ who: "Couldn't save the brief", body: (j as { error?: string }).error || `HTTP ${r.status}`, color: "#C03221", av: "!" }); throw new Error("save refused"); }
+                const saved = await r.json().catch(() => null);
+                if (saved?.updatedAt) setModifiedAt(saved.updatedAt);
+                onSaved?.();
+              }} />
+          : <Markdown value={task.detail.content || ""} />}
+      </div>
 
       <CreativesSection key={`cr-${task.id}`} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
