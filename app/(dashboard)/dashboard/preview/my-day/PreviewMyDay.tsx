@@ -17,7 +17,7 @@ import { notifIconFor } from "../NotifIcon";
 import { Avatar, DatePicker, MenuDropdown, PendingAssets, PHOTOS, PPL, EMPTY_ASSET, usePplTeam, type Person, type PendingAsset, type NewTaskAssets } from "@/components/new-task/parts";
 import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 import { NewTaskForm, routeFor, type NewTaskDraft } from "@/components/new-task/NewTaskForm";
-import { assignThumbnail, attachThumbnailTask } from "@/components/new-task/save";
+import { assignThumbnail, attachThumbnailTask, releaseToPoolIfEditor } from "@/components/new-task/save";
 import { MY_DAY_CSS as CSS } from "./myDayCss";
 import { useRadarMissed, RadarMissedList, dayLabel } from "./RadarCrumb";
 import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationHost";
@@ -3019,6 +3019,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         if (postId && status !== "Content - Pending") {
           const moved = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: person, fields: { status } }) }).catch(() => null);
           if (moved && moved.ok) {
+            await releaseToPoolIfEditor(postId, person, t.detail.typeLine, status);
             const r = routeFor(t.detail.typeLine, status, person);
             statusNote = `${STATUS[status].label} — ${r.pool ? "in the editors' claim pool" : `with ${r.ownerLabel}`}`;
           } else {

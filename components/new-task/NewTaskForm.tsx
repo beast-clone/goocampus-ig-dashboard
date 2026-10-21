@@ -98,6 +98,15 @@ export function routeFor(type: string, status: string, writer: string): NewTaskR
       why: `Nothing is handed over below Content - Approved — ${PPL[writer]?.name || writer} keeps it while the content is written.`,
     };
   }
+  if (video && (writer === "nikhil" || writer === "nandu")) {
+    // An editor filing a video into the pool lets go of it (save.ts releaseToPoolIfEditor),
+    // otherwise it would stay theirs and never appear in the pool.
+    return {
+      ownerKey: "", ownerLabel: "Nobody — in the claim pool", pool: true, collaborators: [],
+      headline: "Editors' claim pool — Nikhil / Nandu claim it.",
+      why: `${type} is video work, so it goes into the shared pool with no owner until Nikhil or Nandu claims it.`,
+    };
+  }
   if (video) {
     return {
       ownerKey: writer, ownerLabel: `${PPL[writer]?.name || writer} — until an editor claims it`, pool: true, collaborators: [],
@@ -243,7 +252,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
           <div>
             <div className="mlbl">Owner</div>
             <div className="collab-cell">
-              {route.ownerKey ? <><Avatar p={PPL[route.ownerKey]} /><span className="collab-names">{route.ownerLabel}</span></> : <span className="collab-names">Unassigned</span>}
+              {route.ownerKey ? <><Avatar p={PPL[route.ownerKey]} /><span className="collab-names">{route.ownerLabel}</span></> : <span className="collab-names">{route.ownerLabel || "Unassigned"}</span>}
             </div>
           </div>
           <div>
@@ -295,6 +304,15 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
           </div>
         </div>
         <div className="nt-route-why">{route.why}</div>
+        {/* "Give me option to add to claim pool" (Nandu, 13 Oct). The pool is approved
+            video work, so this is a shortcut for filing it at Content - Approved. */}
+        {isVideoType(type) && (
+          <label className="nt-pool-tick" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: "#232D42", cursor: "pointer" }}>
+            <input type="checkbox" checked={status === "Content - Approved"} style={{ accentColor: "#3A57E8" }}
+              onChange={(e) => setStatus(e.target.checked ? "Content - Approved" : "Content - Pending")} />
+            Put it in the claim pool now — Nikhil or Nandu claims it
+          </label>
+        )}
       </div>
 
       <div className="nt-field"><label className="nt-label">Content <span className="nt-hint">optional — you can write it after creating the task</span></label><AutoTextarea className="nt-input nt-textarea" value={content} onChange={setContent} minHeight={140} placeholder="Write the content / brief here — hook, body, CTA, specs…" /></div>

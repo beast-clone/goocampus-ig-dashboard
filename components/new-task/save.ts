@@ -1,3 +1,4 @@
+import { isVideoType } from "@/lib/mh-content-types";
 import type { NewTaskDraft, NewTaskThumbnail } from "./NewTaskForm";
 
 // The network sequence that turns a NewTaskDraft into a real row, in the one order
@@ -89,6 +90,18 @@ export async function attachThumbnailTask(
   return { id: j.id, owner };
 }
 
+// The claim pool lists approved videos that no EDITOR owns (app/api/my-day). A
+// new task starts on its creator, so a video Nikhil or Nandu files straight into
+// the pool would have stayed theirs and never shown up there — while the form and
+// the toast said "in the editors' claim pool" (Nandu, 13 Oct). Let go of it.
+export async function releaseToPoolIfEditor(postId: string, creatorKey: string, type: string, status: string): Promise<void> {
+  if (status !== "Content - Approved" || !isVideoType(type) || !["nikhil", "nandu"].includes(creatorKey)) return;
+  await fetch("/api/marketing-hub/update", {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: postId, actor: creatorKey, fields: { owner_key: null } }),
+  }).catch(() => {});
+}
+
 export async function saveNewTask(draft: NewTaskDraft, writerKey: string): Promise<SaveResult> {
   const res = await fetch("/api/marketing-hub/create", {
     method: "POST",
@@ -156,6 +169,8 @@ export async function saveNewTask(draft: NewTaskDraft, writerKey: string): Promi
     }).catch(() => null);
     if (!moved || !moved.ok) {
       statusMoveFailed = true;
+    } else {
+      await releaseToPoolIfEditor(postId, writerKey, draft.type, draft.status);
     }
   }
 
