@@ -176,7 +176,7 @@ export function PendingAssets({ hint, oneLink, value, onChange }: { hint: string
           {value.links.map((l, i) => (
             <a key={i} className="ref-link" href={l} target="_blank" rel="noreferrer" title={l}>
               <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
-              <span className="ref-link-lbl">{l.replace(/^https?:\/\//i, "")}</span>
+              <span className="ref-link-lbl">{l}</span>
               <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); rmLink(i); }} title="Remove">✕</span>
             </a>
           ))}

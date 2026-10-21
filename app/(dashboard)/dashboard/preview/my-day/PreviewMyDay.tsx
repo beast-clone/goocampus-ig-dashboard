@@ -503,7 +503,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
         ) : (
           <a key={r.url || i} className="ref-link" href={refHref(r.url)} target="_blank" rel="noreferrer" title={r.url}>
             <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
-            <span className="ref-link-lbl">{r.label}</span>
+            <span className="ref-link-lbl">{r.url || r.label}</span>
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
           </a>
         ))}
@@ -593,7 +593,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
         <div className="refs" style={{ marginTop: ".55rem" }}>
           <a className="ref-link" href={link} target="_blank" rel="noreferrer" title={link}>
             <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
-            <span className="ref-link-lbl">{link.replace(/^https?:\/\//i, "")}</span>
+            <span className="ref-link-lbl">{link}</span>
             <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveLink(""); }} title="Remove">✕</span>
           </a>
         </div>

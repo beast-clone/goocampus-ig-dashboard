@@ -3922,8 +3922,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           <button onClick={() => { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); }} className="text-brand flex-shrink-0"><IconCheck size={14} /></button>
         </span>
       ) : value ? (
-        <span className="flex items-center gap-1.5 min-w-0">
-          <a href={value} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline inline-flex items-center gap-1"><IconExternalLink size={13} />Open</a>
+        <span className="flex items-start gap-1.5 min-w-0 flex-1 justify-end">
+          {/* The whole link, in a box, opening on click — not a bare "Open" (Praveen, 21 Oct). */}
+          <a href={value} target="_blank" rel="noreferrer" title="Open in a new tab"
+            className="min-w-0 break-all rounded-lg border border-gray-100 bg-[#F7F8FC] px-2 py-1 text-[13px] leading-[18px] text-brand hover:border-brand hover:underline">{value}</a>
           <button onClick={() => { setUrlDraft(value); setUrlEdit(field); }} className="text-gray-400 hover:text-brand flex-shrink-0"><IconPencil size={12} /></button>
         </span>
       ) : (
@@ -4155,9 +4157,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 {refLinks.length > 0 && (
                   <div className="space-y-1.5 mb-3">
                     {refLinks.map((l) => (
-                      <div key={l} className="flex items-center gap-2 text-[14px] group">
-                        <IconExternalLink size={14} className="text-gray-400 flex-shrink-0" />
-                        <a href={l} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline flex-1 min-w-0">{l}</a>
+                      <div key={l} className="flex items-start gap-2 text-[14px] group">
+                        <a href={l} target="_blank" rel="noreferrer" title="Open in a new tab"
+                          className="flex-1 min-w-0 flex items-start gap-2 break-all rounded-lg border border-gray-100 bg-[#F7F8FC] px-2.5 py-1.5 text-[13px] leading-[18px] text-brand hover:border-brand hover:underline">
+                          <IconExternalLink size={14} className="text-gray-400 flex-shrink-0 mt-[2px]" /><span className="min-w-0">{l}</span></a>
                         <button onClick={() => removeRefLink(l)} title="Remove" className="text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 flex-shrink-0"><IconTrash size={12} /></button>
                       </div>
                     ))}

@@ -623,6 +623,13 @@ export const MY_DAY_CSS = `
 .hmd .ref-link:hover{border-color:var(--brand)}
 .hmd .ref-link-ic{flex:0 0 auto;font-size:12px}
 .hmd .ref-link-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Links show IN FULL, in their own box, and open on click — "it's getting cut; I
+   need the full link visible, in a box" (Praveen, 21 Oct). One per row. */
+.hmd .ref-link{display:flex;flex:1 1 100%;max-width:100%;height:auto;min-height:34px;align-items:flex-start;padding:.45rem .45rem .45rem .6rem}
+.hmd .ref-link .ref-link-ic{margin-top:1px}
+.hmd .ref-link .ref-link-lbl{flex:1;min-width:0;white-space:normal;overflow:visible;word-break:break-all;line-height:1.45}
+.hmd .ref-link:hover .ref-link-lbl{text-decoration:underline}
+.hmd .ref-link .ref-x{margin-top:1px}
 .hmd .ref-x{border:none;background:rgba(20,22,40,.55);color:#fff;border-radius:50%;width:17px;height:17px;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 17px}
 .hmd .ref-thumb .ref-x{position:absolute;top:5px;right:5px;opacity:0;transition:opacity .12s}
 .hmd .ref-thumb:hover .ref-x{opacity:1}
@@ -862,7 +869,8 @@ html[data-theme="dark"] .hmd{
 .hmd .brief{padding:.65rem .75rem;font-size:13px;line-height:1.55}
 .hmd .gc-rtf-body{font-size:13px;line-height:20px}
 .hmd .gc-rtf-body p{min-height:20px}
-.hmd .hist-side{font-size:12px}
+.hmd .hist-side{font-size:12px;min-width:0;overflow-wrap:anywhere}
+.hmd .hist-side a,.hmd .hist-side [class*="text-emerald"]{word-break:break-all}
 .hmd .hist-side .section-lbl{font-size:11px}
 .hmd .hist-side .btn{font-size:12px}
 .hmd .hist-side textarea{font-size:12px}
