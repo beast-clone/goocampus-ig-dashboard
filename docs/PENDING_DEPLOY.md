@@ -9,6 +9,28 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
+- **Team comments, 9–16 Oct + timer (21 Oct)** — `feat/dashboard-reskin`, after
+  merging `main` in (aca57b6). One commit per comment, `#N` in the subject:
+  - Notifications: one summary line instead of stacked pop-ups.
+  - Task window: Owner picker with "Nobody — claim pool" (#1, also My Day #17);
+    Content/Caption always-editable editor with heading/bold/italic/bullets,
+    "-"+Enter bullets, pasted bullets kept, links clickable (#5 #7 #8 #9 #10 #22,
+    new dependency **@tiptap/* 3.32**); separate **Attachments** section, never
+    published (#6); title/format/SBU editable (#11); creatives link (#14); paste
+    images (#21).
+  - Calendar: Mentorship calendar sidebar entry (#4); drag shows on the new day
+    dashed while Maheen approves (#12); weeks start Monday everywhere (#19).
+  - Content Review: SBU dropdown always shown (#3).
+  - Create: only the title is required; a first date needs no approval (#13);
+    "Put it in the claim pool" for videos, editor-created pool videos really
+    land in the pool (#15).
+  - Workload / My Day / Team Command count the on-camera shoot (1 h) for the
+    presenter; pairing fires from the pool (#2 #16). Today's plan ordering (#18).
+    "<Person>'s work" includes tasks they collaborate on (#20). No auto-start of
+    the timer; Start asks for the time first (#23).
+  - Check after deploy: an attachment upload (kind `attachment`) and that the
+    Scheduler still sees creatives only.
+
 - **System → Workflows tab** (`/dashboard/preview/workflows`) — lists the n8n
   jobs behind this dashboard with their schedule, endpoint, on/off state and last
   run, plus a picker to track any other n8n workflow by hand.
