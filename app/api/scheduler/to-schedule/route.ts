@@ -50,7 +50,7 @@ export async function GET() {
         .from("mh_attachments")
         .select("post_id, storage_path, kind")
         .in("post_id", ids)
-        .neq("kind", "reference");
+        .not("kind", "in", "(reference,attachment)")   // attachments are working files, never media;
       for (const a of atts || []) {
         if (!a.storage_path) continue;
         const arr = attByPost.get(a.post_id) || [];

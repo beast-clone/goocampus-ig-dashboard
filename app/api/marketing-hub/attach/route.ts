@@ -18,6 +18,17 @@ const ALLOWED_MIME = new Set([
   "application/pdf",
 ]);
 const ALLOWED_LABEL = "jpg, png, gif, webp, mp4, mov or pdf";
+// Attachments are working files, not media (Manya, 10 Oct: "references are
+// different and attachments are different"), so they also take Office files and
+// CSV — all of which download rather than render, so the reasoning above holds.
+const ATTACHMENT_EXTRA = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+  "text/csv",
+]);
+const ATTACHMENT_LABEL = "an image, video, pdf, Word, Excel, PowerPoint or CSV file";
 // POST /api/marketing-hub/attach
 // multipart/form-data:
 //   postId:       string (required)
@@ -39,7 +50,10 @@ export async function POST(req: Request) {
     const postId = form.get("postId");
     const uploadedBy = form.get("uploadedBy");
     const file = form.get("file");
-    const kind = form.get("kind") === "reference" ? "reference" : "creative";
+    // creative = the deliverable (what gets published); reference = mood-board;
+    // attachment = working files that are never published.
+    const rawKind = form.get("kind");
+    const kind = rawKind === "reference" || rawKind === "attachment" ? rawKind : "creative";
 
     if (typeof postId !== "string" || !postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
     // Attribution comes from the SESSION. It used to be read from the form, so
@@ -57,8 +71,8 @@ export async function POST(req: Request) {
     if (!(file instanceof File)) return NextResponse.json({ error: "file required" }, { status: 400 });
     if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `file exceeds ${MAX_MB}MB` }, { status: 413 });
     const mime = (file.type || "").toLowerCase();
-    if (!ALLOWED_MIME.has(mime)) {
-      return NextResponse.json({ error: `That file type isn't allowed — use ${ALLOWED_LABEL}.` }, { status: 415 });
+    if (!ALLOWED_MIME.has(mime) && !(kind === "attachment" && ATTACHMENT_EXTRA.has(mime))) {
+      return NextResponse.json({ error: `That file type isn't allowed — use ${kind === "attachment" ? ATTACHMENT_LABEL : ALLOWED_LABEL}.` }, { status: 415 });
     }
 
     const sb = getSupabase();
@@ -104,7 +118,7 @@ export async function POST(req: Request) {
     await sb.from("mh_activity").insert({
       post_id: postId,
       actor_key: who,
-      action: kind === "reference" ? "reference_added" : "creative_added",
+      action: `${kind}_added`,
       to_value: file.name,
     });
 
@@ -145,7 +159,7 @@ export async function DELETE(req: Request) {
     // Log the removal to the task Activity feed.
     await sb.from("mh_activity").insert({
       post_id: row.data.post_id,
-      action: row.data.kind === "reference" ? "reference_removed" : "creative_removed",
+      action: row.data.kind === "reference" || row.data.kind === "attachment" ? `${row.data.kind}_removed` : "creative_removed",
       to_value: row.data.filename,
     });
 

@@ -3361,7 +3361,8 @@ export const ACT_VERB: Record<string, string> = {
   caption_edited: "edited the caption", notes_edited: "edited the notes", sbu_changed: "changed the brand",
   platforms_changed: "changed platforms", review_changed: "toggled review", output_link_changed: "updated the output link",
   creative_added: "added a creative", creative_removed: "removed a creative", claim: "claimed this",
-  reference_added: "added a reference", reference_removed: "removed a reference", reference_links_changed: "updated the references",
+  reference_added: "added a reference", reference_removed: "removed a reference",
+  attachment_added: "added an attachment", attachment_removed: "removed an attachment", reference_links_changed: "updated the references",
   instagram_url_changed: "updated the Instagram link", facebook_url_changed: "updated the Facebook link", linkedin_url_changed: "updated the LinkedIn link",
 };
 // People's names, written the way a name is written. The activity feed reads them
@@ -3850,16 +3851,18 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     </div>
   );
 
-  // Attachments split by kind: creatives (the deliverable) vs references (mood-board).
+  // Attachments split by kind: creatives (the deliverable), references (mood-board)
+  // and attachments (working files, never published — Manya, 10 Oct).
   const attMap = (a: DetailAttachment) => ({ id: a.id as string | undefined, url: a.storage_path, name: a.filename, type: a.mime_type || "", removable: true });
   const creatives = [
-    ...(detail?.attachments || []).filter((a) => a.kind !== "reference").map(attMap),
+    ...(detail?.attachments || []).filter((a) => a.kind !== "reference" && a.kind !== "attachment").map(attMap),
     ...row.attachments.map((a) => ({ id: undefined as string | undefined, url: a.url, name: a.filename, type: a.type || "", removable: false })),
   ];
   const refImages = (detail?.attachments || []).filter((a) => a.kind === "reference").map(attMap);
+  const workFiles = (detail?.attachments || []).filter((a) => a.kind === "attachment").map(attMap);
   const refLinks = detail?.referenceLinks ?? [];
 
-  const upload = async (files: FileList, kind: "creative" | "reference" = "creative") => {
+  const upload = async (files: FileList, kind: "creative" | "reference" | "attachment" = "creative") => {
     setUploading(true);
     try {
       for (const f of Array.from(files)) {
@@ -3878,6 +3881,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     await loadDetail();
   };
   const refFileRef = useRef<HTMLInputElement>(null);
+  const workFileRef = useRef<HTMLInputElement>(null);
   const [refLinkAdd, setRefLinkAdd] = useState(false);
   const [refLinkDraft, setRefLinkDraft] = useState("");
   const addRefLink = async () => {
@@ -4060,6 +4064,30 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   <button onClick={() => { setRefLinkDraft(""); setRefLinkAdd(true); }} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconExternalLink size={15} />Add link</button>
                 </div>
                 {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image or a link.</div>}
+              </Panel>
+
+              {/* Attachments — working files that are never published, as in Airtable:
+                  "references are different and attachments are different" (Manya, 10 Oct). */}
+              <Panel icon={IconPaperclip} title="Attachments" right={<span className="text-[11px] text-gray-400">{workFiles.length || ""}</span>}>
+                <input ref={workFileRef} type="file" multiple className="hidden"
+                  accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv"
+                  onChange={(e) => { if (e.target.files?.length) upload(e.target.files, "attachment"); e.currentTarget.value = ""; }} />
+                {workFiles.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {workFiles.map((c, i) => (
+                      <div key={c.id || i} className="flex items-center gap-2 text-[14px] group">
+                        <IconPaperclip size={14} className="text-gray-400 flex-shrink-0" />
+                        <a href={c.url} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline flex-1 min-w-0">{c.name}</a>
+                        {c.id && <button onClick={() => removeCreative(c.id!)} title="Remove" className="text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 flex-shrink-0"><IconTrash size={12} /></button>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div onClick={() => workFileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files, "attachment"); }}
+                  className="border border-dashed border-gray-200 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:border-brand/40 hover:bg-brand-light/30 transition">
+                  <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Add attachments"}</div>
+                  <div className="text-[11px] text-[#8A92A6] mt-0.5">Working files — never published. Drag &amp; drop or click.</div>
+                </div>
               </Panel>
 
               {notes && (
