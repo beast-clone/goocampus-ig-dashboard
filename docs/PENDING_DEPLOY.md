@@ -9,6 +9,18 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
+Nothing — everything on `feat/dashboard-reskin` up to `5920b34` is live.
+
+---
+
+## Already live as of 21 October 2026, ~10:55 am IST
+
+Deploy `6ad84a005cd31dbe6baa0ecc`, CLI from `~/dev/gc-dash-build`, branch
+`feat/dashboard-reskin` at `5920b34` (includes `main` up to `5d31794`). Checked live:
+Team & access switch, Mentorship calendar, Monday-first calendar (272 tasks), hub
+rows carry collaborators, date-change approval answers for admins. `APP_URL`,
+`N8N_API_KEY`, `NETLIFY_AUTH_TOKEN`, `SERPER_MONTHLY_BUDGET` are set on Netlify.
+
 - **Team comments, 9–16 Oct + timer (21 Oct)** — `feat/dashboard-reskin`, after
   merging `main` in (aca57b6). One commit per comment, `#N` in the subject:
   - Notifications: one summary line instead of stacked pop-ups.
