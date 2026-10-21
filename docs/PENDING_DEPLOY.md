@@ -9,7 +9,7 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-Nothing — everything on `feat/dashboard-reskin` up to `c875f25` is live (4th deploy of 21 Oct, `6ad87917`: PDF page previews + Content Review side-by-side slider).
+Nothing — everything on `feat/dashboard-reskin` up to `f7cee37` is live (5th deploy of 21 Oct, `6ad896ec`: due dates in My Day, Scheduler IG/FB/LinkedIn ticks in one tab, timelines drop finished work, live-from-now plan with greyed done blocks).
 
 ---
 
