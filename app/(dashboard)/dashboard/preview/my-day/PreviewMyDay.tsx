@@ -712,6 +712,9 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
 }
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
+  // Start with no time set opens Set duration first (#23).
+  const [durOpen, setDurOpen] = useState(false);
+  const [startAfterPick, setStartAfterPick] = useState(false);
   // Permission-gated task actions (edit / reassign / delete). Only rendered when
   // the viewed person's Team capabilities allow them.
   const actor = uploadedBy || "maheen";
@@ -858,13 +861,23 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
                   {ICLOCK} {fmtMins(timing.planned)} {ILOCK}
                 </span>
               ) : (
-                <DurationPicker value={task.detail.duration} onChange={(m) => onSetDuration(m)} />
+                <DurationPicker value={task.detail.duration} open={durOpen} onOpenChange={(o) => { setDurOpen(o); if (!o) setStartAfterPick(false); }}
+                  title={startAfterPick ? "How long will this take? The timer starts when you pick." : undefined}
+                  onChange={(m) => {
+                    onSetDuration(m);
+                    if (startAfterPick) { setStartAfterPick(false); onStatusChange?.("Output - In Progress"); }
+                  }} />
               )
             )}
             {/* Stopwatch: Content-Approved → Start (begins the clock); running → Stop
                 (marks Output-Ready). Sits right after Set duration, per the agreed order. */}
             {onStatusChange && task.status === "Content - Approved" && (
-              <button className="cap sw-btn start" title="Start working — starts the timer" onClick={() => onStatusChange("Output - In Progress")}>{IPLAY} Start</button>
+              <button className="cap sw-btn start" title={task.detail.duration ? "Start working — starts the timer" : "Pick how long it will take, then the timer starts"}
+                onClick={() => {
+                  // No time picked yet → ask for it first; the pick then starts the clock.
+                  if (!task.detail.duration && onSetDuration) { setStartAfterPick(true); setDurOpen(true); return; }
+                  onStatusChange("Output - In Progress");
+                }}>{IPLAY} Start</button>
             )}
             {/* "Stop" said one thing and did another — it marked the task finished. Next
                 to a running clock that reads as "stop the timer", which is how a task
@@ -1204,8 +1217,10 @@ function TaskFeed({ postId }: { postId: string }) {
 
 // Custom Themed date picker (replaces the OS-native <input type=date> calendar).
 // Task duration — quick presets PLUS a custom hours/minutes entry (no fixed set).
-function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: number) => void }) {
-  const [open, setOpen] = useState(false);
+function DurationPicker({ value, onChange, open: openProp, onOpenChange, title }: { value?: number; onChange: (mins: number) => void; open?: boolean; onOpenChange?: (o: boolean) => void; title?: string }) {
+  const [openOwn, setOpenOwn] = useState(false);
+  const open = openProp ?? openOwn;
+  const setOpen = (o: boolean | ((x: boolean) => boolean)) => { const v = typeof o === "function" ? o(open) : o; setOpenOwn(v); onOpenChange?.(v); };
   const [h, setH] = useState("");
   const [m, setM] = useState("");
   const PRESETS = [15, 30, 45, 60, 90, 120, 180];
@@ -1216,7 +1231,7 @@ function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: 
   const chipStyle = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 500, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: on ? "1px solid #3A57E8" : "1px solid #E6E8EE", background: on ? "#3A57E8" : "#fff", color: on ? "#fff" : "#232D42" });
   const S: Record<string, React.CSSProperties> = {
     trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: value ? "#232D42" : "#8A92A6", background: "#fff", border: "1px solid #E6E8EE", borderRadius: 8, padding: "0 10px", height: 36, boxSizing: "border-box", cursor: "pointer", whiteSpace: "nowrap" },
-    pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 60, background: "#fff", border: "1px solid #E6E8EE", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)" },
+    pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 60, background: "#fff", border: "1px solid #E6E8EE", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)", textAlign: "left" },
     chips: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 },
     row: { display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid #F0F1F5", paddingTop: 10 },
     num: { width: 46, textAlign: "center", fontSize: 13, border: "1px solid #E6E8EE", borderRadius: 7, padding: "5px 4px", outline: "none" },
@@ -1232,6 +1247,7 @@ function DurationPicker({ value, onChange }: { value?: number; onChange: (mins: 
         <>
           <span style={{ position: "fixed", inset: 0, zIndex: 59 }} onClick={() => setOpen(false)} />
           <div style={S.pop} onClick={(e) => e.stopPropagation()}>
+            {title && <div style={{ fontSize: 13, fontWeight: 500, color: "#232D42", marginBottom: 8 }}>{title}</div>}
             <div style={S.lbl}>Quick pick</div>
             <div style={S.chips}>
               {PRESETS.map((p) => (
@@ -2330,18 +2346,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Completeness-gate block (server 422): the move was refused because required fields
   // are missing. `gate` = which transition, `missing` = the human-readable list.
   const [gateBlock, setGateBlock] = useState<GateBlock | null>(null);
-  // Tasks whose clock must not be auto-started again this session: either they were
-  // already auto-started, or someone explicitly said they aren't working on them.
-  const autoStarted = useRef<Set<string>>(new Set());
   const setTaskStatus = (id: string, status: CCStatus) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
-    // Moving a running task back to a content stage is someone saying "I'm not working
-    // on this". Remember it, or the auto-start effect — which fires on the task that is
-    // open in the panel — would read the new status as work waiting and start it again
-    // on the spot, undoing the cancel the moment it happened.
-    if (cur?.status === "Output - In Progress" && (status === "Content - Approved" || status === "Content - In Progress" || status === "Content - Pending")) {
-      autoStarted.current.add(id);
-    }
     if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
       const handoff = autoAssign(cur.detail.typeLine);
       if (handoff && !handoff.toPool && handoff.owner !== "Manya") {
@@ -2912,41 +2918,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const canAssignTasks = can("assign_tasks");  // hand to a teammate
   const isAdmin = canSchedule; // preserve existing prop name below
 
-  // ── Auto-start the clock ───────────────────────────────────────────────────
-  // The timer used to run ONLY if someone remembered to set the task to "In
-  // Progress". Nobody did, so the commonest path — open the task, do the work, mark
-  // it Output Ready — recorded nothing at all (no start_at ⇒ "Time taken" showed a
-  // dash), and the 15-minutes-left prompt never fired either.
-  //
-  // Opening a task that is waiting on YOU now starts it. That flips the status the
-  // normal way, so start_at, the day plan, the timer and the prompt all follow with
-  // no extra machinery. It is announced and undoable, because opening a task to look
-  // at it is not always the same as starting work.
-  useEffect(() => {
-    const t = task;
-    if (!t || !nowMin) return;
-    // Only work that is genuinely waiting on this person to make it:
-    //  · they own it,
-    //  · it sits at a status where the ball is in their court, and
-    //  · it is on THEIR side of the handoff — onTimelineFor keeps the writer out, so
-    //    Manya opening her own approved video (still awaiting an editor's claim)
-    //    never starts a clock on work she isn't doing.
-    const mine = t.detail.ownerKey === person;
-    const waiting = t.status === "Content - Approved" || t.status === "Incorporating Feedback";
-    if (!mine || !waiting || !onTimelineFor(PPL[person]?.name || "", t.status)) return;
-    if (!canEditTasks || autoStarted.current.has(t.id)) return;
-    // Only when the signed-in person opens THEIR OWN task. `person` is whose day is on
-    // screen; an admin looking at Nandu's day and opening a task started Nandu's clock,
-    // logged as Nandu (28 Sep). Looking at someone else's work must never start it.
-    if (!viewerId || viewerId !== person) return;
-    autoStarted.current.add(t.id);
-    doSetTaskStatus(t.id, "Output - In Progress");
-    setToast({
-      who: "Timer started", color: "#3A57E8", av: PPL[person]?.av || "•",
-      body: `“${t.title}” is now In Progress. Only looking? Put it back to ${STATUS[t.status].label}.`,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id, task?.status, person, viewerId, canEditTasks, nowMin !== null]);
+  // No auto-start. Opening a task used to start its clock (and move it to In
+  // Progress) when it was waiting on you — so opening one just to look started
+  // the timer: "I thought I just need to see how many contents are approved for
+  // today… as soon as I clicked, it turned on the timer" (Praveen, 21 Oct). Now
+  // you open it, pick the time (Set duration) and press Start.
 
   // Create a task → apply the Type→owner routing, drop it where it belongs (design
   // → the owner's My tasks; video → the editors' claim pool), and toast the result.
