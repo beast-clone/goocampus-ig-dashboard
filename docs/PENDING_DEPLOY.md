@@ -9,7 +9,16 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-Nothing — everything on `feat/dashboard-reskin` up to `c52d630` is live.
+Nothing — everything on `feat/dashboard-reskin` up to `b526a95` is live.
+
+---
+
+## Already live as of 21 October 2026, ~2:00 pm IST (third deploy that day)
+
+Deploy `6ad874f10adbe161a419fd84` (`b526a95`): task uploads go browser → Supabase storage
+(attach/sign + attach/complete, 50 MB cap) — verified live with a 7 MB PDF (test file
+removed by id); long sections capped with "Show full text"; compact My Day with a 240px
+History & comments column; pasted links shown in full in a box.
 
 ---
 
