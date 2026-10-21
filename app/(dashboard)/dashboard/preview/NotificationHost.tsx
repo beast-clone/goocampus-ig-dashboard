@@ -1,8 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { IconBell, IconX } from "@tabler/icons-react";
-import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
 import { playChatChime } from "@/app/(dashboard)/dashboard/preview/notifChime";
 import { shouldPoll } from "@/lib/quiet-hours";
 
@@ -11,8 +10,11 @@ import { shouldPoll } from "@/lib/quiet-hours";
 //
 //   · ONLY an action-needed notification pops up. Anything that merely informs
 //     goes to the bell — it rings and shakes — and to the unread count
-//   · an action item that is ignored pops again every ~90 s, with no limit,
-//     until the person clicks "Go to notification center" (read) or "Dismiss"
+//   · whatever is due shows as ONE line — "You have 45 notifications to review" —
+//     never a card per item. Three stacked cards plus "+40 more" covered the page
+//     and looked cheap (Praveen, 21 Oct)
+//   · an action item that is still unread comes back every ~90 s; the × only
+//     closes the bar, it doesn't dismiss anything
 //   · no pop-ups in quiet hours — the server decides that, in IST
 //   · the unread count goes into the browser tab title and the sidebar badge
 //
@@ -32,8 +34,7 @@ export type NotifItem = {
 
 const POLL_MS = 30_000;          // how often to look for new ones
 const REPOP_MS = 90_000;         // an ignored action item comes back after this
-const SHOW_MS = 15_000;          // a pop-up stays this long unless hovered
-const MAX_VISIBLE = 3;
+const SHOW_MS = 15_000;          // the bar stays this long unless hovered
 
 export const NOTIF_REFRESH = "gc-notif-refresh"; // fire after changing state elsewhere
 export const NOTIF_COUNT = "gc-notif-count";     // detail: { unread, action }
@@ -69,17 +70,18 @@ function wantsPop(n: NotifItem, now: number): boolean {
 
 export function NotificationHost() {
   const router = useRouter();
+  const pathname = usePathname();
   const [shown, setShown] = useState<NotifItem[]>([]);
-  const shownRef = useRef<NotifItem[]>([]);   // current stack, readable outside a state updater
+  const shownRef = useRef<NotifItem[]>([]);   // what the bar is counting, readable outside a state updater
   shownRef.current = shown;
-  const [extra, setExtra] = useState(0);
   const hovering = useRef(false);
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [armed, setArmed] = useState(0);      // bumps when new items arrive, restarting the clock
 
-  const hide = useCallback((id: string) => {
-    clearTimeout(timers.current[id]);
-    delete timers.current[id];
-    setShown((s) => s.filter((x) => x.id !== id));
+  const close = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setShown([]);
   }, []);
 
   const load = useCallback(async () => {
@@ -103,35 +105,36 @@ export function NotificationHost() {
 
     if (body.quiet) return;
     const now = Date.now();
-    const cur = shownRef.current;
-    const onScreen = new Set(cur.map((x) => x.id));
-    const due = items.filter((n) => !onScreen.has(n.id) && wantsPop(n, now));
-    if (!due.length) return;
-    // Action items first, then newest. Record that they popped so the 90 s clock
-    // restarts and another open tab doesn't show them too. Kept out of the state
-    // updater: React may run an updater twice, which would send this twice.
-    due.sort((a, b) => Number(b.action_needed) - Number(a.action_needed) || b.created_at.localeCompare(a.created_at));
-    const next = due.slice(0, Math.max(0, MAX_VISIBLE - cur.length));
-    setExtra(due.length - next.length);
-    if (!next.length) return;
-    patchNotifs({ op: "popped", ids: next.map((n) => n.id) }).catch(() => {});
-    setShown((c) => [...next.filter((n) => !c.some((x) => x.id === n.id)), ...c]);
+    // Keep counting what is already on the bar unless it was handled meanwhile
+    // (read or dismissed in the center, or in another tab).
+    const live = new Map(items.map((n) => [n.id, n]));
+    const still = shownRef.current.filter((x) => { const n = live.get(x.id); return n && !n.read_at && !n.dismissed_at; });
+    const onBar = new Set(still.map((x) => x.id));
+    const due = items.filter((n) => !onBar.has(n.id) && wantsPop(n, now));
+    if (due.length) {
+      // Record that they popped so the 90 s clock restarts and another open tab
+      // doesn't show them too. Kept out of the state updater: React may run an
+      // updater twice, which would send this twice.
+      patchNotifs({ op: "popped", ids: due.map((n) => n.id) }).catch(() => {});
+      setArmed((a) => a + 1);
+    }
+    if (due.length || still.length !== shownRef.current.length) setShown([...due, ...still]);
   }, []);
 
-  // Each pop-up hides itself after a while (unless hovered). Hidden ≠ handled:
-  // an ignored action item simply pops again on a later poll.
+  // The bar hides itself after a while (unless hovered). Hidden ≠ handled: an
+  // unread action item simply comes back on a later poll.
   useEffect(() => {
-    for (const n of shown) {
-      if (timers.current[n.id]) continue;
-      const arm = () => {
-        timers.current[n.id] = setTimeout(() => {
-          if (hovering.current) { arm(); return; }
-          hide(n.id);
-        }, SHOW_MS);
-      };
-      arm();
-    }
-  }, [shown, hide]);
+    if (!armed) return;
+    const arm = () => {
+      timer.current = setTimeout(() => {
+        if (hovering.current) { arm(); return; }
+        close();
+      }, SHOW_MS);
+    };
+    if (timer.current) clearTimeout(timer.current);
+    arm();
+    return () => { if (timer.current) clearTimeout(timer.current); };
+  }, [armed, close]);
 
   // A message in the team chat, heard from ANY tab — the chat panel itself only
   // exists in My Day, so before this you had to be sitting on that page to know
@@ -179,42 +182,20 @@ export function NotificationHost() {
     return () => { clearInterval(id); window.removeEventListener("focus", onFocus); window.removeEventListener(NOTIF_REFRESH, onFocus); };
   }, [load]);
 
-  const act = async (n: NotifItem, op: "read" | "dismiss", go?: string) => {
-    hide(n.id);
-    try { await patchNotifs({ op, ids: [n.id] }); } catch { /* the next poll shows it again */ }
-    window.dispatchEvent(new Event(NOTIF_REFRESH));
-    if (go) router.push(go);
-  };
-
-  if (!shown.length) return null;
+  // Already looking at them — the bar would only cover the list it points to.
+  if (!shown.length || pathname?.startsWith(NOTIF_CENTER)) return null;
+  const count = shown.length;
+  const label = `You have ${count} notification${count === 1 ? "" : "s"} to review`;
+  const review = () => { close(); router.push(NOTIF_CENTER); };
   return (
-    <div className="gc-notif-stack" onMouseEnter={() => { hovering.current = true; }} onMouseLeave={() => { hovering.current = false; }}
-      role="region" aria-label="Notifications" aria-live="polite">
-      {shown.map((n) => (
-        <div key={n.id} className={`gc-notif ${n.action_needed ? "is-action" : ""}`}>
-          <button type="button" className="gc-notif-body" title={n.post_id ? "Open the task" : "Open the notification center"}
-            onClick={() => act(n, "read", n.post_id ? taskHref(n.post_id) : NOTIF_CENTER)}>
-            <NotifIcon emoji={n.emoji} actionNeeded={n.action_needed} size={16} />
-            <span className="gc-notif-text">
-              {n.action_needed && <span className="gc-notif-tag">Needs you</span>}
-              <span className="gc-notif-title">{n.title}</span>
-              {n.sub && <span className="gc-notif-sub">{n.sub}</span>}
-            </span>
-          </button>
-          <button type="button" className="gc-notif-x" aria-label="Dismiss" onClick={() => act(n, "dismiss")}><IconX size={15} stroke={1.8} /></button>
-          <div className="gc-notif-actions">
-            <button type="button" className="gc-notif-go" onClick={() => act(n, "read", NOTIF_CENTER)}>
-              <IconBell size={14} stroke={1.8} /> Go to notification center
-            </button>
-            <button type="button" className="gc-notif-dismiss" onClick={() => act(n, "dismiss")}>Dismiss</button>
-          </div>
-        </div>
-      ))}
-      {extra > 0 && (
-        <button type="button" className="gc-notif-more" onClick={() => { setShown([]); setExtra(0); router.push(NOTIF_CENTER); }}>
-          +{extra} more in the notification center
-        </button>
-      )}
+    <div className="gc-notif-bar" onMouseEnter={() => { hovering.current = true; }} onMouseLeave={() => { hovering.current = false; }}
+      role="status" aria-live="polite">
+      <button type="button" className="gc-notif-bar-main" onClick={review} title="Open the notification center">
+        <span className="gc-notif-bar-icon"><IconBell size={15} stroke={1.8} /></span>
+        <span className="gc-notif-bar-text">{label}</span>
+      </button>
+      <button type="button" className="gc-notif-bar-go" onClick={review}>Review</button>
+      <button type="button" className="gc-notif-bar-x" aria-label="Close" onClick={close}><IconX size={14} stroke={1.8} /></button>
     </div>
   );
 }
