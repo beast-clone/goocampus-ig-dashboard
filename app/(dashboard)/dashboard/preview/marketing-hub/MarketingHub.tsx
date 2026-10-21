@@ -331,14 +331,15 @@ function MarketingHubShell() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") || "team";
   const tab = ["team", "master", "pipeline", "calendar"].includes(tabParam) ? tabParam : "master";
+  const mentorship = tab === "calendar" && searchParams.get("channel") === "goocampusworld";
   return (
     <PreviewDashboardShell
       active="marketing-hub"
       // Each sub-tab its own intro: all four used to show the Master sheet's.
       // A key with no TAB_INTRO entry (pipeline, calendar for now) shows none.
       introTab={tab === "master" ? "marketing-hub" : `marketing-hub-${tab}`}
-      title={`Marketing Hub › ${SUBTAB_LABEL[tab]}`}
-      subtitle={SUBTAB_SUBTITLE[tab]}
+      title={`Marketing Hub › ${mentorship ? "Mentorship Calendar" : SUBTAB_LABEL[tab]}`}
+      subtitle={mentorship ? "Mentorship Platform and 10K Mentorship only — month at a glance, drag to reschedule." : SUBTAB_SUBTITLE[tab]}
       hideAccountPicker
       hideRange
     >
@@ -1492,6 +1493,13 @@ const channelOfSbu = (sbu: string): Exclude<CalChannel, "all"> | null => { const
 // calendar opens unfiltered and the button can always say what is being left out.
 export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; onSaved: () => void; loading: boolean }) {
   const sbus = useSbus();   // live brand list (sql/027)
+  // The Mentorship calendar (sidebar → "Mentorship calendar", ?channel=goocampusworld):
+  // the same calendar locked to the GooCampus World SBUs — "please create a separate
+  // content calendar for mentorship because this is confusing for me" (Manya, 10 Oct).
+  // It keeps its own saved filters, so a brand picked on the main calendar can't
+  // leave this one empty.
+  const worldOnly = useSearchParams().get("channel") === "goocampusworld";
+  const filterKey = worldOnly ? `${CAL_FILTER_KEY}:world` : CAL_FILTER_KEY;
   // Brand quick-filter — "" = All. Isolates a single SBU across the whole grid without
   // touching the master hub-level filter, so the calendar can drill into one brand cheaply.
   // Both filters hold what to SHOW, with empty meaning everything. Statuses are
@@ -1504,19 +1512,20 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const [calReady, setCalReady] = useState(false);
   useEffect(() => {
     try {
-      const v = JSON.parse(localStorage.getItem(CAL_FILTER_KEY) || "null");
+      const v = JSON.parse(localStorage.getItem(filterKey) || "null");
       if (v && typeof v === "object") {
         if (Array.isArray(v.brands)) setBrandSel(v.brands.filter((x: unknown) => typeof x === "string"));
         if (Array.isArray(v.statuses)) setStatusSel(v.statuses.filter((x: unknown) => typeof x === "string"));
       }
     } catch { /* private mode, or an older shape — open unfiltered */ }
     setCalReady(true);
-  }, []);
+  }, [filterKey]);
   useEffect(() => {
     if (!calReady) return;
-    try { localStorage.setItem(CAL_FILTER_KEY, JSON.stringify({ brands: brandSel, statuses: statusSel })); } catch { /* private mode */ }
-  }, [calReady, brandSel, statusSel]);
-  const [channel, setChannel] = useState<CalChannel>("all");
+    try { localStorage.setItem(filterKey, JSON.stringify({ brands: brandSel, statuses: statusSel })); } catch { /* private mode */ }
+  }, [calReady, brandSel, statusSel, filterKey]);
+  const [channelPick, setChannel] = useState<CalChannel>("all");
+  const channel: CalChannel = worldOnly ? "goocampusworld" : channelPick;
   const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
   // A day showing every task instead of the first four. Creating a task on a busy
   // day used to file it behind "+1 more", so it looked like nothing was added
@@ -1693,16 +1702,18 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       <div className="mhcal-titlecard">
         <h4>Calendar</h4>
         <div className="mhcal-tc-right">
-          <div style={{ width: 190 }}>
-            <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setBrandSel([]); }} options={CAL_CHANNELS} />
-          </div>
+          {!worldOnly && (
+            <div style={{ width: 190 }}>
+              <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setBrandSel([]); }} options={CAL_CHANNELS} />
+            </div>
+          )}
           <div style={{ width: 240 }}>
             {/* Every SBU, always (user). Choosing brands drops the account filter back to
                 All, so a pick can never land on an empty calendar — which is what the old
                 single-select guarded against by switching accounts for you. */}
             <MultiPick label="SBUs" selected={brandSel} total={channelRows.length}
-              onChange={(next) => { setBrandSel(next); if (next.length) setChannel("all"); }}
-              options={Array.from(new Set([...allSbus, ...sbus])).sort((a, b) => a.localeCompare(b))
+              onChange={(next) => { setBrandSel(next); if (next.length && !worldOnly) setChannel("all"); }}
+              options={Array.from(new Set([...allSbus, ...sbus])).filter((x) => !worldOnly || channelOfSbu(x) === "goocampusworld").sort((a, b) => a.localeCompare(b))
                 .map((x) => ({ value: x, count: channelRows.filter((r) => r.sbu === x).length }))} />
           </div>
           <div style={{ width: 215 }}>
@@ -1871,7 +1882,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       {createDate && (
         <NewTaskDialog onClose={() => setCreateDate(null)}
           onCreated={() => { setExpandedDay(createDate); onSaved(); }}
-          initial={{ publishDate: createDate, sbu: (brandSel.length === 1 ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : undefined) }} />
+          initial={{ publishDate: createDate, sbu: (brandSel.length === 1 ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : channel === "goocampusworld" ? "Mentorship Platform" : undefined) }} />
       )}
     </div>
   );
