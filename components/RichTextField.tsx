@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { TaskList, TaskItem } from "@tiptap/extension-list";
 import type { JSONContent } from "@tiptap/core";
-import { IconBold, IconItalic, IconH3, IconList, IconListNumbers } from "@tabler/icons-react";
+import { IconBold, IconItalic, IconStrikethrough, IconH3, IconList, IconListNumbers, IconListCheck, IconQuote, IconMinus, IconArrowBackUp, IconArrowForwardUp } from "@tabler/icons-react";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 
 // An always-editable text box for a task's Content and Caption — the Airtable way:
@@ -12,7 +13,12 @@ import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 // italics", "dash and enter … bullet points", "pasted bullets stay intact").
 //
 // The stored text stays exactly what it was: one line per line, `### ` headings,
-// `**bold**`, `*italic*`, `- ` bullets, `1. ` numbers, `[text](url)` links. That is
+// `**bold**`, `*italic*`, `~~strike~~`, `` `code` ``, `- ` bullets, `1. ` numbers,
+// `- [ ] ` checklists, `> ` quotes, `---` lines, `[text](url)` links.
+//
+// The usual editor shortcuts work, as in Airtable or Google Docs (Praveen, 21 Oct):
+// typing `# `, `- `, `1. `, `[] `, `> `, `---`, `**b**`, `*i*`, `~~s~~`, `` `c` ``
+// formats as you go; Cmd/Ctrl + B / I / Shift+S / Shift+7 / Shift+8 / Shift+9 / Z. That is
 // what Airtable sends, what the renderer in components/Markdown.tsx reads and what
 // the Scheduler passes on, so the editor converts to and from it itself rather than
 // re-flowing everything through a Markdown library (which would merge single lines
@@ -68,8 +74,9 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
         ? { heading: false, bold: false, italic: false, strike: false, underline: false, code: false, codeBlock: false,
             blockquote: false, horizontalRule: false, bulletList: false, orderedList: false, listItem: false, listKeymap: false,
             link: { openOnClick: true, autolink: true, linkOnPaste: true } }
-        : { heading: { levels: [1, 2, 3] }, code: false, codeBlock: false, blockquote: false, horizontalRule: false, strike: false, underline: false,
+        : { heading: { levels: [1, 2, 3] }, codeBlock: false, underline: false,
             link: { openOnClick: true, autolink: true, linkOnPaste: true } }),
+      ...(mode === "rich" ? [TaskList, TaskItem.configure({ nested: true })] : []),
     ],
     content: toHtml(value, mode),
     editorProps: {
@@ -83,6 +90,30 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
         const ed = editorRef.current;
         if (!ed) return false;
         ed.chain().deleteRange({ from: $from.start(), to: $from.end() }).toggleBulletList().run();
+        return true;
+      },
+      // Pasted lists keep their bullets wherever they come from (Manya, 21 Oct). Google
+      // Docs and web pages send real lists; Word sends paragraphs that only LOOK like
+      // bullets, and WhatsApp / Notes / plain text send "• item" lines — both became
+      // loose paragraphs. Turn those into real lists, and drop a pasted list in place
+      // of the empty line it lands on instead of merging its first point into it.
+      transformPastedHTML: (html) => (mode === "rich" ? listifyPastedHtml(html) : html),
+      handlePaste: (view, event) => {
+        if (mode !== "rich") return false;
+        const cd = event.clipboardData;
+        if (!cd || cd.files.length) return false;
+        const rawHtml = cd.getData("text/html");
+        const text = cd.getData("text/plain");
+        let html = "";
+        if (rawHtml) { const h = listifyPastedHtml(rawHtml); if (/<(ul|ol)\b/i.test(h)) html = h; }
+        else if (text && text.split(/\r?\n/).some((l) => BULLET.test(l) || NUMBER.test(l) || TASK.test(l))) html = toHtml(text, "rich");
+        if (!html) return false;
+        const ed = editorRef.current;
+        if (!ed) return false;
+        const { $from, empty } = view.state.selection;
+        const blank = empty && $from.parent.type.name === "paragraph" && $from.parent.content.size === 0 && $from.depth === 1;
+        if (blank) ed.chain().focus().insertContentAt({ from: $from.before(), to: $from.after() }, html).run();
+        else ed.chain().focus().insertContent(html).run();
         return true;
       },
     },
@@ -126,9 +157,16 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder }: {
           {btn("Heading", editor.isActive("heading"), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), IconH3)}
           {btn("Bold (Ctrl/Cmd+B)", editor.isActive("bold"), () => editor.chain().focus().toggleBold().run(), IconBold)}
           {btn("Italic (Ctrl/Cmd+I)", editor.isActive("italic"), () => editor.chain().focus().toggleItalic().run(), IconItalic)}
+          {btn("Strikethrough (Ctrl/Cmd+Shift+S)", editor.isActive("strike"), () => editor.chain().focus().toggleStrike().run(), IconStrikethrough)}
           <span className="gc-rtf-sep" />
-          {btn("Bullets — or type - and press Enter", editor.isActive("bulletList"), () => editor.chain().focus().toggleBulletList().run(), IconList)}
-          {btn("Numbered list", editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), IconListNumbers)}
+          {btn("Bullets (Ctrl/Cmd+Shift+8) — or type - and press Enter", editor.isActive("bulletList"), () => editor.chain().focus().toggleBulletList().run(), IconList)}
+          {btn("Numbered list (Ctrl/Cmd+Shift+7)", editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), IconListNumbers)}
+          {btn("Checklist (Ctrl/Cmd+Shift+9) — or type [] and a space", editor.isActive("taskList"), () => editor.chain().focus().toggleTaskList().run(), IconListCheck)}
+          {btn("Quote — or type > and a space", editor.isActive("blockquote"), () => editor.chain().focus().toggleBlockquote().run(), IconQuote)}
+          {btn("Line — or type ---", false, () => editor.chain().focus().setHorizontalRule().run(), IconMinus)}
+          <span className="gc-rtf-sep" />
+          {btn("Undo (Ctrl/Cmd+Z)", false, () => editor.chain().focus().undo().run(), IconArrowBackUp)}
+          {btn("Redo (Ctrl/Cmd+Shift+Z)", false, () => editor.chain().focus().redo().run(), IconArrowForwardUp)}
           <span className="gc-rtf-state">{STATE_LABEL[state]}</span>
         </div>
       )}
@@ -149,7 +187,7 @@ const LOOKS_LIKE_HTML = /<(p|div|br|ul|ol|li|h[1-6]|strong|em|b|i|a|table|span)\
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // Inline marks, one pass so a URL inside **bold** or a link's own text is handled once.
-const INLINE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])|\*\*(.+?)\*\*|\*([^*\s](?:[^*]*?[^*\s])?)\*/g;
+const INLINE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])|\*\*(.+?)\*\*|\*([^*\s](?:[^*]*?[^*\s])?)\*|~~(.+?)~~|`([^`]+)`/g;
 function inline(s: string, plain: boolean): string {
   let out = "", last = 0;
   for (const m of s.matchAll(INLINE)) {
@@ -160,29 +198,46 @@ function inline(s: string, plain: boolean): string {
     else if (m[3]) out += `<a href="${esc(m[3])}">${esc(m[3])}</a>`;
     else if (m[4] !== undefined) out += `<strong>${inline(m[4], plain)}</strong>`;
     else if (m[5] !== undefined) out += `<em>${inline(m[5], plain)}</em>`;
+    else if (m[6] !== undefined) out += `<s>${inline(m[6], plain)}</s>`;
+    else if (m[7] !== undefined) out += `<code>${esc(m[7])}</code>`;
     last = i + m[0].length;
   }
   return out + esc(s.slice(last));
 }
 
-const BULLET = /^(\s*)[-*+•◦▪–]\s+(.*)$/;
+const BULLET = /^(\s*)[-*+•◦▪·–]\s+(.*)$/;
 const NUMBER = /^(\s*)\d+[.)]\s+(.*)$/;
 const HEADING = /^(#{1,6})\s+(.*)$/;
+const TASK = /^(\s*)[-*+•]?\s*\[( |x|X)?\]\s+(.*)$/;
+const RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+const QUOTE = /^>\s?(.*)$/;
 
 function toHtml(value: string, mode: Mode): string {
   const v = value || "";
   if (LOOKS_LIKE_HTML.test(v)) return sanitizeRichText(v);
   const plain = mode === "plain";
   const out: string[] = [];
-  let list: "ul" | "ol" | null = null;
-  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  let list: "ul" | "ol" | "task" | "quote" | null = null;
+  const close = () => { if (list) { out.push(list === "task" ? "</ul>" : list === "quote" ? "</blockquote>" : `</${list}>`); list = null; } };
+  const open = (want: "ul" | "ol" | "task" | "quote") => {
+    if (list === want) return;
+    close();
+    out.push(want === "task" ? `<ul data-type="taskList">` : want === "quote" ? "<blockquote>" : `<${want}>`);
+    list = want;
+  };
   for (const line of v.replace(/\r\n?/g, "\n").split("\n")) {
+    if (!plain) {
+      const t = line.match(TASK);
+      if (t) { open("task"); out.push(`<li data-type="taskItem" data-checked="${/x/i.test(t[2] || "")}"><p>${inline(t[3], plain)}</p></li>`); continue; }
+      if (RULE.test(line)) { close(); out.push("<hr>"); continue; }
+      const q = line.match(QUOTE);
+      if (q) { open("quote"); out.push(`<p>${inline(q[1], plain)}</p>`); continue; }
+    }
     const b = plain ? null : line.match(BULLET);
     const n = plain || b ? null : line.match(NUMBER);
     const h = plain || b || n ? null : line.match(HEADING);
     if (b || n) {
-      const want = b ? "ul" : "ol";
-      if (list !== want) { close(); out.push(`<${want}>`); list = want; }
+      open(b ? "ul" : "ol");
       out.push(`<li><p>${inline((b || n)![2], plain)}</p></li>`);
       continue;
     }
@@ -192,6 +247,47 @@ function toHtml(value: string, mode: Mode): string {
   }
   close();
   return out.join("");
+}
+
+// ── pasted HTML → real lists ─────────────────────────────────────────────────
+// Word marks a list item as a paragraph with "mso-list" and a fake bullet in an
+// "mso-list:Ignore" span; other apps paste "• item" paragraphs. Both become <ul>/<ol>.
+// Typed markers only — Word's own ("o", "§" in Symbol/Wingdings) are removed with
+// their mso-list:Ignore span, so a paragraph that starts with the word "o" is safe.
+const FAKE_BULLET = /^\s*([•◦▪·\-–*]|\d+[.)])\s+/;
+function listifyPastedHtml(html: string): string {
+  if (typeof DOMParser === "undefined") return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const blocks = Array.from(doc.body.querySelectorAll("p, div")).filter((el) => !el.closest("li") && !el.querySelector("p, div, ul, ol"));
+  let group: HTMLElement | null = null, prev: Element | null = null;
+  for (const el of blocks) {
+    const word = /mso-list/i.test(el.getAttribute("style") || "") || /MsoList/i.test(el.className);
+    let ordered = false;
+    if (word) {
+      const marker = el.querySelector('[style*="mso-list:Ignore"], [style*="mso-list: Ignore"]');
+      ordered = /^\s*\d+[.)]/.test(marker?.textContent || "");
+      marker?.remove();
+    } else {
+      const m = (el.textContent || "").match(FAKE_BULLET);
+      if (!m) { group = null; prev = el; continue; }
+      ordered = /\d/.test(m[1]);
+      // strip the typed marker from the first text node
+      const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let tn = walker.nextNode();
+      while (tn && !(tn.textContent || "").trim()) tn = walker.nextNode();
+      if (tn) tn.textContent = (tn.textContent || "").replace(FAKE_BULLET, "");
+    }
+    const tag = ordered ? "OL" : "UL";
+    if (!group || group.tagName !== tag || prev?.nextElementSibling !== el) {
+      group = doc.createElement(tag);
+      el.parentNode?.insertBefore(group, el);
+    }
+    const li = doc.createElement("li"), p = doc.createElement("p");
+    p.innerHTML = el.innerHTML.replace(/^(\s|&nbsp;)+/, "");
+    li.appendChild(p); group.appendChild(li); el.remove();
+    prev = group;
+  }
+  return doc.body.innerHTML;
 }
 
 // ── editor JSON → stored text ────────────────────────────────────────────────
@@ -207,10 +303,14 @@ function marksText(nodes: JSONContent[] | undefined, plain: boolean): string {
     const link = marks.find((m) => m.type === "link");
     const bold = marks.some((m) => m.type === "bold");
     const italic = marks.some((m) => m.type === "italic");
+    const strike = marks.some((m) => m.type === "strike");
+    const code = marks.some((m) => m.type === "code");
     // Keep a mark's spaces outside it — "** word**" stops being bold when read back.
     const lead = t.match(/^\s*/)?.[0] || "", trail = t.match(/\s*$/)?.[0] || "";
     let core = t.slice(lead.length, t.length - trail.length);
     if (core) {
+      if (code) core = `\`${core}\``;
+      if (strike) core = `~~${core}~~`;
       if (italic) core = `*${core}*`;
       if (bold) core = `**${core}**`;
       if (link) { const href = String(link.attrs?.href || ""); core = core === href ? href : `[${core}](${href})`; }
@@ -226,6 +326,20 @@ function block(n: JSONContent, plain: boolean, depth: number, lines: string[]) {
   switch (n.type) {
     case "paragraph": lines.push(pad + marksText(n.content, plain)); break;
     case "heading": lines.push(`${"#".repeat(Number(n.attrs?.level) || 3)} ${marksText(n.content, plain)}`); break;
+    case "horizontalRule": lines.push("---"); break;
+    case "blockquote": {
+      const inner: string[] = [];
+      for (const c of n.content || []) block(c, plain, 0, inner);
+      for (const l of inner) lines.push(`> ${l}`);
+      break;
+    }
+    case "taskList":
+      for (const li of n.content || []) {
+        const [first, ...rest] = li.content || [];
+        lines.push(`${pad}- [${li.attrs?.checked ? "x" : " "}] ${first ? marksText(first.content, plain) : ""}`);
+        for (const r of rest) block(r, plain, depth + 1, lines);
+      }
+      break;
     case "bulletList":
     case "orderedList": {
       let i = Number(n.attrs?.start) || 1;
@@ -268,6 +382,17 @@ const RTF_CSS = `
 .gc-rtf-body ol{list-style:decimal;padding-left:22px;margin:2px 0}
 .gc-rtf-body li p{margin:0}
 .gc-rtf-body a{color:#3A57E8;text-decoration:underline;cursor:pointer;word-break:break-all}
+.gc-rtf-body hr{border:0;border-top:1px solid #E6E9F2;margin:10px 0}
+.gc-rtf-body hr.ProseMirror-selectednode{border-top-color:#3A57E8}
+.gc-rtf-body blockquote{border-left:3px solid #E9ECFB;padding-left:10px;margin:4px 0;color:#4A5468}
+.gc-rtf-body code{background:#F6F7FB;border-radius:4px;padding:1px 4px;font-size:13px}
+.gc-rtf-body s{color:#8A92A6}
+.gc-rtf-body ul[data-type="taskList"]{list-style:none;padding-left:2px}
+.gc-rtf-body ul[data-type="taskList"] li{display:flex;align-items:flex-start;gap:8px}
+.gc-rtf-body ul[data-type="taskList"] li > label{margin-top:3px;flex-shrink:0}
+.gc-rtf-body ul[data-type="taskList"] li > label input{accent-color:#3A57E8;cursor:pointer}
+.gc-rtf-body ul[data-type="taskList"] li > div{flex:1;min-width:0}
+.gc-rtf-body ul[data-type="taskList"] li[data-checked="true"] > div{color:#8A92A6;text-decoration:line-through}
 .gc-rtf-body.ProseMirror-focused{border-color:#3A57E8}
 .gc-rtf-wrap{position:relative}
 .gc-rtf-ph{position:absolute;top:7px;left:0;font-size:14px;line-height:22px;color:#8A92A6;pointer-events:none}

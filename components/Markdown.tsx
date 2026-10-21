@@ -23,7 +23,12 @@ import type { ReactNode } from "react";
 // setting innerHTML: the set the team actually writes is small, and this way no
 // string from the database is ever interpreted as HTML.
 const MD_HEADING = /^(#{1,6})\s+(.*)$/;
-const MD_BULLET = /^\s*[-*+]\s+(.*)$/;
+const MD_BULLET = /^\s*[-*+•◦▪·–]\s+(.*)$/;
+// What the task editor (components/RichTextField.tsx) also writes: a checklist item,
+// a "---" line and a "> " quote.
+const MD_TASK = /^\s*[-*+•]?\s*\[( |x|X)?\]\s+(.*)$/;
+const MD_RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+const MD_QUOTE = /^>\s?(.*)$/;
 const MD_NUMBER = /^\s*(\d+)[.)]\s+(.*)$/;
 // bold | italic | code | [text](url)
 //
@@ -33,7 +38,7 @@ const MD_NUMBER = /^\s*(\d+)[.)]\s+(.*)$/;
 // Mangling a link people have to copy is far worse than not rendering _italics_,
 // which nobody here writes anyway.
 // …and a bare https:// link, so a pasted Instagram link is clickable (Manya, 16 Oct).
-const MD_INLINE = /(\*\*|__)(.+?)\1|\*([^*\n]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g;
+const MD_INLINE = /(\*\*|__)(.+?)\1|\*([^*\n]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])|~~(.+?)~~/g;
 
 export function inlineMd(text: string, k: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -44,6 +49,7 @@ export function inlineMd(text: string, k: string): ReactNode[] {
     if (m[2] !== undefined) out.push(<strong key={`${k}b${i}`} className="font-semibold text-[#2B3445]">{m[2]}</strong>);
     else if (m[3] !== undefined) out.push(<em key={`${k}i${i}`}>{m[3]}</em>);
     else if (m[4] !== undefined) out.push(<code key={`${k}c${i}`} className="rounded bg-gray-100 px-1 py-0.5 text-[13px]">{m[4]}</code>);
+    else if (m[8] !== undefined) out.push(<s key={`${k}s${i}`} className="text-[#8A92A6]">{m[8]}</s>);
     else if (m[7] !== undefined) out.push(<a key={`${k}u${i}`} href={m[7]} target="_blank" rel="noreferrer" className="text-brand underline break-all">{m[7]}</a>);
     else out.push(<a key={`${k}a${i}`} href={m[6]} target="_blank" rel="noreferrer" className="text-brand underline break-all">{m[5]}</a>);
     last = m.index + m[0].length;
@@ -85,6 +91,21 @@ export function Markdown({ value }: { value: string }) {
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, "");
+    if (MD_RULE.test(line)) { flushPara(); flushList(); out.push(<hr key={`r${out.length}`} className="border-0 border-t border-gray-100" />); continue; }
+    const t = MD_TASK.exec(line);
+    if (t) {
+      flushPara(); flushList();
+      const key = `t${out.length}`, done = /x/i.test(t[1] || "");
+      out.push(<div key={key} className={`flex items-start gap-2 ${done ? "line-through text-[#8A92A6]" : ""}`}><span aria-hidden className="mt-[1px]">{done ? "☑" : "☐"}</span><span>{inlineMd(t[2], key)}</span></div>);
+      continue;
+    }
+    const q = MD_QUOTE.exec(line);
+    if (q) {
+      flushPara(); flushList();
+      const key = `q${out.length}`;
+      out.push(<div key={key} className="border-l-[3px] border-[#E9ECFB] pl-2.5 text-[#4A5468]">{inlineMd(q[1], key)}</div>);
+      continue;
+    }
     const h = MD_HEADING.exec(line);
     if (h) {
       flushPara(); flushList();
@@ -127,7 +148,10 @@ export function plainText(md: string | null | undefined): string {
   return String(md || "")
     .replace(/\r\n/g, "\n")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")          // headings
-    .replace(/^\s*[-*+]\s+/gm, "")               // bullets
+    .replace(/^\s*[-*+•◦▪·–]\s+(\[( |x|X)?\]\s+)?/gm, "")   // bullets, checklists
+    .replace(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/gm, "")    // lines
+    .replace(/^>\s?/gm, "")                     // quotes
+    .replace(/~~(.+?)~~/g, "$1")                 // strike
     .replace(/^\s*\d+[.)]\s+/gm, "")             // numbered lists
     .replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1")    // [text](url) -> text
     .replace(/(\*\*|__)(.+?)\1/g, "$2")          // bold
