@@ -697,9 +697,11 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
   const late = (t: Task) => (todayStr && t.due && t.due < todayStr ? 0 : 1);
   return (a: Task, b: Task) => {
     if (by === "plan") {
-      // Anything not on today's timeline sits after everything that is.
+      // Anything not on today's timeline sits after everything that is — and among
+      // those, the same order as the timeline itself: overdue, then Urgent/High, then
+      // date. Plain date alone left late work below on-time work (Nandu, 13 Oct).
       const ia = planOrder?.get(a.id) ?? Infinity, ib = planOrder?.get(b.id) ?? Infinity;
-      return (ia - ib) || due(a, b);
+      return (ia - ib) || (late(a) - late(b)) || (hot(a) - hot(b)) || due(a, b);
     }
     if (by === "priority") return (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]) || due(a, b);
     if (by === "status") return (STATUS_RANK.indexOf(a.status) - STATUS_RANK.indexOf(b.status)) || due(a, b);
@@ -2172,7 +2174,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     if (appliedOrder.current === sig) return;
     appliedOrder.current = sig;
     const rank = new Map(savedOrder.map((id, i) => [id, i]));
-    setPlan((arr) => [...arr].sort((a, b) => (rank.get(a.taskId) ?? Infinity) - (rank.get(b.taskId) ?? Infinity)));
+    // Work that arrived since the order was saved used to sink to the very end, even
+    // overdue or urgent work. It now keeps the place the plan gave it when it is late
+    // or high priority (ahead of the saved order), and follows it otherwise.
+    const nowD = new Date();
+    const todayKey = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, "0")}-${String(nowD.getDate()).padStart(2, "0")}`;
+    const all = uniqById([...claimedTasks, ...tasks]);
+    const urgent = (id: string) => { const t = all.find((x) => x.id === id); return !!t && ((!!t.due && t.due < todayKey) || isHot(t.detail.priority)); };
+    const pos = (id: string) => rank.get(id) ?? (urgent(id) ? -1 : Infinity);
+    setPlan((arr) => arr.map((p, i) => ({ p, i })).sort((a, b) => (pos(a.p.taskId) - pos(b.p.taskId)) || (a.i - b.i)).map(({ p }) => p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedOrder, plan.length]);
   /** Remember a reorder. Best-effort — a save that fails costs the order, not the day. */
   const saveOrder = (arr: PlanItem[]) => {
@@ -2674,12 +2685,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // Where the drop lands, counted in tasks: every task whose middle sits before
     // the cursor stays ahead of it. Midpoints, not edges, so dropping onto the left
     // half of a block puts you before it and the right half after it.
+    // The 1–2 PM lunch sits inside the timeline, so it is counted here too — without
+    // it every drop after lunch landed one slot early and the list then showed the
+    // wrong order (Nandu, 13 Oct). A block that runs into lunch is split around it.
     const rest = arr.filter((_, i) => i !== from);
-    let cursor = planStart, to = rest.length;
+    let cursor = planStart, to = rest.length, lunchDone = cursor >= LUNCH_AT + LUNCH_MIN;
     for (let i = 0; i < rest.length; i++) {
-      const mid = cursor + rest[i].dur / 2;
+      if (!lunchDone && cursor >= LUNCH_AT) { cursor = Math.max(cursor, LUNCH_AT) + LUNCH_MIN; lunchDone = true; }
+      let end = cursor + rest[i].dur;
+      if (!lunchDone && end > LUNCH_AT) { end += LUNCH_MIN; lunchDone = true; }
+      const mid = (cursor + end) / 2;
       if (mins < mid) { to = i; break; }
-      cursor += rest[i].dur;
+      cursor = end;
     }
     if (to === from) return;
     const next = [...rest];
