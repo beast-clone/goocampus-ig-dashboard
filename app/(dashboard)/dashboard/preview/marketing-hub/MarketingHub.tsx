@@ -2074,6 +2074,8 @@ const FILTER_FIELDS: FilterFieldDef<Row>[] = [
   { key: "sbu", label: "SBU / interest", type: "select", get: (r) => r.sbu || "" },
   { key: "createdBy", label: "Created by", type: "owner", get: (r) => r.createdBy || "" },
   { key: "owner", label: "Owner", type: "owner", get: (r) => r.owner || "" },
+  // Owner OR collaborator — what "<person>'s work" means (Nandu, 15 Oct).
+  { key: "involved", label: "Owner or collaborator", type: "owner", get: (r) => [r.owner, ...(r.collaborators || [])].filter(Boolean).join("|") },
   { key: "priority", label: "Priority", type: "select", get: (r) => r.priority || "" },
   { key: "publishingDate", label: "Publishing date", type: "date", get: (r) => (r.publishingDate || "").slice(0, 10) },
   { key: "dueDate", label: "Due date", type: "date", get: (r) => (r.dueDate || "").slice(0, 10) },
@@ -2082,7 +2084,8 @@ const FILTER_FIELDS: FilterFieldDef<Row>[] = [
 ];
 // The Row-shaped wrappers. The engine and the operator table live in
 // lib/filter-model.ts so Sales Ops uses the same ones.
-export const ownerMatchesKey = (owner: string, key: string) => { const m = TEAM.find((t) => t.key === key); return m ? ownerMatches(owner, m) : false; };
+// "|" joins several people (the "involved" field); a match on any of them counts.
+export const ownerMatchesKey = (owner: string, key: string) => { const m = TEAM.find((t) => t.key === key); return m ? owner.split("|").some((o) => ownerMatches(o, m)) : false; };
 const ownerLabel = (key: string) => TEAM.find((m) => m.key === key)?.label || key;
 function evalFilter(r: Row, f: FilterModel, fields: FilterFieldDef<Row>[] = FILTER_FIELDS): boolean {
   return evalFilterShared(r, f, fields, ownerMatchesKey);
@@ -2519,7 +2522,10 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
 
   const oneCond = (field: string, value: string): FilterModel => ({ conjunction: "and", conditions: [{ field, op: "is", value }] });
   const allView: MasterViewDef = { id: "all", label: "Master sheet", color: "#3A57E8", filter: EMPTY_FILTER };
-  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, filter: oneCond("owner", m.key) }));
+  // A task stays in "<person>'s work" after it's handed on: approval moves design work
+  // to Praveen (a database rule), and the writer is kept as a collaborator — but this
+  // view used to match the owner only, so approved work vanished from it.
+  const teamViews: MasterViewDef[] = TEAM.map((m) => ({ id: `team-${m.key}`, label: `${m.label}'s work`, av: m.av, color: m.color, filter: oneCond("involved", m.key) }));
   const statusViews: MasterViewDef[] = ALL_STATUSES.map((s) => ({ id: `status-${s.key}`, label: s.label, color: s.color, filter: oneCond("status", s.key) }));
   // Every content type actually in the sheet, one row each — not five buckets that
   // lumped a Reel Thumbnail in with a YouTube Long-Form (the team, 28 Sep). Read

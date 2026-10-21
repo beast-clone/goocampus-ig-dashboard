@@ -194,13 +194,17 @@ export async function GET(req: Request) {
     } else {
       // Fetch posts in date range + full team roster in parallel.
       // Filter: publishing_date within range OR publishing_date is null (draft items with no date yet).
-      const [postsRes, teamRes] = await Promise.all([
+      const [postsRes, teamRes, collabRes] = await Promise.all([
         sb
           .from("mh_posts")
           .select("*")
           .or(`and(publishing_date.gte.${from},publishing_date.lte.${to}),publishing_date.is.null`)
           .order("publishing_date", { ascending: false, nullsFirst: false }),
         sb.from("mh_team_members").select("key, full_name"),
+        // Who else is on each task. "<person>'s work" now includes the tasks they
+        // collaborate on, so a writer still sees work after approval hands it on
+        // (Nandu, 15 Oct: "not able to see Content Approved"). Small table — read whole.
+        sb.from("mh_post_collaborators").select("post_id, member_key").limit(20000),
       ]);
 
       if (postsRes.error) throw new Error(`posts: ${postsRes.error.message}`);
@@ -208,7 +212,13 @@ export async function GET(req: Request) {
 
       const teamByKey = new Map((teamRes.data || []).map((t: TeamRow) => [t.key, t.full_name]));
       const posts = (postsRes.data || []) as PostRow[];
-      const rows: Row[] = posts.map((p) => mapPost(p, teamByKey));
+      const collabsOf = new Map<string, string[]>();
+      for (const c of (collabRes.data || []) as { post_id: string; member_key: string }[]) {
+        const list = collabsOf.get(c.post_id) || [];
+        list.push(teamByKey.get(c.member_key) || c.member_key);
+        collabsOf.set(c.post_id, list);
+      }
+      const rows: Row[] = posts.map((p) => ({ ...mapPost(p, teamByKey), collaborators: collabsOf.get(p.id) || [] }));
 
       const facets: Facets = {
         sbu: uniqSorted(rows.map((r) => r.sbu)),
