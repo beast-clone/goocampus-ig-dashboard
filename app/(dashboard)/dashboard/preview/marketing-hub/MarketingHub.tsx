@@ -30,7 +30,7 @@ import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
-import { isVideoType } from "@/lib/mh-content-types";
+import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
 
 export type Row = {
   id: string;
@@ -1888,6 +1888,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   );
 }
 
+// The header's SBU / format pickers read as plain text until you point at them.
+const HEAD_SELECT = "[field-sizing:content] appearance-none bg-transparent border border-transparent rounded px-1 -mx-1 text-[13px] text-[#8A92A6] cursor-pointer outline-none hover:border-gray-200 hover:text-[#232D42] focus:border-brand";
+
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
 function statusPill(s: string): { bg: string; text: string } {
   return STATUS_TINT[s] || STATUS_TINT_FALLBACK;
@@ -3657,6 +3660,46 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   // Owner was display-only, so nobody could hand a video back to the editors — "give
   // me option to change owner to claim pool" (Nandu, 9 Oct). Same local override as
   // priority: the board row doesn't refresh while the panel is open.
+  // Title, format and SBU are edited in the header, freely, as in Airtable — "there
+  // is no option to change the content heading or the content format … neither the
+  // SBU" (Manya, 10 Oct). Local values, like priority: the row doesn't refresh.
+  const sbuList = useSbus();
+  const [titleSet, setTitleSet] = useState<string | null>(null);
+  const [sbuSet, setSbuSet] = useState<string | null>(null);
+  const [typeSet, setTypeSet] = useState<string | null>(null);
+  useEffect(() => { setTitleSet(null); setSbuSet(null); setTypeSet(null); }, [row.id, row.particulars, row.sbu, row.type]);
+  const titleCur = titleSet ?? row.particulars ?? "";
+  const sbuCur = sbuSet ?? row.sbu ?? "";
+  const typeCur = typeSet ?? row.type ?? "";
+  const [titleDraft, setTitleDraft] = useState(titleCur);
+  useEffect(() => { setTitleDraft(titleCur); }, [titleCur]);
+  const saveTitle = async () => {
+    const v = titleDraft.trim();
+    if (!v || v === titleCur) { setTitleDraft(titleCur); return; }
+    setTitleSet(v);
+    await saveOne("particulars", v, { value: titleCur, label: "Task name" });
+  };
+  const changeSbu = async (v: string) => {
+    if (!v || v === sbuCur) return;
+    setSbuSet(v);
+    await saveOne("sbu", v, { value: sbuCur, label: "SBU" });
+  };
+  const changeType = async (v: string) => {
+    if (!v || v === typeCur) return;
+    // Past approval the type decides who produces it — a database rule hands design
+    // work to Praveen — so a video ↔ design switch there moves the task. Say so first.
+    const handedOn = !["Content - Pending", "Content - In Progress", "Content - Needs Approval"].includes(statusCur || "");
+    if (handedOn && isVideoType(v) !== isVideoType(typeCur)) {
+      const ok = await confirmDialog({
+        title: `Change to ${v}?`,
+        body: isVideoType(v) ? "This is approved, so it goes to the video editors' claim pool." : "This is approved, so it is handed to Praveen as design work.",
+        action: "Change format",
+      });
+      if (!ok) return;
+    }
+    setTypeSet(v);
+    await saveOne("type", v, { value: typeCur, label: "Format" });
+  };
   const [ownerEdit, setOwnerEdit] = useState(false);
   const [ownerSet, setOwnerSet] = useState<{ key: string; label: string } | null>(null);
   useEffect(() => { setOwnerSet(null); }, [row.owner]);
@@ -3926,7 +3969,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="hub-modal-title">{row.particulars || "(untitled)"}</h2>
+              <input value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} aria-label="Task name" placeholder="Task name"
+                onBlur={saveTitle} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { setTitleDraft(titleCur); e.currentTarget.blur(); } }}
+                size={Math.max(12, titleDraft.length + 1)}
+                className="hub-modal-title bg-transparent border border-transparent rounded-md -ml-1.5 px-1.5 outline-none hover:border-gray-200 focus:border-brand max-w-full" />
               {statusCur && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1" style={{ background: sp.bg, color: sp.text }}>
                   {isDone && <IconCheck size={12} stroke={2.5} />}{statusCur}
@@ -3935,8 +3981,17 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               {row.needsReview && <span className="text-[11px] font-medium bg-amber-50 text-amber-700 rounded-full px-2.5 py-1">Needs review</span>}
             </div>
             <div className="flex items-center gap-2 mt-1 text-[13px] text-[#8A92A6] flex-wrap">
-              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(row.sbu, []) }} />{row.sbu || "—"}</span>
-              <span className="text-gray-300">·</span><span>{row.type || "—"}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(sbuCur, []) }} />
+                <select value={sbuCur} onChange={(e) => changeSbu(e.target.value)} aria-label="SBU" title="Change the SBU" className={HEAD_SELECT}>
+                  {!sbuCur && <option value="">— SBU</option>}
+                  {Array.from(new Set([...(sbuCur ? [sbuCur] : []), ...sbuList])).map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </span>
+              <span className="text-gray-300">·</span>
+              <select value={typeCur} onChange={(e) => changeType(e.target.value)} aria-label="Format" title="Change the format" className={HEAD_SELECT}>
+                {!typeCur && <option value="">— format</option>}
+                {Array.from(new Set([...(typeCur ? [typeCur] : []), ...ALL_TYPES])).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
             </div>
           </div>

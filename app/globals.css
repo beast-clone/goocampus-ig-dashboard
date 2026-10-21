@@ -83,7 +83,8 @@ html, body { height: 100%; background: #F7F7FA; color: #1A1A1F; }
 }
 .preview-scope .hub-airtable [class*="text-[13"] { font-size: 13px !important; line-height: 20px !important; }
 .preview-scope .hub-airtable [class*="text-[14"] { font-size: 13px !important; line-height: 20px !important; }
-.preview-scope .hub-airtable h2.hub-modal-title {
+.preview-scope .hub-airtable h2.hub-modal-title,
+.preview-scope .hub-airtable input.hub-modal-title {
   font-size: 23px !important; font-weight: 400 !important; line-height: 32px !important;
   letter-spacing: normal !important; color: #1D1F25 !important;
 }
