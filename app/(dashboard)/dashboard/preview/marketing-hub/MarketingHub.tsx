@@ -1565,17 +1565,32 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   // why; surface the reason instead.
   const [failure, setFailure] = useState<SaveFailure | null>(null);
   const { changePublishDate } = usePublishApproval();
+  // A drop that needs Maheen's approval used to leave the card on the OLD day until
+  // she approved, so dragging looked broken ("no option to drag and drop the task to
+  // a different date", Manya, 10 Oct). The approval stays; the card now moves to the
+  // requested day straight away, dashed, and goes back if she rejects.
+  const pendingMoves = useApi<{ requests?: { postId: string; from: string | null; to: string | null; status: string }[] }>("/api/marketing-hub/date-change");
+  const movedTo = useMemo(() => {
+    const m = new Map<string, { from: string | null; to: string }>();
+    for (const q of pendingMoves.data?.requests || []) if (q.status === "pending" && q.to) m.set(q.postId, { from: q.from, to: q.to.slice(0, 10) });
+    return m;
+  }, [pendingMoves.data]);
   const dropOn = async (e: React.DragEvent, dayKey: string) => {
     e.preventDefault();
     setDragOver(null);
     const id = e.dataTransfer.getData("text/plain");
     if (!id) return;
     const row = rows.find((r) => r.id === id);
-    if (row && row.publishingDate?.slice(0, 10) === dayKey) return; // no-op: same day
+    if (row && (movedTo.get(row.id)?.to ?? row.publishingDate?.slice(0, 10)) === dayKey) return; // no-op: same day
     // Non-admins get the reason popup → the drop is sent for Maheen's approval (the
     // card stays put until she approves); admins apply it immediately.
     const outcome = await changePublishDate({ id, title: row?.particulars || "This task", from: row?.publishingDate || null, to: dayKey });
-    if (outcome === "applied" || outcome === "pending") { onSaved(); return; }
+    if (outcome === "pending") {
+      await pendingMoves.refresh();
+      showToast({ who: "Moved — waiting for Maheen", body: "It shows on the new day now; she approves the date.", color: "#3A57E8", av: "✓" });
+      onSaved(); return;
+    }
+    if (outcome === "applied") { onSaved(); return; }
     if (outcome === "cancelled") return;
     setFailure({ kind: "error", message: "couldn't move that task — try again." });
   };
@@ -1590,14 +1605,14 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const byDay = useMemo(() => {
     const m = new Map<string, Row[]>();
     for (const r of filteredRows) {
-      const d = r.publishingDate?.slice(0, 10);
+      const d = movedTo.get(r.id)?.to ?? r.publishingDate?.slice(0, 10);
       if (!d) continue;
       let list = m.get(d);
       if (!list) { list = []; m.set(d, list); }
       list.push(r);
     }
     return m;
-  }, [filteredRows]);
+  }, [filteredRows, movedTo]);
 
   // Per-brand counts across the current (unfiltered) range — powers the chip badges.
   const brandCounts = useMemo(() => {
@@ -1669,9 +1684,11 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   // shows day cells can reschedule.
   const EvBar = (r: Row, block?: boolean) => {
     const st = calStatusStyle(r.status);
+    const moved = movedTo.get(r.id);
     return (
       <button
         key={r.id}
+        title={moved ? `Moved from ${moved.from ? fmtDate(moved.from) : "no date"} — waiting for Maheen to approve` : undefined}
         draggable
         onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
         onClick={() => onOpen(r.id)}
@@ -1679,7 +1696,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         onMouseLeave={() => setTip((t) => (t?.r.id === r.id ? null : t))}
         onDragEnd={() => setTip(null)}
         className={`mhcal-ev${block ? " block" : ""}`}
-        style={{ background: st.bg, borderColor: st.border, color: st.text }}
+        style={{ background: st.bg, borderColor: moved ? "#3A57E8" : st.border, borderStyle: moved ? "dashed" : undefined, color: st.text }}
       >
         {/* Just the title. The chip is already tinted by status (with a legend
             below), so a second brand-coloured square only made the grid busy
