@@ -597,7 +597,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         <CalendarView rows={filtered} facets={data?.facets} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
       )}
 
-      {openRow && <DetailModal row={openRow} onClose={() => setOpenId(null)} />}
+      {openRow && <DetailModal key={openRow.id} row={openRow} onClose={() => setOpenId(null)} />}
 
       <HubNewTaskButton onCreated={refresh} />
 

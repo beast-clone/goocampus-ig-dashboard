@@ -51,7 +51,7 @@ export function MemberHub({ person, tab }: { person: string; tab: MemberTab }) {
       {tab === "calendar" && (
         <CalendarView rows={scoped} facets={data?.facets} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
       )}
-      {openRow && <DetailModal row={openRow} onClose={() => setOpenId(null)} />}
+      {openRow && <DetailModal key={openRow.id} row={openRow} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
