@@ -714,7 +714,10 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
   // A High task due tomorrow used to jump ahead of two tasks that were overdue
   // yesterday (Praveen, 25 Sep) — late work is the more urgent thing by definition.
   const late = (t: Task) => (todayStr && t.due && t.due < todayStr ? 0 : 1);
-  return (a: Task, b: Task) => {
+  // What you're working on right now sits on top in every sort (Praveen, 21 Oct).
+  const live = (t: Task) => (t.status === "Output - In Progress" ? 0 : 1);
+  return (a: Task, b: Task) => live(a) - live(b) || sortBy(a, b);
+  function sortBy(a: Task, b: Task): number {
     if (by === "plan") {
       // Anything not on today's timeline sits after everything that is — and among
       // those, the same order as the timeline itself: overdue, then Urgent/High, then
@@ -727,7 +730,7 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
     if (by === "recent") return (b.detail.createdAt || "").localeCompare(a.detail.createdAt || "") || due(a, b);
     // Publishing date: overdue first, then Urgent/High, then earliest date.
     return (late(a) - late(b)) || (hot(a) - hot(b)) || due(a, b) || (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]);
-  };
+  }
 }
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
@@ -2571,17 +2574,39 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // clocks on one screen, and neither of them the teammate's.
   const startedAt = loginMin == null ? null : clockOf(Math.max(0, Math.min(loginMin, DAY_MINS)));
   const planStart = Math.max(shiftStart, loginMin ?? shiftStart);
-  const availMin = workAvailFrom(planStart, shiftStart);
+  // Once the shift is running the plan is laid from NOW: the task in progress sits
+  // where it was started, everything else queues after it. It used to replay the
+  // whole day from the morning, so at 2:30 the timeline showed whichever task had
+  // landed there — not the one actually being worked on (Praveen, 21 Oct).
+  const liveNow = nowMin != null && !isWeekend && nowMin > planStart && nowMin < shiftStart + WORK_MIN + LUNCH_MIN ? nowMin : null;
+  const startedToday = useMemo(() => {
+    const out = new Map<string, number>();   // in-progress task id -> start (timeline minutes)
+    for (const t of [...claimedTasks, ...tasks, ...samvaya]) {
+      if (t.status !== "Output - In Progress") continue;
+      const s = t.detail.startAt ? new Date(t.detail.startAt) : null;
+      const today = s && !Number.isNaN(s.getTime()) && s.toDateString() === new Date().toDateString();
+      out.set(t.id, today ? s!.getHours() * 60 + s!.getMinutes() - DAY_START_H * 60 : -1);
+    }
+    return out;
+  }, [claimedTasks, tasks, samvaya]);
+  const availMin = workAvailFrom(liveNow ?? planStart, shiftStart);
   const { fitPlan, spillPlan } = useMemo(() => {
     const fit: typeof myPlan = [], spill: typeof myPlan = [];
+    const working = liveNow == null ? [] : myPlan.filter((p) => p.taskId && startedToday.has(p.taskId));
     let used = 0;
+    for (const p of working) {
+      fit.push(p);
+      const st = startedToday.get(p.taskId!)!;
+      used += Math.max(0, (st < 0 ? liveNow! : st) + p.dur - liveNow!);   // what's left of it
+    }
     for (const p of myPlan) {
+      if (working.includes(p)) continue;
       const cap = p.high ? availMin : Math.max(0, availMin - BUFFER_MIN);
       if (fit.length === 0 || used + p.dur <= cap) { fit.push(p); used += p.dur; }
       else spill.push(p);
     }
     return { fitPlan: fit, spillPlan: spill };
-  }, [myPlan, availMin]);
+  }, [myPlan, availMin, liveNow, startedToday]);
   // Smart reminders (spec §13, revised per Manya's comment 22 Sep).
   //
   // A reminder's job is to get a task FINISHED IN TIME. Producers used to be
@@ -2629,6 +2654,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
     for (const p of fitPlan) {
       let remaining = p.dur;
+      if (liveNow != null) {
+        const st = p.taskId ? startedToday.get(p.taskId) : undefined;
+        if (st !== undefined) {
+          // In progress: from when it was started (or now), running at least until now.
+          cursor = Math.max(cursor, Math.min(st < 0 ? liveNow : st, liveNow));
+          remaining = Math.max(p.dur, liveNow - cursor);
+        } else cursor = Math.max(cursor, liveNow);   // not started: queued from now
+      }
       // If we're sitting inside the lunch window, jump past the (fixed) 1 PM lunch.
       if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { pushLunch(); cursor = LUNCH_END; }
       // Part that fits before lunch.
@@ -2647,7 +2680,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const bufStart = Math.max(cursor, dayEnd - BUFFER_MIN);
     if (bufStart < dayEnd) out.push({ kind: "buffer", label: "Buffer", start: bufStart, dur: dayEnd - bufStart });
     return out;
-  }, [fitPlan, planStart, shiftStart]);
+  }, [fitPlan, planStart, shiftStart, liveNow, startedToday]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   const plannedMin = fitPlan.reduce((s, p) => s + p.dur, 0);
   // Spilled work is only a problem if it publishes today or tomorrow; the rest is
