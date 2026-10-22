@@ -41,4 +41,6 @@ export const mimeRefusal = (kind: AttachKind) =>
   `That file type isn't allowed — use ${kind === "attachment" ? ATTACHMENT_LABEL : ALLOWED_LABEL}.`;
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
+// Runs of dots collapse to one: a title like "UK Prioritisation Act ... .pdf" kept its
+// "..." and the upload was then refused as a "bad path" (22 Oct).
+export const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".").replace(/^\.+/, "").slice(-120);
