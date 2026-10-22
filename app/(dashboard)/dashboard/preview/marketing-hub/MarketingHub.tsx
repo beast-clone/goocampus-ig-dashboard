@@ -61,6 +61,7 @@ export type Row = {
   lastModified: string;
   startAt: string;
   endAt: string;
+  durationMin?: number | null;
   needsReview: boolean;
   syncedToScheduler: boolean;
   caption: string;
@@ -189,6 +190,18 @@ const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];
 // Shared with My Day (lib/task-estimate) so a task's estimated length is identical
 // in the Workload timeline and the personal Today's-plan.
 const taskDurMin = estimateTaskMinutes;
+// A task's length on the timeline: the duration its person set in My Day when there
+// is one, otherwise the estimate for its type — so Workload and My Day show the same
+// task the same length (Praveen, 22 Oct: "is it working according to the timelines
+// of the task, or is it demo data?").
+const rowDurMin = (r: Row) => (r.durationMin && r.durationMin > 0 ? r.durationMin : taskDurMin(r.type));
+// Minutes after 9 AM that a task was actually started today, or null.
+function startedTodayMin(r: Row): number | null {
+  if (r.status !== "Output - In Progress" || !r.startAt) return null;
+  const d = new Date(r.startAt);
+  if (Number.isNaN(d.getTime()) || ymd(d) !== ymd(new Date())) return null;
+  return Math.max(0, (d.getHours() - WORK_START_H) * 60 + d.getMinutes());
+}
 // On camera counts on the presenter's workload too, as a one-hour shoot — the
 // editor owns the task and its duration (Nikhil, 9 & 13 Oct; same rule as My Day).
 const SHOOT_MIN = 60;
@@ -750,16 +763,26 @@ function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): 
   const queue = queueRows
     .filter((r) => presentsOn(r, member) || onDayPlan(r.status, member.role === "writer"))
     .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
-    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+    // Work already started today goes first, from the time it really started; the
+    // rest follows in due-date order.
+    .map((q) => ({ ...q, started: presentsOn(q.r, member) ? null : startedTodayMin(q.r) }))
+    .sort((a, b) => (a.started != null || b.started != null
+      ? (a.started ?? 1e9) - (b.started ?? 1e9)
+      : a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const blocks: PlanBlk[] = [];
   const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
   const dayEnd = shiftEnd(member);
   let cur = Math.max(shiftStart(member), loginMin ?? shiftStart(member)), lunchDone = false, overflow = 0;
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
+  const firstStart = queue[0]?.started;
+  if (firstStart != null && firstStart < dayEnd) {
+    if (firstStart > cur) blocks.push({ kind: "free", label: "Free", dur: firstStart - cur, start: cur });
+    cur = firstStart;
+  }
   for (const q of queue) {
     if (cur >= dayEnd) { overflow++; continue; }
     const shoot = presentsOn(q.r, member);
-    let remaining = shoot ? SHOOT_MIN : taskDurMin(q.r.type);
+    let remaining = shoot ? SHOOT_MIN : rowDurMin(q.r);
     const label = (shoot ? "On camera · " : "") + (q.r.particulars || q.r.type || "Task");
     if (!lunchDone && cur >= LUNCH_AT_MIN && cur < LUNCH_END) pushLunch();
     if (!lunchDone && cur < LUNCH_AT_MIN) {
@@ -939,7 +962,7 @@ function PersonTimelineRow({ card }: {
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
                 <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
                 <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
-                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(b.row && presentsOn(b.row, member) ? SHOOT_MIN : taskDurMin(b.row?.type || ""))}</span>
+                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(b.row && presentsOn(b.row, member) ? SHOOT_MIN : b.row ? rowDurMin(b.row) : 30)}</span>
               </div>
             ))}
           </div>

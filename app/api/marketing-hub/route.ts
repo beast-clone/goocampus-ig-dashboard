@@ -32,6 +32,7 @@ type Row = {
   lastModified: string;
   startAt: string;
   endAt: string;
+  durationMin: number | null;  // how long the person planned it (My Day's duration)
   needsReview: boolean;
   syncedToScheduler: boolean;
   caption: string;
@@ -110,6 +111,7 @@ type PostRow = {
   updated_at: string;
   start_at: string | null;
   end_at: string | null;
+  duration_min?: number | null;
   needs_review: boolean;
   synced_to_scheduler: boolean;
   caption: string | null;
@@ -147,6 +149,7 @@ function mapPost(p: PostRow, teamByKey: Map<string, string>): Row {
     lastModified: p.updated_at,
     startAt: p.start_at || "",
     endAt: p.end_at || "",
+    durationMin: typeof p.duration_min === "number" && p.duration_min > 0 ? p.duration_min : null,
     needsReview: p.needs_review,
     syncedToScheduler: p.synced_to_scheduler,
     caption: p.caption || "",
