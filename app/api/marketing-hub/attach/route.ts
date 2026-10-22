@@ -120,8 +120,11 @@ export async function DELETE(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const row = await sb.from("mh_attachments").select("storage_path, post_id, filename, kind").eq("id", id).single();
+    const row = await sb.from("mh_attachments").select("storage_path, post_id, filename, kind").eq("id", id).maybeSingle();
     if (row.error) throw new Error(row.error.message);
+    // Already removed (a double click, or a tile that hadn't refreshed yet) — that's
+    // the outcome asked for, not an error (22 Oct: "Cannot coerce the result…").
+    if (!row.data) return NextResponse.json({ ok: true, alreadyGone: true });
 
     const publicUrl: string = row.data.storage_path;
     const marker = "/scheduler-media/";
@@ -137,6 +140,7 @@ export async function DELETE(req: Request) {
     // Log the removal to the task Activity feed.
     await sb.from("mh_activity").insert({
       post_id: row.data.post_id,
+      actor_key: getSessionUserId() || null,   // who removed it, not "System"
       action: row.data.kind === "reference" || row.data.kind === "attachment" ? `${row.data.kind}_removed` : "creative_removed",
       to_value: row.data.filename,
     });

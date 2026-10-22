@@ -77,7 +77,14 @@ export async function GET() {
       // media: prefer uploaded media (Supabase Storage), then creative attachments,
       // then fall back to the legacy Slack/output link until everything's migrated
       // to direct upload. All are public URLs, so publish can use mediaUrls[0].
-      mediaUrls: [...((r.media_urls as string[] | null) || []), ...(attByPost.get(r.id) || [])],
+      // Deduped: once a post has been queued, its media_urls already hold the same
+      // attachment URLs, and re-opening it listed every file twice (22 Oct).
+      // A task-upload URL (mh-creatives/) that's no longer attached to the task was
+      // removed there — e.g. the creative swapped after a failed publish — so drop it.
+      mediaUrls: [...new Set([
+        ...((r.media_urls as string[] | null) || []).filter((u) => !u.includes("/mh-creatives/") || (attByPost.get(r.id) || []).includes(u)),
+        ...(attByPost.get(r.id) || []),
+      ])],
       assetLink: r.output_link || null,
       channel: r.publish_to || null,
       // the page from the primary interest (lib/sbu-pages); "" for Samvaya, which has none of ours

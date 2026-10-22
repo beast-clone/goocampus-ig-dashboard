@@ -22,7 +22,8 @@ export async function POST(req: Request) {
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb
       .from("mh_posts")
-      .update({ publish_status: null, schedule_time: null })
+      // failure_reason too: a failed post sent back to be fixed starts clean (22 Oct).
+      .update({ publish_status: null, schedule_time: null, failure_reason: null })
       .eq("id", recordId)
       .or(NOT_PUBLISHING)   // never while the publisher is sending it
       .select("id");

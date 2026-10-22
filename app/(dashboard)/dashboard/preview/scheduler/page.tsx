@@ -588,6 +588,10 @@ function Scheduler() {
   }
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
+  const mediaSizes = useMediaSizes(cleanMediaUrls);
+  const tooBigForIg = toInstagram
+    ? cleanMediaUrls.filter((u) => (mediaSizes[u] || 0) > IG_MAX_BYTES).map((u) => ({ name: decodeURIComponent(u.split("/").pop() || "video").replace(/^\d{10,}-/, ""), size: mediaSizes[u] }))
+    : [];
   // A PDF is a LinkedIn document carousel (a deck posted as separate images gets
   // reordered by LinkedIn; as one PDF the slides keep their order). Meta has no
   // equivalent and rejects PDFs, so they are split out and never sent there.
@@ -702,6 +706,12 @@ function Scheduler() {
 
   async function submit() {
     if (missingToPublish.length) { setGate({ gate: "schedule", missing: missingToPublish, title: particulars.trim() || "This post" }); return; }
+    // Instagram rejects reels over 300 MB — say so before it goes, not after (22 Oct).
+    if (tooBigForIg.length && !(await confirmDialog({
+      title: "Instagram will most likely reject this",
+      body: <>{tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram only accepts videos up to 300 MB when posting from here. Export it at 1080 × 1920, H.264, about 10–15 Mbps, under 300 MB.</>,
+      action: "Publish anyway", cancel: "Go back",
+    }))) return;
     let scheduleTimeISO: string | undefined;
     if (scheduleEnabled && scheduleDate && scheduleTime) {
       const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
@@ -1162,6 +1172,11 @@ function Scheduler() {
                                   )}
                                 </div>
                               )}
+                              {tooBigForIg.length > 0 && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+                                  <b className="font-medium">Too big for Instagram:</b> {tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram only takes videos up to 300 MB from here — export at 1080 × 1920, H.264, about 10–15 Mbps.
+                                </div>
+                              )}
                               <div className="flex items-center justify-between border-t border-gray-100 pt-3">
                                 <span className="text-xs">
                                   {result?.ok === true ? <span className="text-green-700">✓ Scheduled — moved to the queue.</span>
@@ -1207,6 +1222,11 @@ function Scheduler() {
               onReschedule={(p) => setScheduleModalPost(p)}
               onPublishNow={(p) => setPublishNowPost(p)}
               onDelete={(p) => setDeletePost(p)}
+              onFix={async (p) => {
+                const r = await fetch("/api/scheduler/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: p.id }) });
+                if (!r.ok) { const j = await r.json().catch(() => ({})); await alertDialog(`Couldn't take it out of the queue — ${(j as { error?: string }).error || "try again in a moment."}`); return; }
+                window.location.href = `/dashboard/preview/marketing-hub?tab=master&open=${p.id}`;
+              }}
             />
           )}
           {listFilter !== "ready" && listFilter !== "failed" && (
@@ -1906,9 +1926,42 @@ function StatusCounter({ label, count, color, active, onClick }: { label: string
   );
 }
 
+// Why a post failed, in plain words, with what to do (22 Oct). The publisher stores
+// Meta's raw message; most of them come down to the file or its shape.
+function explainFailure(reason: string | null | undefined): { why: string; fix?: string } | null {
+  if (!reason) return null;
+  const r = reason.toLowerCase();
+  if (/rejected the (story )?video while processing|media.*(too large|size)|file size/.test(r))
+    return { why: "Instagram couldn't process the video.", fix: "Usually the file is over 300 MB, 4K, landscape or longer than 15 min. Export it at 1080 × 1920 (vertical), H.264, about 10–15 Mbps, under 300 MB, and try again." };
+  if (/still processing at meta/.test(r)) return { why: "Meta took more than 20 minutes to process the video.", fix: "Try again; if it repeats, export a smaller file (under 300 MB)." };
+  if (/no media/.test(r)) return { why: "There was no creative on the post.", fix: "Add the image or video, then publish again." };
+  if (/token|oauth|permission|session/.test(r)) return { why: "The connection to Instagram / Facebook has expired.", fix: "Reconnect the page in Integrations, then try again." };
+  return { why: reason };
+}
+
+// Sizes of media files, read with a HEAD request (our uploads are public URLs), so the
+// composer can warn before Instagram rejects a file that's too big.
+const IG_MAX_BYTES = 300 * 1024 * 1024;
+function useMediaSizes(urls: string[]): Record<string, number> {
+  const [sizes, setSizes] = useState<Record<string, number>>({});
+  const key = urls.join("\n");
+  useEffect(() => {
+    let alive = true;
+    urls.filter((u) => /^https?:\/\//.test(u) && !(u in sizes)).forEach((u) => {
+      fetch(u, { method: "HEAD" }).then((r) => {
+        const n = Number(r.headers.get("content-length") || 0);
+        if (alive && n) setSizes((m) => ({ ...m, [u]: n }));
+      }).catch(() => {});
+    });
+    return () => { alive = false; };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return sizes;
+}
+const fmtSize = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${Math.round(n / 1024 ** 2)} MB`);
+
 // Compact list shown when a status counter (Scheduled / Publishing / Published / Failed)
 // is the active filter. Click a row to open the big preview/analytics modal.
-function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onPublishNow, onDelete }: {
+function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onPublishNow, onDelete, onFix }: {
   posts: ScheduledPost[];
   emptyLabel: string;
   pageHandle: (page: string) => string;
@@ -1916,6 +1969,7 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
   onReschedule: (p: ScheduledPost) => void;
   onPublishNow: (p: ScheduledPost) => void;
   onDelete: (p: ScheduledPost) => void;
+  onFix?: (p: ScheduledPost) => void;
 }) {
   if (posts.length === 0) {
     return <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">{emptyLabel}</div>;
@@ -1949,6 +2003,11 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
               <div className="text-xs text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
+              {p.effectiveStatus === "failed" && explainFailure(p.failureReason) && (
+                <div className="text-xs text-rose-700 mt-0.5 truncate" title={`${explainFailure(p.failureReason)!.why} ${explainFailure(p.failureReason)!.fix || ""}`}>
+                  Why: {explainFailure(p.failureReason)!.why}
+                </div>
+              )}
             </div>
           </button>
           <div className="text-xs text-gray-500 flex-shrink-0 text-right tabular-nums hidden sm:block">
@@ -1964,8 +2023,14 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
               {/* Some posts are written to go out now, not at the time someone
                   picked earlier. Without this the only way was to reschedule to a
                   minute in the future and wait. */}
+              {/* A failed post's way back (Praveen, 22 Oct): take it out of the queue and
+                  open its task to swap the creative; it then waits in Ready to schedule. */}
+              {p.effectiveStatus === "failed" && onFix && (
+                <button onClick={() => onFix(p)} title="Take it out of the queue and open the task to change the creative"
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark transition">Fix creative →</button>
+              )}
               <button onClick={() => onPublishNow(p)}
-                className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark transition">Publish now</button>
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition ${p.effectiveStatus === "failed" ? "border border-brand/40 text-brand hover:bg-brand-light/40" : "bg-brand text-white hover:bg-brand-dark"}`}>{p.effectiveStatus === "failed" ? "Try again" : "Publish now"}</button>
               <button onClick={() => onReschedule(p)}
                 className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 transition">Reschedule</button>
               <button onClick={() => onDelete(p)}
@@ -2505,6 +2570,13 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
                     <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mt-1">{m.label}</div>
                   </div>
                 ))}
+              </div>
+            )}
+            {!isPub && status === "failed" && explainFailure(p.failureReason) && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm">
+                <div className="font-medium text-rose-700">Why it failed: {explainFailure(p.failureReason)!.why}</div>
+                {explainFailure(p.failureReason)!.fix && <div className="text-rose-700/90 mt-1 text-[13px] leading-relaxed">{explainFailure(p.failureReason)!.fix}</div>}
+                <div className="text-xs text-rose-600/80 mt-1.5">Instagram said: &ldquo;{p.failureReason}&rdquo;</div>
               </div>
             )}
             <div>
