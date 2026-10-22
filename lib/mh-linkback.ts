@@ -73,3 +73,35 @@ export async function writeBackLink(args: {
   bustMarketingHubCache();
   return { ok: true, id };
 }
+
+// A post scheduled to several pages gets one extra mh_posts row per extra page
+// (schedule-multi), and each publishes — and gets its links — on its own row. Copy
+// those links onto the task they came from, so the task shows every live link
+// (Praveen, 22 Oct: "the links should be added to that task also"). Runs with the
+// 15-minute watchers cron; only looks at the last 3 days.
+export async function syncCloneLinks(): Promise<number> {
+  const sb = getSupabase();
+  if (!sb) return 0;
+  const since = new Date(Date.now() - 3 * 24 * 3600_000).toISOString();
+  const { data: clones } = await sb.from("mh_posts")
+    .select("id, custom, instagram_url, facebook_url, linkedin_url")
+    .not("custom->>source_task_id", "is", null).gte("published_at", since).limit(100);
+  let n = 0;
+  for (const c of (clones || []) as { id: string; custom: { source_task_id?: string } | null; instagram_url: string | null; facebook_url: string | null; linkedin_url: string | null }[]) {
+    const taskId = c.custom?.source_task_id;
+    if (!taskId || taskId === c.id) continue;
+    const { data: task } = await sb.from("mh_posts").select("instagram_url, facebook_url, linkedin_url").eq("id", taskId).maybeSingle();
+    if (!task) continue;
+    for (const platform of ["instagram", "facebook", "linkedin"] as LinkPlatform[]) {
+      const col = COLUMN[platform] as "instagram_url" | "facebook_url" | "linkedin_url";
+      const mine = (c[col] || "").split(/\s*,\s*/).filter(Boolean);
+      if (!mine.length) continue;
+      const theirs = ((task as Record<string, string | null>)[col] || "").split(/\s*,\s*/).filter(Boolean);
+      const merged = [...theirs, ...mine.filter((u) => !theirs.includes(u))];
+      if (merged.length === theirs.length) continue;
+      const res = await writeBackLink({ postId: taskId, platform, url: merged.join(" , ") });
+      if (res.ok) n++;
+    }
+  }
+  return n;
+}

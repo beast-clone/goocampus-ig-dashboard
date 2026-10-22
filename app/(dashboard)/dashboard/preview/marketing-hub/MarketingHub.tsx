@@ -3922,8 +3922,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   };
 
   const urlRow = (field: string, label: string, value: string, Icon?: typeof IconBrandInstagram) => (
-    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0 text-[14px]">
-      <span className="text-[#8A92A6] flex items-center gap-2 flex-shrink-0">{Icon && <Icon size={16} stroke={1.8} />}{label}</span>
+    // Read left to right: the label, then the link right after it — not pushed to the
+    // far edge with a gap in the middle (Praveen, 22 Oct).
+    <div className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0 text-[14px]">
+      <span className="text-[#8A92A6] flex items-center gap-2 flex-shrink-0 w-[104px] pt-1">{Icon && <Icon size={16} stroke={1.8} />}{label}</span>
       {urlEdit === field ? (
         <span className="flex-1 flex items-center gap-1 min-w-0">
           <input value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} autoFocus placeholder="Paste URL…"
@@ -3932,14 +3934,19 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
           <button onClick={() => { setUrlEdit(null); saveOne(field, urlDraft.trim() || null); }} className="text-brand flex-shrink-0"><IconCheck size={14} /></button>
         </span>
       ) : value ? (
-        <span className="flex items-start gap-1.5 min-w-0 flex-1 justify-end">
+        <span className="flex items-start gap-1.5 min-w-0 flex-1">
           {/* The whole link, in a box, opening on click — not a bare "Open" (Praveen, 21 Oct). */}
-          <a href={value} target="_blank" rel="noreferrer" title="Open in a new tab"
-            className="min-w-0 break-all rounded-lg border border-gray-100 bg-[#F7F8FC] px-2 py-1 text-[13px] leading-[18px] text-brand hover:border-brand hover:underline">{value}</a>
+          {/* Several pages = several links in one field (" , "); one box each. */}
+          <span className="flex flex-col gap-1.5 min-w-0">
+            {value.split(/\s*,\s*(?=https?:)/).map((u) => (
+              <a key={u} href={u} target="_blank" rel="noreferrer" title="Open in a new tab"
+                className="min-w-0 break-all rounded-lg border border-gray-100 bg-[#F7F8FC] px-2 py-1 text-[13px] leading-[18px] text-brand hover:border-brand hover:underline">{u}</a>
+            ))}
+          </span>
           <button onClick={() => { setUrlDraft(value); setUrlEdit(field); }} className="text-gray-400 hover:text-brand flex-shrink-0"><IconPencil size={12} /></button>
         </span>
       ) : (
-        <button onClick={() => { setUrlDraft(""); setUrlEdit(field); }} className="text-gray-300 hover:text-brand">+ Add</button>
+        <button onClick={() => { setUrlDraft(""); setUrlEdit(field); }} className="text-gray-400 hover:text-brand pt-1">+ Add</button>
       )}
     </div>
   );
@@ -4285,7 +4292,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 ))}
                 {detailRow("Publish to page", row.publishToPage)}
                 {detailRow("Platforms", (
-                  <div className="flex flex-wrap gap-1 justify-end">
+                  <div className="flex flex-wrap gap-1">
                     {platformChips.map((p) => {
                       const on = platformsCur.includes(p);
                       return <button key={p} onClick={() => togglePlatform(p)} className={`text-[10.5px] px-2 py-0.5 rounded-full border transition ${on ? "bg-brand-light text-brand border-brand/30" : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"}`}>{p}</button>;

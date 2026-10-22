@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runWatchers } from "@/lib/watchers";
 import { runPublishAnnounce } from "@/lib/publish-announce";
+import { syncCloneLinks } from "@/lib/mh-linkback";
 import { getSessionIsAdmin, isLoggedIn } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 
@@ -18,9 +19,11 @@ export async function GET(req: Request) {
     const out = await runWatchers();
     const fresh = out.results.reduce((n, r) => n + r.fresh.length, 0);
     // Same 15-minute beat: tell the team group about posts that just went live.
+    // Links from a post's extra-page copies onto the task itself, before announcing.
+    const linksCopied = await syncCloneLinks().catch((e) => { console.error("[clone-links] failed", e); return 0; });
     const announced = await runPublishAnnounce().catch((e) => { console.error("[publish-announce] failed", e); return { sent: 0 }; });
     console.log(`[watchers] ${out.checked} checked, ${fresh} new, ${out.results.filter((r) => r.error).length} errors, ${Date.now() - t0}ms`);
-    return NextResponse.json({ ok: true, ms: Date.now() - t0, ...out, announced });
+    return NextResponse.json({ ok: true, ms: Date.now() - t0, ...out, announced, linksCopied });
   } catch (err) {
     console.error("[watchers] failed", err);
     return NextResponse.json(safeError(err, "Watchers check failed"), { status: 502 });

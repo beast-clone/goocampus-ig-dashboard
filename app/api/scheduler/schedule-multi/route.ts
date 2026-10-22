@@ -71,6 +71,9 @@ export async function POST(req: Request) {
         instagram_url: null,
         facebook_url: null,
         published_at: null,
+        // Points back at the task, so its live links are copied onto the task too
+        // (syncCloneLinks, every 15 minutes) — 22 Oct.
+        custom: { source_task_id: body.recordId },
       }));
       const { data: ins, error: e3 } = await sb.from("mh_posts").insert(rows).select("id");
       if (e3) throw new Error(e3.message);
