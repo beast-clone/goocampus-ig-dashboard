@@ -275,8 +275,8 @@ function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean;
     <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       {/* Who + Admin */}
       <div className="px-6 py-5 flex items-center gap-3">
-        <span className="w-11 h-11 rounded-full bg-brand-light text-brand text-[14px] font-medium flex items-center justify-center shrink-0">{m.initials}</span>
-        <div className="min-w-0 flex-1"><div className="text-[17px] font-medium text-[#232D42]">{m.name}</div><div className="text-[12.5px] text-[#8A92A6]">{d.role || m.email}</div></div>
+        <span className="w-9 h-9 rounded-full bg-brand-light text-brand text-[12px] font-medium flex items-center justify-center shrink-0">{m.initials}</span>
+        <div className="min-w-0 flex-1"><div className="text-[15px] font-medium text-[#232D42]">{m.name}</div><div className="text-[12.5px] text-[#8A92A6]">{d.role || m.email}</div></div>
         <span className="text-[13px] font-medium text-[#232D42]">Admin</span>
         <Toggle checked={d.isAdmin} disabled={busy} label="Admin" onChange={(v) => setD((x) => ({ ...x, isAdmin: v }))} />
       </div>

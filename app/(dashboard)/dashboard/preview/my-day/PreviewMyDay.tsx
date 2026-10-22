@@ -1105,7 +1105,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   return (
     // One column (prototype D, 22 Oct): History & comments slide in from the right
     // only when asked for, so the brief and files get the whole width.
-    <div className="tb-d">
+    <div className={`tb-d ${histOpen ? "hopen" : ""}`}>
     <div style={{ minWidth: 0 }}>
       {/* Header — title + sub on the left, History button on the right; the status /
           duration / start bar sits under the title. */}
@@ -1470,7 +1470,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
 
     </div>
-    {/* History & comments — closed until asked for (prototype D, 22 Oct). */}
+    {/* History & comments — closed until asked for; opens as a column inside this
+        panel, not over the screen (prototype D, 22 Oct). */}
     {histOpen && (
       <aside className="hist-drawer" role="dialog" aria-label="History and comments">
         <div className="hist-drawer-h">

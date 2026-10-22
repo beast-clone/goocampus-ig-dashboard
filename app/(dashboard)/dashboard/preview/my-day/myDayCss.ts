@@ -1021,4 +1021,49 @@ html[data-theme="dark"] .hmd{
 .hmd .rpt-t{font-weight:500;font-size:13px;color:var(--ink)}
 .hmd .rpt-s{font-size:12px;color:var(--muted);margin-top:2px}
 .hmd .rpt-acts{display:flex;gap:.5rem;margin-top:1.2rem}
+
+/* Compact sizes (Praveen, 22 Oct: "everything looks big") — match the rest of the
+   dashboard: 18px greeting, 16px titles, 13px body. */
+.hmd .headband.hb-d{padding:1rem 1.25rem;gap:1rem}
+.hmd .hb-d .who .hi{font-size:18px}
+.hmd .hb-d .who .sub{font-size:12.5px;margin-top:.2rem}
+.hmd .hb-nums{gap:1.5rem}
+.hmd .hb-nums .stat .n{font-size:18px}
+.hmd .hb-nums .stat .k{font-size:11.5px}
+.hmd .work{gap:1rem;margin-top:.8rem}
+.hmd .vpick-btn{padding:.45rem .65rem;font-size:12.5px}
+.hmd .task,.hmd .task.duetoday,.hmd .task.overdue{padding:.5rem .65rem}
+.hmd .task .tt{font-size:13px}
+.hmd .task .mm{font-size:11.5px}
+.hmd .tgrp{font-size:11px;padding:.6rem .65rem .2rem}
+.hmd .work .detail{padding:1.15rem 1.35rem}
+.hmd .tb-d .d-title{font-size:16px}
+.hmd .tb-d .d-sub{font-size:12px;margin-bottom:.2rem}
+.hmd .d-actions{margin-top:.8rem}
+.hmd .tb-d .meta-grid{margin-top:1rem !important;padding:.8rem 0;gap:.8rem 1.2rem}
+.hmd .tb-d .section-head,.hmd .tb-d .section-lbl{margin-top:1.2rem}
+.hmd .tb-d .section-lbl{font-size:12.5px}
+.hmd .tb-d .brief{padding:.75rem .9rem;font-size:13px;line-height:1.6}
+.hmd .up-card{margin-top:1rem;border-radius:12px}
+.hmd .up-h{padding:.6rem .85rem}
+.hmd .up-ico{width:26px;height:26px;border-radius:8px}
+.hmd .up-h b{font-size:13px}
+.hmd .up-b{padding:.7rem .85rem .8rem;gap:.6rem}
+.hmd .up-drop{padding:.6rem .8rem;gap:.65rem}
+.hmd .up-ci{width:32px;height:32px}
+.hmd .up-dt{font-size:13px}
+.hmd .up-tile{width:96px}
+.hmd .up-im{height:96px}
+.hmd .up-add{width:96px;height:126px}
+.hmd .up-lrow{padding:.45rem .65rem}
+.hmd .rpt-panel{padding:1.1rem 1.2rem}
+.hmd .rpt-h b{font-size:16px}
+.hmd .rpt-tot .n{font-size:16px}
+.hmd .rpt-t{font-size:12.5px}
+.hmd .hist-drawer-h{padding:.8rem 1rem;font-size:13px}
+
+/* History & comments inside the task panel (Praveen, 22 Oct) — a right-hand column
+   that appears when opened, instead of a drawer over the whole screen. */
+.hmd .tb-d.hopen{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:1.2rem;align-items:start}
+.hmd .tb-d .hist-drawer{position:sticky;top:0;bottom:auto;right:auto;width:auto;max-height:calc(100vh - 4rem);z-index:auto;border:1px solid var(--line);border-radius:12px;animation:none}
 `;

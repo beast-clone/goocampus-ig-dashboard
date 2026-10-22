@@ -3602,7 +3602,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                       </div>
                     ) : null}
                     {/* Why a date moved / why a request was declined (22 Oct). */}
-                    {it.kind === "activity" && it.note && <div className="text-[12px] text-[#4A5468] mt-1 bg-[#F6F7FB] rounded-md px-2 py-1">Reason: {it.note}</div>}
+                    {it.kind === "activity" && it.note && it.note.trim() !== "—" && <div className="text-[12px] text-[#4A5468] mt-1 bg-[#F6F7FB] rounded-md px-2 py-1">Reason: {it.note}</div>}
                   </div>
                 </div>
               );
