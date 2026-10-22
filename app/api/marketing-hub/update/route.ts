@@ -147,7 +147,7 @@ export async function PATCH(req: Request) {
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")
-      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom, created_by")
       .eq("id", body.id)
       .single();
     if (before.error) throw new Error(before.error.message);
@@ -446,6 +446,17 @@ export async function PATCH(req: Request) {
     if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved" && !deferHandoff && !isOwnedThumbnail) {
       const isVideo = VIDEO_TYPES.has(String(data.type || ""));
       const oldOwner = before.data.owner_key;
+      // A video an editor filed (so it started on them as its creator) goes to the
+      // claim pool when its content is approved, like every other video — it used to
+      // stay theirs, and the pool hides videos an editor owns (Nandu, 22 Oct). Only
+      // from the content stages: a task coming back from production keeps its editor.
+      const fromContent = ["Content - Pending", "Content - In Progress"].includes(String(before.data.status));
+      // Only when that editor CREATED it — a video someone handed to Nandu on purpose stays his.
+      const createdBy = String((before.data as { created_by?: string | null }).created_by || "").toLowerCase();
+      if (isVideo && fromContent && ["nikhil", "nandu"].includes(String(oldOwner || "").toLowerCase()) && createdBy === String(oldOwner).toLowerCase() && data.owner_key === oldOwner) {
+        await sb.from("mh_posts").update({ owner_key: null }).eq("id", body.id);
+        await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: null });
+      }
       if (!isVideo) {
         // Add the writer as collaborator FIRST, THEN flip the owner — so a My Day poll
         // landing mid-handoff never sees owner=praveen with no collaborator yet (which
