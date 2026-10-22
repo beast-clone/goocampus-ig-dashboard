@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { inNumberOrder } from "@/lib/upload-task-file";
 import { IconLink } from "@tabler/icons-react";
 import { useTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 
@@ -149,7 +150,8 @@ export function PendingAssets({ hint, oneLink, value, onChange }: { hint: string
   };
   const addFiles = (files: FileList | null) => {
     if (!files || !files.length) return;
-    const added = Array.from(files).map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+    // A batch goes in number order, after whatever was already added (22 Oct).
+    const added = inNumberOrder(files).map((f) => ({ file: f, url: URL.createObjectURL(f) }));
     onChange({ ...value, files: [...value.files, ...added] });
   };
   const rmFile = (i: number) => { const f = value.files[i]; if (f) URL.revokeObjectURL(f.url); onChange({ ...value, files: value.files.filter((_, j) => j !== i) }); };

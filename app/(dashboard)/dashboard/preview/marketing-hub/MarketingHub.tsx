@@ -31,7 +31,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
-import { uploadTaskFile } from "@/lib/upload-task-file";
+import { uploadTaskFile, inNumberOrder } from "@/lib/upload-task-file";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
@@ -3965,7 +3965,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const upload = async (files: FileList | File[], kind: "creative" | "reference" | "attachment" = "creative") => {
     setUploading(true);
     try {
-      for (const f of Array.from(files)) {
+      for (const f of inNumberOrder(files)) {
         // Same compression the composer uses — a 5 MB slide export helps nobody.
         const r = await uploadTaskFile(row.id, await compressImage(f), kind, uploaderKey);
         if (!r.ok) setFailure({ kind: "error", message: `${f.name}: ${r.error}` });

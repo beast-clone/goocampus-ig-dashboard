@@ -4,6 +4,12 @@ import type { AttachKind } from "@/lib/attach-rules";
 // Upload one file to a task, browser → storage directly (see attach/sign and
 // attach/complete). Every task upload box uses this, so the ~6 MB hosting limit on
 // a request no longer decides what can be attached.
+/** Files picked together, in number order: 300, 301 … 309, 310 — not 300, 310, 301.
+ *  Uploads then go one by one in this order, and lists show first uploaded first. */
+export function inNumberOrder(files: FileList | File[]): File[] {
+  return Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
+
 export type UploadResult = { ok: true; attachment: Record<string, unknown> } | { ok: false; error: string };
 
 export async function uploadTaskFile(postId: string, file: File, kind: AttachKind = "creative", uploadedBy?: string): Promise<UploadResult> {

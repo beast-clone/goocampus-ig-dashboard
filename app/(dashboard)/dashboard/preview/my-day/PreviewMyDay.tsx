@@ -11,7 +11,7 @@ import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
-import { uploadTaskFile } from "@/lib/upload-task-file";
+import { uploadTaskFile, inNumberOrder } from "@/lib/upload-task-file";
 import { useDraft } from "@/lib/use-draft";
 import { PdfThumb, isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
@@ -498,7 +498,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
     if (!files || !files.length) return;
     setBusy(true);
     try {
-      for (const f of Array.from(files)) {
+      for (const f of inNumberOrder(files)) {
         const r = await uploadTaskFile(postId, f, "reference", uploadedBy);
         if (!r.ok) showToast({ who: `Couldn't add ${f.name}`, body: r.error, color: "#C03221", av: "!" });
       }
@@ -584,7 +584,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
     if (!files || !files.length) return;
     setBusy(true);
     try {
-      for (const f of Array.from(files)) {
+      for (const f of inNumberOrder(files)) {
         const r = await uploadTaskFile(postId, f, "creative", uploadedBy);
         // A refused upload used to vanish without a word.
         if (!r.ok) showToast({ who: `Couldn't add ${f.name}`, body: r.error, color: "#C03221", av: "!" });

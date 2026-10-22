@@ -73,6 +73,9 @@ export async function GET() {
         refByPost.set(a.post_id, arr);
       }
     });
+    // Read newest-first for the cap; shown oldest-first, so slide 1 is first (22 Oct).
+    creativeByPost.forEach((arr) => arr.reverse());
+    refByPost.forEach((arr) => arr.reverse());
     // Collaborators from the junction table (the approve-handoff writes here).
     const collabByPost = new Map<string, string[]>();
     if (rows.length) {
