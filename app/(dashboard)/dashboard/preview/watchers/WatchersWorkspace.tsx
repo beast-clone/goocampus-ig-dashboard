@@ -167,6 +167,16 @@ export function WatchersWorkspace() {
   const [switching, setSwitching] = useState(false);
   const [tgOpen, setTgOpen] = useState(false);
   const [tgTesting, setTgTesting] = useState(false);
+  // Published posts → the team's Telegram group (22 Oct).
+  const [announce, setAnnounce] = useState<{ on: boolean; chat: string | null } | null>(null);
+  useEffect(() => { fetch("/api/watchers/announce", { cache: "no-store" }).then((r) => r.json()).then((d) => setAnnounce({ on: !!d.on, chat: d.chat || null })).catch(() => {}); }, []);
+  const toggleAnnounce = async () => {
+    if (!announce) return;
+    const r = await fetch("/api/watchers/announce", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: !announce.on }) });
+    const d = await r.json();
+    if (r.ok) { setAnnounce({ on: !!d.on, chat: d.chat || null }); setNote(d.on ? "Published posts will be posted to the team Telegram group." : "Stopped posting published posts to Telegram."); }
+    else setNote(d.error || "That didn't work");
+  };
   // Goes to everyone who pressed Start — that is what is being tested, since a bot
   // cannot message anyone who has not.
   const testTelegram = async () => {
@@ -295,6 +305,12 @@ export function WatchersWorkspace() {
           <button onClick={() => setTgOpen(true)}
             className="h-7 px-2.5 rounded-full bg-[#229ED9] text-white inline-flex items-center gap-1.5 hover:bg-[#1C87B8]">
             <IconBrandTelegram size={13} /> Connect Telegram
+          </button>
+        )}
+        {rec?.telegram && announce?.chat && (
+          <button onClick={toggleAnnounce} disabled={!isAdmin} title={isAdmin ? "Post each newly published post, with its links, to the team Telegram group" : "Only an admin can change this"}
+            className={`h-7 px-2.5 rounded-full border inline-flex items-center gap-1.5 disabled:opacity-60 ${announce.on ? "border-[#CDEBDF] bg-[#EEF7F1] text-[#1E7B4C]" : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"}`}>
+            <IconBrandTelegram size={13} /> Published posts to team group: {announce.on ? "On" : "Off"}
           </button>
         )}
         <span className="text-[#8A92A6]">Every link is checked every 15 minutes.</span>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runWatchers } from "@/lib/watchers";
+import { runPublishAnnounce } from "@/lib/publish-announce";
 import { getSessionIsAdmin, isLoggedIn } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 
@@ -16,8 +17,10 @@ export async function GET(req: Request) {
   try {
     const out = await runWatchers();
     const fresh = out.results.reduce((n, r) => n + r.fresh.length, 0);
+    // Same 15-minute beat: tell the team group about posts that just went live.
+    const announced = await runPublishAnnounce().catch((e) => { console.error("[publish-announce] failed", e); return { sent: 0 }; });
     console.log(`[watchers] ${out.checked} checked, ${fresh} new, ${out.results.filter((r) => r.error).length} errors, ${Date.now() - t0}ms`);
-    return NextResponse.json({ ok: true, ms: Date.now() - t0, ...out });
+    return NextResponse.json({ ok: true, ms: Date.now() - t0, ...out, announced });
   } catch (err) {
     console.error("[watchers] failed", err);
     return NextResponse.json(safeError(err, "Watchers check failed"), { status: 502 });
