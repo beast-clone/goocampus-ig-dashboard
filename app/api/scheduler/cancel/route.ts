@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection, requireSchedulerPost } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
+import { NOT_PUBLISHING, notUpdated, freshPublishState } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 import { logQueueAction, istTime } from "@/lib/publish-history";
 
@@ -21,11 +21,11 @@ export async function POST(req: Request) {
     { const __pages = await requireSchedulerPost(recordId); if (__pages) return __pages; }
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-    const { data: was } = await sb.from("mh_posts").select("publish_status, schedule_time").eq("id", recordId).maybeSingle();
+    const { data: was } = await sb.from("mh_posts").select("publish_status, schedule_time, custom").eq("id", recordId).maybeSingle();
     const { data, error } = await sb
       .from("mh_posts")
       // failure_reason too: a failed post sent back to be fixed starts clean (22 Oct).
-      .update({ publish_status: null, schedule_time: null, failure_reason: null })
+      .update({ publish_status: null, schedule_time: null, failure_reason: null, custom: freshPublishState(was?.custom) })
       .eq("id", recordId)
       .or(NOT_PUBLISHING)   // never while the publisher is sending it
       .select("id");

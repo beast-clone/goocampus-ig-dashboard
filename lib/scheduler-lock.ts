@@ -15,3 +15,14 @@ export async function notUpdated(sb: SupabaseClient, id: string) {
     ? NextResponse.json({ error: "It's being published right now — wait a minute, then refresh.", publishing: true }, { status: 409 })
     : NextResponse.json({ error: "Post not found" }, { status: 404 });
 }
+
+// What the publisher keeps on a post between runs: the Instagram container it is
+// waiting on and how many times it has checked. A post that is queued again — after a
+// failure, a new creative, Try again — must start clean, or the publisher goes back to
+// the OLD container (the failed 817 MB reel came back as "processing", 22 Oct).
+export function freshPublishState(custom: unknown): Record<string, unknown> {
+  const c = { ...((custom as Record<string, unknown>) || {}) };
+  delete c.ig_creation_id;
+  delete c.attempts;
+  return c;
+}

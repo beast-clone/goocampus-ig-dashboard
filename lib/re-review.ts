@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { freshPublishState } from "@/lib/scheduler-lock";
 
 // A creative changed on a post that had already passed Content Review goes back to
 // Content Review (Praveen, 22 Oct): otherwise a swapped video goes out without
@@ -14,7 +15,7 @@ export async function sendBackForReview(sb: SupabaseClient, postId: string, acto
   const queued = data.publish_status === "scheduled" || data.publish_status === "failed" || data.publish_status === "draft";
   if (data.status !== "Ready to Publish" && !queued) return false;
 
-  const custom = { ...((data.custom as Record<string, unknown>) || {}), changed_after_approval: new Date().toISOString() };
+  const custom = { ...freshPublishState(data.custom), changed_after_approval: new Date().toISOString() };
   const { data: moved } = await sb.from("mh_posts")
     .update({ status: "Output - Ready", publish_status: null, schedule_time: null, failure_reason: null, custom })
     .eq("id", postId)

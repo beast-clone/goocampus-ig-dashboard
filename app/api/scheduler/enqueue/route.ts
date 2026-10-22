@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection, requireSchedulerPages } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
+import { freshPublishState } from "@/lib/scheduler-lock";
 import { logQueueAction, istTime } from "@/lib/publish-history";
 
 // POST /api/scheduler/enqueue
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       // custom fields (claim_role, and any column the Marketing Hub has added), and
       // replacing the object outright would quietly delete them.
       const { data: existing } = await sb.from("mh_posts").select("custom").eq("id", b.taskId).maybeSingle();
-      const merged = { ...((existing?.custom as Record<string, unknown>) || {}), ...customPatch };
+      const merged = { ...freshPublishState(existing?.custom), ...customPatch };
       const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).select("id").single();
       if (error) throw new Error(error.message);
       await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));

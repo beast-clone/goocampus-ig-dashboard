@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection, requireCapability, requireSchedulerPost } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
+import { NOT_PUBLISHING, notUpdated, freshPublishState } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 import { logQueueAction, istTime } from "@/lib/publish-history";
 
@@ -34,9 +34,12 @@ export async function POST(req: Request) {
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    // A failed post pressed "Try again" starts a fresh Instagram upload.
+    const { data: cur } = await sb.from("mh_posts").select("publish_status, custom").eq("id", body.recordId).maybeSingle();
+    const restart = cur?.publish_status === "failed" ? { custom: freshPublishState(cur.custom) } : {};
     const { data, error } = await sb
       .from("mh_posts")
-      .update({ schedule_time: new Date().toISOString(), publish_status: "scheduled", failure_reason: null })
+      .update({ schedule_time: new Date().toISOString(), publish_status: "scheduled", failure_reason: null, ...restart })
       .eq("id", body.recordId)
       .or(NOT_PUBLISHING)   // never while the publisher is sending it
       .select("id");
