@@ -170,3 +170,6 @@ first (it fast-forwards) to keep git and production in step.
 - Page switches now apply to admins too (a tab switched off by name hides it). My Day is
   switched off for Maheen; she starts on Team Command.
 - Team Command and Approvals are their own tabs in My Workspace (Approvals carries the badge).
+- Day reports go to the Telegram group "Marketing OS – Team Updates" (Praveen, Nandu, bot
+  @marketingos_abot), created 22 Oct. At deploy set Netlify env
+  `DAY_REPORT_TELEGRAM_CHAT=-5153594903` (test report sent and received 22 Oct).
