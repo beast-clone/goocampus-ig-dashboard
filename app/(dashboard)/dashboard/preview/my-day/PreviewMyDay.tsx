@@ -3991,8 +3991,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         <div className="card pad headband hb-d">
           <div className="who">
             <div className="hi">{clock ? `${clock.greet.word}, ${me.name}` : `Hello, ${me.name}`}</div>
-            <div className="sub">{clock ? clock.date : "—"}</div>
-            <div className="sub">{clock ? `${clock.time} IST` : ""}</div>
+            <div className="sub">{clock ? `${clock.date} · ${clock.time} IST` : "—"}</div>
           </div>
           <div className="hb-nums">
             {/* Due today and reminders sit with the other numbers (Praveen, 22 Oct). */}
