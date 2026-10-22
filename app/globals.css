@@ -1340,3 +1340,4 @@ html[data-theme="dark"] .text-\[\#8A5109\] { color:#E9A23B !important; }
 html[data-theme="dark"] .bg-\[\#FBFBFD\] { background-color:var(--d-panel) !important; }
 html[data-theme="dark"] .bg-\[\#F5EEE9\] { background-color:var(--d-raised) !important; }
 html[data-theme="dark"] .text-\[\#3A4A7A\] { color:var(--d-ink2) !important; }
+html[data-theme="dark"] .bg-\[\#EEF0F4\] { background-color:var(--d-raised) !important; }

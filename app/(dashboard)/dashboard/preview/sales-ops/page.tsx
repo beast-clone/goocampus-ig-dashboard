@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -300,6 +300,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             isLoading ? <LoadingBlock className="!py-6" size={24} /> : <div className="text-sm text-gray-400">No revenue attributed in this window</div>
           )}
         </Card>
+        <div className="flex flex-col gap-5">
         {/* Revenue trend (month-wise, follows range) */}
         {data && data.revenueTrend.length > 0 && (
           <Card>
@@ -311,6 +312,8 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <RevenueTrendChart data={data.revenueTrend} />
           </Card>
         )}
+        <AssignedFollowUp range={range} />
+        </div>
       </div>
 
       {/* ══ 2. Speed to lead + Awaiting activity — the leak view ══ */}
@@ -825,6 +828,19 @@ function LeadsFirstContact() {
 
   // Reset to page 1 whenever a filter changes.
   useEffect(() => { setPage(0); }, [q, statusF, counsellorF, filter]);
+  // "Assigned leads · follow-up" sends a counsellor here: their not-contacted leads,
+  // over the same dates as the page.
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ counsellor: string; from: string; to: string }>).detail;
+      setDays("custom"); setCustomFrom(d.from); setCustomTo(d.to);
+      setCounsellorF(d.counsellor); setStatusF("not"); setQ(""); setFilter(EMPTY_FILTER);
+      boxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener(LEADS_FOCUS, on);
+    return () => window.removeEventListener(LEADS_FOCUS, on);
+  }, []);
 
   const counsellorOpts = useMemo(() => {
     if (!leads) return [] as { name: string; n: number }[];
@@ -878,6 +894,7 @@ function LeadsFirstContact() {
   const RANGES: (7 | 30 | 60 | 90 | "custom")[] = [7, 30, 60, 90, "custom"];
 
   return (
+    <div ref={boxRef} style={{ scrollMarginTop: 80 }}>
     <Card>
       <div className="flex items-baseline justify-between mb-1 flex-wrap gap-2">
         <div className="text-base font-medium text-[#232D42]">Leads · first-contact tracking</div>
@@ -974,6 +991,7 @@ function LeadsFirstContact() {
         </>
       )}
     </Card>
+    </div>
   );
 }
 
@@ -1185,6 +1203,82 @@ function KpiTile({ label, value, hint, tone, icon: Icon, onClick }: { label: str
       <div className={`text-3xl font-medium mt-1.5 ${valueColor}`}>{value}</div>
       <div className="text-sm text-gray-500 mt-1.5">{hint}</div>
     </div>
+  );
+}
+
+// ── Assigned leads · follow-up (option B, Praveen 22 Oct) ─────────────────────────
+// For leads given to a counsellor in the selected range: what share has been
+// contacted, and how many are still untouched / called with no answer / in a real
+// conversation. The holding pool (Maheen) isn't a counsellor and is left out.
+// Clicking a counsellor opens their not-contacted leads in the tracker below.
+const LEADS_FOCUS = "gc-leads-focus";
+const TALKING = new Set(["Initial discussions", "Hot lead", "Interested", "Bookings", "Re-Enquiry", "Future prospect", "Qualified", "Negotiation", "Payment pending", "Closed won"]);
+function AssignedFollowUp({ range }: { range: { from: string; to: string } }) {
+  const [leads, setLeads] = useState<FCLead[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLeads(null);
+    fetch(`/api/leads-crm/counsellor?${new URLSearchParams({ name: "all", from: range.from, to: range.to })}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setLeads((j.leads || []) as FCLead[]); })
+      .catch(() => { if (!cancelled) setLeads([]); });
+    return () => { cancelled = true; };
+  }, [range.from, range.to]);
+  const rows = useMemo(() => {
+    const by = new Map<string, { name: string; n: number; contacted: number; notYet: number; noAnswer: number; talking: number }>();
+    for (const l of leads || []) {
+      if (!l.counsellor || isBucket(l.counsellor)) continue;
+      const r = by.get(l.counsellor) || { name: l.counsellor, n: 0, contacted: 0, notYet: 0, noAnswer: 0, talking: 0 };
+      r.n++;
+      if (l.contacted) r.contacted++; else r.notYet++;
+      if (/^attempted to contact$/i.test(l.status)) r.noAnswer++;
+      else if (TALKING.has(l.status)) r.talking++;
+      by.set(l.counsellor, r);
+    }
+    return [...by.values()].sort((a, b) => b.n - a.n);
+  }, [leads]);
+  const sum = rows.reduce((t, r) => ({ notYet: t.notYet + r.notYet, noAnswer: t.noAnswer + r.noAnswer, talking: t.talking + r.talking }), { notYet: 0, noAnswer: 0, talking: 0 });
+  const focus = (name: string) => window.dispatchEvent(new CustomEvent(LEADS_FOCUS, { detail: { counsellor: name, from: range.from, to: range.to } }));
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <div className="text-base font-medium text-[#232D42]">Assigned leads · follow-up</div>
+          <div className="text-sm text-gray-500">Share of assigned leads contacted · follows the selected range</div>
+        </div>
+      </div>
+      {leads === null ? <LoadingBlock className="!py-6" size={22} /> : rows.length === 0 ? (
+        <div className="text-sm text-gray-400 mt-4">No leads assigned to a counsellor in this window.</div>
+      ) : (<>
+        <div className="mt-2">
+          {rows.map((r) => {
+            const pct = Math.round((r.contacted / Math.max(1, r.n)) * 100);
+            return (
+              <button key={r.name} type="button" onClick={() => focus(r.name)} title={`Show ${r.name}'s leads not contacted yet`}
+                className="w-full text-left py-3 border-b border-gray-100 last:border-b-0 group">
+                <div className="flex items-center gap-2">
+                  <span className="w-[22px] h-[22px] rounded-full bg-brand-light text-brand text-[10.5px] font-medium grid place-items-center">{r.name.trim().charAt(0).toUpperCase()}</span>
+                  <span className="text-[13.5px] font-medium text-[#232D42] group-hover:text-brand">{r.name}</span>
+                  <span className="ml-auto text-[18px] font-medium text-[#232D42] tabular-nums">{pct}%<span className="text-[11.5px] text-gray-500 font-normal ml-1">contacted</span></span>
+                </div>
+                <div className="h-1.5 rounded-full bg-[#EEF0F4] my-2 overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} /></div>
+                <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-gray-500 tabular-nums">
+                  <span>{r.n} assigned</span>
+                  <span><b className="font-medium text-[#C0201F]">{r.notYet}</b> not contacted</span>
+                  <span><b className="font-medium text-[#232D42]">{r.noAnswer}</b> no answer</span>
+                  <span><b className="font-medium text-[#232D42]">{r.talking}</b> talking</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="rounded-lg bg-[#F7F8FC] px-3 py-2"><div className="text-[18px] font-medium text-[#C0201F] tabular-nums">{sum.notYet}</div><div className="text-[11.5px] text-gray-500">not contacted</div></div>
+          <div className="rounded-lg bg-[#F7F8FC] px-3 py-2"><div className="text-[18px] font-medium text-[#B7791F] tabular-nums">{sum.noAnswer}</div><div className="text-[11.5px] text-gray-500">called, no answer</div></div>
+          <div className="rounded-lg bg-[#F7F8FC] px-3 py-2"><div className="text-[18px] font-medium text-[#1A8A4A] tabular-nums">{sum.talking}</div><div className="text-[11.5px] text-gray-500">in conversation</div></div>
+        </div>
+      </>)}
+    </Card>
   );
 }
 
