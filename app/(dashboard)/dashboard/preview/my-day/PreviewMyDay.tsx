@@ -2066,7 +2066,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // left that open ("let them decide"). docs/THUMBNAIL_FLOW_SPEC.md.
   const [thumbAsk, setThumbAsk] = useState<{ thumbId: string; videoId: string; videoTitle: string; type: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);                     // my tasks — live from mh_posts (status is mutable)
-  const [createdFilter, setCreatedFilter] = useState<"open" | "published" | "all">("open");
+  const [createdFilter, setCreatedFilter] = useState<"open" | "published" | "all">("all");
   // "Tasks I created" loads separately from /api/my-day/created so the range picker
   // can reach past the main feed's fixed 60-day window without re-running that whole
   // composite query. Opens on the last 3 months.
@@ -2352,7 +2352,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     if (!person) return;
     setCreatedBusy(true);
     try {
-      const qs = new URLSearchParams({ person, range: createdRange });
+      // mode=done: the person's own finished work, not what they created (22 Oct).
+      const qs = new URLSearchParams({ person, range: createdRange, mode: "done" });
       if (createdRange === "custom") { qs.set("amount", String(createdAmt)); qs.set("unit", createdUnit); }
       const r = await fetch(`/api/my-day/created?${qs}`, { cache: "no-store" });
       if (!r.ok) return; // keep the last good list rather than blanking the card
@@ -4307,8 +4308,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           </div>
         </div>
 
-        {/* Tasks I created — follow work you asked for after it moves to someone else
-            (e.g. Nandu's 12th Plus carousels, owned by Praveen once approved). */}
+        {/* Completed by me (22 Oct) — replaced "Tasks I created". Only this person's own
+            finished work (they are the owner), so Praveen sees his designs and Nandu his
+            videos — never each other's. Open one to see it read-only. */}
         {(() => {
           // `createdRows` comes from /api/my-day/created, which is already scoped to this
           // person and the chosen window — no client-side date maths, so the counts can
@@ -4321,18 +4323,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           const narrowed = createdType !== "all" || createdSbu !== "all";
           const isPub = (t: Task) => t.status === "Published/Scheduled";
           const list = mineCreated.filter((t) => createdFilter === "all" || (createdFilter === "published" ? isPub(t) : !isPub(t)));
-          const STEPS = ["Content", "Approved", "Making", "Ready", "Published"];
-          const stepOf = (s: string) => s === "Published/Scheduled" ? 4 : s === "Output - Ready" || s === "Ready to Publish" ? 3
-            : s === "Output - In Progress" || s === "Incorporating Feedback" ? 2 : s === "Content - Approved" ? 1 : 0;
+          const finishedOn = (t: Task) => (t.detail.endAt ? new Date(t.detail.endAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : t.detail.publishes);
           const counts = { open: mineCreated.filter((t) => !isPub(t)).length, published: mineCreated.filter(isPub).length, all: mineCreated.length };
           return (
             <div className="card pad" style={{ marginTop: "1rem" }}>
               <div className="colhead created-head">
-                <h3>Tasks I created</h3>
+                <h3>Completed by me</h3>
                 <div className="task-tabs" style={{ marginBottom: 0 }}>
                   {(["open", "published", "all"] as const).map((f) => (
                     <button key={f} className={`task-tab ${createdFilter === f ? "on" : ""}`} onClick={() => setCreatedFilter(f)}>
-                      {f === "open" ? "In progress" : f === "published" ? "Published" : "All"}<span className="task-tab-n">{counts[f]}</span>
+                      {f === "open" ? "Ready" : f === "published" ? "Published" : "All"}<span className="task-tab-n">{counts[f]}</span>
                     </button>
                   ))}
                 </div>
@@ -4377,27 +4377,20 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               {createdBusy && list.length === 0 ? <div className="empty">Loading…</div>
                 : list.length === 0 ? <div className="empty">{narrowed
                     ? "Nothing matches these filters — try widening the type, SBU or range."
-                    : <>You haven&apos;t created anything {CREATED_RANGE_OPTIONS.find((o) => o.value === createdRange)?.empty || "in this period"}.</>}</div> : (
+                    : <>Nothing finished {CREATED_RANGE_OPTIONS.find((o) => o.value === createdRange)?.empty || "in this period"}.</>}</div> : (
                 <div className="tasklist">
                   {list.map((t) => {
-                    const step = stepOf(t.status);
-                    const withWho = t.detail.ownerKey && t.detail.ownerKey !== person ? t.detail.owner : "you";
                     return (
                       <div key={t.id} className={`task${openCreatedId === t.id ? " sel" : ""}`} style={{ cursor: "pointer" }} onClick={() => setOpenCreatedId(openCreatedId === t.id ? null : t.id)}>
-                        <div className="task-top"><div className="tt">{t.title}</div><span className="lbl">{t.detail.publishes}</span></div>
-                        <div className="mm">{t.detail.typeLine} · {t.detail.brand} · with {withWho}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                          {STEPS.map((label, i) => (
-                            <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: i <= step ? (i === 4 ? "#2F9E6F" : "#3A57E8") : "#A6ACBE", fontWeight: i === step ? 600 : 400 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: 99, background: i <= step ? (i === 4 ? "#2F9E6F" : "#3A57E8") : "#E3E5EE" }} />{label}
-                              {i < STEPS.length - 1 && <span style={{ width: 14, height: 1, background: i < step ? "#3A57E8" : "#E3E5EE" }} />}
-                            </span>
-                          ))}
-                          {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ marginLeft: "auto", fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
+                        <div className="task-top"><div className="tt">{t.title}</div><span className="lbl">{finishedOn(t)}</span></div>
+                        <div className="mm" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <span>{t.detail.typeLine} · {t.detail.brand}</span>
+                          <span style={{ fontSize: 11.5, fontWeight: 500, color: isPub(t) ? "#2F9E6F" : "#3A57E8" }}>{isPub(t) ? "Published" : "Ready"}</span>
+                          {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
                         </div>
                         {openCreatedId === t.id && (
                           <div style={{ marginTop: ".8rem", borderTop: "1px solid var(--line, #EEF0F4)", paddingTop: ".8rem" }} onClick={(e) => e.stopPropagation()}>
-                            <TaskBody key={`trk-${t.id}`} task={t} label="Tracking · read-only" uploadedBy={person} />
+                            <TaskBody key={`trk-${t.id}`} task={t} label="Completed · read-only" uploadedBy={person} />
                           </div>
                         )}
                       </div>

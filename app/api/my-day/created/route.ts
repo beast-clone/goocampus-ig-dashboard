@@ -85,15 +85,26 @@ export async function GET(req: Request) {
 
     const custom = range === "custom" ? customFrom(url) : undefined;
     const { from, to } = windowFor(range, new Date(), custom);
-    let q = sb.from("mh_posts").select(COLS).eq("created_by", person);
-    if (from) q = q.gte("created_at", from);
-    if (to) q = q.lt("created_at", to);
+    // mode=done (22 Oct): "Completed by me" replaced "Tasks I created" on My Day —
+    // the person's OWN finished work (owner = them), dated by when it was finished
+    // (end_at; older rows without one fall back to their publishing date).
+    const done = url.searchParams.get("mode") === "done";
+    let q = sb.from("mh_posts").select(COLS);
+    if (done) {
+      q = q.eq("owner_key", person).in("status", ["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
+      if (from) q = q.or(`end_at.gte.${from},and(end_at.is.null,publishing_date.gte.${from.slice(0, 10)})`);
+      if (to) q = q.or(`end_at.lt.${to},and(end_at.is.null,publishing_date.lt.${to.slice(0, 10)})`);
+    } else {
+      q = q.eq("created_by", person);
+      if (from) q = q.gte("created_at", from);
+      if (to) q = q.lt("created_at", to);
+    }
 
     // Newest first, and capped: "all time" on a busy account could otherwise pull the
     // whole table into the browser. The client says so when the cap is hit rather than
     // quietly showing a partial list as if it were the total.
     const CAP = 500;
-    const { data, error } = await q.order("created_at", { ascending: false }).limit(CAP + 1);
+    const { data, error } = await (done ? q.order("end_at", { ascending: false, nullsFirst: false }).order("publishing_date", { ascending: false }) : q.order("created_at", { ascending: false })).limit(CAP + 1);
     if (error) throw new Error(error.message);
 
     const rows = (data || []) as Row[];
