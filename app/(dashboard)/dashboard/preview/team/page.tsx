@@ -5,7 +5,7 @@ import {
   IconLayoutGrid, IconClockHour4, IconChecklist, IconCalendarEvent, IconIdBadge2, IconLock, IconSend,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
-import { CAPABILITIES, DATE_APPROVAL_RULE, TABS, TASK_ACTIONS, needsDateApproval, canEditCalendar, type Capability } from "@/lib/permissions";
+import { CAPABILITIES, DATE_APPROVAL_RULE, DATE_REASON_RULE, TABS, TASK_ACTIONS, needsDateApproval, needsDateReason, canEditCalendar, type Capability } from "@/lib/permissions";
 
 type Member = {
   id: string;
@@ -21,7 +21,7 @@ type Member = {
   sections: Record<string, boolean>;
   photoUrl?: string | null;
 };
-type Perm = Record<string, unknown> & { tabs?: Record<string, boolean>; scheduler_pages?: string[]; task_access?: "full" | "partial"; calendar_edit?: boolean; date_needs_approval?: boolean; manage_access?: boolean };
+type Perm = Record<string, unknown> & { tabs?: Record<string, boolean>; scheduler_pages?: string[]; task_access?: "full" | "partial"; calendar_edit?: boolean; date_needs_approval?: boolean; date_needs_reason?: boolean; manage_access?: boolean };
 type AccessReq = { id: string; from: string; fromName: string; text: string; at: string };
 
 export default function TeamPage() {
@@ -390,6 +390,10 @@ function PersonEditor({ m, busy, viewerId, onSave, onAction }: { m: Member; busy
         <div className="flex items-center justify-between gap-3 py-2">
           <div><div className="text-[13px] text-[#232D42]">{DATE_APPROVAL_RULE.label}</div><div className="text-[12px] text-[#8A92A6]">{DATE_APPROVAL_RULE.desc}</div></div>
           <Toggle checked={needsDateApproval({ id: m.id, permissions: d.permissions as never })} disabled={busy} label={DATE_APPROVAL_RULE.label} onChange={(v) => setPerm({ date_needs_approval: v })} />
+        </div>
+        <div className="flex items-center justify-between gap-3 py-2">
+          <div><div className="text-[13px] text-[#232D42]">{DATE_REASON_RULE.label}</div><div className="text-[12px] text-[#8A92A6]">{DATE_REASON_RULE.desc}</div></div>
+          <Toggle checked={needsDateReason({ permissions: d.permissions as never })} disabled={busy} label={DATE_REASON_RULE.label} onChange={(v) => setPerm({ date_needs_reason: v })} />
         </div>
       </Section>
 

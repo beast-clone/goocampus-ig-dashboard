@@ -6,7 +6,7 @@ import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand,
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
-import { hasCapability, type Capability, type Permissions } from "@/lib/permissions";
+import { hasCapability, needsDateReason, type Capability, type Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
@@ -827,6 +827,12 @@ function ViewPicker({ current, statusViews, myViews, typeOptions, statusOptions,
   );
 }
 
+// Whether the signed-in person is asked why when they move a date — their "Ask why
+// when a date moves" switch on Team & access. Read once per page load.
+let askWhyOnce: Promise<boolean> | null = null;
+const asksWhyOnDateMove = () => (askWhyOnce ||= fetch("/api/me", { cache: "no-store" })
+  .then((r) => r.json()).then((d) => needsDateReason(d?.user)).catch(() => true));
+
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
   // Start with no time set opens Set duration first (#23).
   const [durOpen, setDurOpen] = useState(false);
@@ -880,7 +886,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       // the task's history (Praveen, 22 Oct). A first date isn't a move.
       let reason = "";
       if ((due || "") !== (task.due || "")) {
-        if (task.due) {
+        if (task.due && await asksWhyOnDateMove()) {
           const why = await promptDialog({ title: "Why is the date changing?", body: "Add a short reason — it's saved in the task's history.", placeholder: "e.g. Waiting for the speaker's photos", action: "Change date" });
           if (why === null) return;
           if (!why.trim()) { showToast({ who: "Reason needed", body: "Add a short reason to change the date.", color: "#C03221", av: "!" }); return; }

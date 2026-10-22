@@ -32,6 +32,9 @@ export type Permissions = Partial<Record<Capability, boolean>> & {
    *  Not a capability — it limits rather than allows, and it applies to admins too.
    *  Unset = the rule as it always was: everyone except Maheen. (Praveen, 21 Oct) */
   date_needs_approval?: boolean;
+  /** Moving a publishing date asks them why (the reason goes in the task's history).
+   *  Unset = yes, as it has been since 22 Oct. */
+  date_needs_reason?: boolean;
   // Everything below is a switch on Team & access — nothing is fixed per person in
   // code (Praveen, 22 Oct). Unset always means "behave as before".
   /** "full" = every task action; "partial" = only the ticked capabilities. Applies to
@@ -65,6 +68,15 @@ export function needsDateApproval(user: { id?: string; permissions?: Permissions
   if (!user) return true;
   const v = user.permissions?.date_needs_approval;
   return typeof v === "boolean" ? v : (user.id || "").toLowerCase() !== "maheen";
+}
+
+export const DATE_REASON_RULE = {
+  label: "Ask why when a date moves",
+  desc: "Moving a publishing date asks for a short reason, saved in the task's history. Off = the date just changes.",
+};
+export function needsDateReason(user: { permissions?: Permissions } | null | undefined): boolean {
+  const v = user?.permissions?.date_needs_reason;
+  return typeof v === "boolean" ? v : true;
 }
 
 // Does this user have `cap`? Task actions follow the Full / Partial switch when it is
@@ -103,6 +115,7 @@ export function cleanPermissions(raw: unknown): Permissions {
     const r = raw as Record<string, unknown>;
     const d = r.date_needs_approval;
     if (typeof d === "boolean") out.date_needs_approval = d;
+    if (typeof r.date_needs_reason === "boolean") out.date_needs_reason = r.date_needs_reason;
     if (r.task_access === "full" || r.task_access === "partial") out.task_access = r.task_access;
     if (typeof r.calendar_edit === "boolean") out.calendar_edit = r.calendar_edit;
     if (typeof r.manage_access === "boolean") out.manage_access = r.manage_access;

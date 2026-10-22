@@ -39,7 +39,7 @@ import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-t
 import { hubRoleFor } from "@/lib/hub-role";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
-import { needsDateApproval, hasCapability, canEditCalendar } from "@/lib/permissions";
+import { needsDateApproval, needsDateReason, hasCapability, canEditCalendar } from "@/lib/permissions";
 
 export type Row = {
   id: string;
@@ -384,7 +384,7 @@ const PublishApprovalContext = createContext<PublishApprovalCtx | null>(null);
 const dayOf = (d: string | null) => (d ? String(d).slice(0, 10) : null);
 
 function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
-  const [viewer, setViewer] = useState<{ ready: boolean; isAdmin: boolean; needsApproval: boolean }>({ ready: false, isAdmin: false, needsApproval: true });
+  const [viewer, setViewer] = useState<{ ready: boolean; isAdmin: boolean; needsApproval: boolean; needsReason: boolean }>({ ready: false, isAdmin: false, needsApproval: true, needsReason: true });
   // The open reason-modal, with the promise resolver that changePublishDate awaits.
   const [ask, setAsk] = useState<null | { id: string; title: string; from: string | null; to: string | null; resolve: (reason: string | null) => void }>(null);
   const [reason, setReason] = useState("");
@@ -395,7 +395,7 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Whether MY date changes wait for approval is set per person (Team & access).
-    fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin, needsApproval: needsDateApproval(d?.user) })).catch(() => setViewer({ ready: true, isAdmin: false, needsApproval: true }));
+    fetch("/api/me").then((r) => r.json()).then((d) => setViewer({ ready: true, isAdmin: !!d?.user?.isAdmin, needsApproval: needsDateApproval(d?.user), needsReason: needsDateReason(d?.user) })).catch(() => setViewer({ ready: true, isAdmin: false, needsApproval: true, needsReason: true }));
   }, []);
 
 
@@ -408,22 +408,29 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
       if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
       return "applied";
     }
-    // Every date MOVE asks why, approval or not — the reason lands in the task's
-    // history (Praveen, 22 Oct). With approval on it also goes to the admin.
+    // A date MOVE asks why — the reason lands in the task's history (Praveen, 22 Oct),
+    // and with approval on it also goes to the admin. Asking is a switch per person on
+    // Team & access ("Ask why when a date moves"); with it off and no approval needed
+    // the date just changes, and with approval needed the popup still confirms the
+    // request but the reason is optional.
+    if (!viewer.needsReason && !viewer.needsApproval) {
+      const r0 = await saveField(a.id, { publishing_date: a.to });
+      return r0.ok ? (r0.pendingApproval ? "pending" : "applied") : "error";
+    }
     const reasonText = await new Promise<string | null>((resolve) => { setReason(""); setAsk({ ...a, resolve }); });
     if (reasonText === null) return "cancelled";
     const r = await saveField(a.id, { publishing_date: a.to }, { reason: reasonText });
     if (!r.ok) return "error";
     if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
     return "applied";
-  }, [viewer.needsApproval]);
+  }, [viewer.needsApproval, viewer.needsReason]);
 
   const submit = async () => {
     if (!ask) return;
     setBusy(true);
     const resolve = ask.resolve;
     setAsk(null); setBusy(false);
-    resolve(reason.trim()); // required — the button stays off until there's a reason
+    resolve(reason.trim()); // required unless the person's "Ask why" switch is off
   };
   const cancel = () => { if (!ask) return; const resolve = ask.resolve; setAsk(null); resolve(null); };
 
@@ -444,13 +451,13 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
               <div className="text-[13px] font-medium text-[#232D42] truncate">{ask.title}</div>
               <div className="text-[13px] text-[#232D42] mt-1"><IconCalendarEvent size={14} stroke={1.8} className="inline -mt-0.5 mr-1" /><b>{ask.from ? fmtDateShort(ask.from) : "unset"}</b> <IconArrowRight size={13} className="inline -mt-0.5 text-gray-400" /> <b className="text-brand">{ask.to ? fmtDateShort(ask.to) : "unset"}</b></div>
             </div>
-            <label className="block text-[12.5px] font-medium text-[#232D42] mt-4 mb-1">Reason for the change</label>
+            <label className="block text-[12.5px] font-medium text-[#232D42] mt-4 mb-1">Reason for the change{!viewer.needsReason && <span className="font-normal text-[#8A92A6]"> (optional)</span>}</label>
             <textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
               placeholder="e.g. Client moved the campaign launch to mid-October…"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={cancel} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-[#232D42] border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={submit} disabled={busy || !reason.trim()} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-60">{viewer.needsApproval ? "Send for approval" : "Change date"}</button>
+              <button onClick={submit} disabled={busy || (viewer.needsReason && !reason.trim())} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-60">{viewer.needsApproval ? "Send for approval" : "Change date"}</button>
             </div>
           </div>
         </div>
