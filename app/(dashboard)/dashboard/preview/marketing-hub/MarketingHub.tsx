@@ -33,6 +33,7 @@ import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dash
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
 import { useUploadQueue } from "@/lib/use-upload-queue";
+import { removeTaskFile } from "@/lib/upload-task-file";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
@@ -3408,7 +3409,15 @@ export const ACT_VERB: Record<string, string> = {
   reference_added: "added a reference", reference_removed: "removed a reference",
   attachment_added: "added an attachment", attachment_removed: "removed an attachment", reference_links_changed: "updated the references",
   instagram_url_changed: "updated the Instagram link", facebook_url_changed: "updated the Facebook link", linkedin_url_changed: "updated the LinkedIn link",
+  // Publishing history (22 Oct): people's queue actions, then what the publisher did.
+  publish_scheduled: "scheduled it to publish", publish_now: "pressed Publish now", publish_draft_saved: "saved it as a scheduler draft",
+  publish_rescheduled: "changed the publish time", removed_from_queue: "took it out of the publish queue",
+  sent_back_for_review: "sent it back to Content Review",
+  publish_started: "started publishing", publish_processing: "is waiting for Instagram to process the video · try",
+  published: "published it", publish_failed: "couldn't publish it",
 };
+// Rows the n8n publisher writes (no person) read as "Publisher", not "System".
+const PUBLISHER_ACTIONS = new Set(["publish_started", "publish_processing", "published", "publish_failed"]);
 // People's names, written the way a name is written. The activity feed reads them
 // from the team table, where several are stored lower-cased, and a key ("nikhil") is
 // used when there is no display name at all — so the history said "nikhil claimed
@@ -3571,7 +3580,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                   <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5 ring-[3px] ring-white relative z-10" style={{ background: av.bg, color: av.fg }} title={av.system ? "System / imported" : properName(it.name)}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] text-gray-700">
-                      <span className="font-medium text-[#232D42]">{av.system ? "System" : properName(it.name)}</span>{" "}
+                      <span className="font-medium text-[#232D42]">{av.system ? (it.kind === "activity" && PUBLISHER_ACTIONS.has(it.action) ? "Publisher" : "System") : properName(it.name)}</span>{" "}
                       {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
                       <span className="text-gray-400" title={new Date(it.at).toLocaleString("en-IN")}> · {relTime(it.at)}</span>
                       {/* The bottom of a top-to-bottom timeline is where it
@@ -3971,7 +3980,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     (kind === "reference" ? qRef : kind === "attachment" ? qAtt : qCre).add(files);
   const uploading = qCre.busy || qRef.busy || qAtt.busy;
   const removeCreative = async (id: string) => {
-    const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
+    const res = await removeTaskFile(id);
     if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't remove that file" }); return; }
     await loadDetail();
   };

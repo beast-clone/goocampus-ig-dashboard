@@ -3,6 +3,7 @@ import { requireSection, requireSchedulerPost } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
+import { logQueueAction, istTime } from "@/lib/publish-history";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    const { data: was } = await sb.from("mh_posts").select("schedule_time").eq("id", body.recordId).maybeSingle();
     const { data, error } = await sb
       .from("mh_posts")
       .update({ schedule_time: new Date(body.scheduleTime).toISOString(), publish_status: "scheduled" })
@@ -34,6 +36,7 @@ export async function POST(req: Request) {
       .select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) return notUpdated(sb, body.recordId);
+    await logQueueAction(sb, body.recordId, "publish_rescheduled", istTime(was?.schedule_time), istTime(body.scheduleTime));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Reschedule failed"), { status: 502 });

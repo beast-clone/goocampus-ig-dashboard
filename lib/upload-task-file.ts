@@ -10,7 +10,7 @@ export function inNumberOrder(files: FileList | File[]): File[] {
   return Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 }
 
-export type UploadResult = { ok: true; attachment: Record<string, unknown> } | { ok: false; error: string };
+export type UploadResult = { ok: true; attachment: Record<string, unknown>; sentBack?: boolean } | { ok: false; error: string };
 
 export async function uploadTaskFile(postId: string, file: File, kind: AttachKind = "creative", uploadedBy?: string, onProgress?: (pct: number) => void): Promise<UploadResult> {
   const fail = async (r: Response | null, fallback: string): Promise<UploadResult> => {
@@ -45,7 +45,8 @@ export async function uploadTaskFile(postId: string, file: File, kind: AttachKin
     body: JSON.stringify({ postId, path, filename: file.name, kind, uploadedBy }),
   }).catch(() => null);
   if (!done || !done.ok) return fail(done, "Upload failed — try again.");
-  return { ok: true, attachment: ((await done.json()) as { attachment: Record<string, unknown> }).attachment };
+  const j = (await done.json()) as { attachment: Record<string, unknown>; sentBack?: boolean };
+  return { ok: true, attachment: j.attachment, sentBack: !!j.sentBack };
 }
 
 // Some systems hand over a file with no type (often a PDF dragged from certain apps).
@@ -55,4 +56,20 @@ function guessMime(name: string): string {
     csv: "text/csv", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" } as Record<string, string>)[ext] || "";
+}
+
+// Said once, wherever a creative change sends an approved post back (lib/re-review.ts).
+export function sentBackNotice() {
+  void import("@/app/(dashboard)/dashboard/preview/ConfirmDialog").then(({ alertDialog }) =>
+    alertDialog("Sent back to Content Review", "This post was already approved, so changing its creative sends it back to Content Review and out of the Scheduler. Once it is approved again, schedule it again."));
+}
+
+/** Remove a task file; says so if that sent an approved post back to review. */
+export async function removeTaskFile(id: string): Promise<Response> {
+  const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
+  if (res.ok) {
+    const j = await res.clone().json().catch(() => ({})) as { sentBack?: boolean };
+    if (j.sentBack) sentBackNotice();
+  }
+  return res;
 }

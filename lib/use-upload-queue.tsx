@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { uploadTaskFile, inNumberOrder } from "@/lib/upload-task-file";
+import { uploadTaskFile, inNumberOrder, sentBackNotice } from "@/lib/upload-task-file";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import type { AttachKind } from "@/lib/attach-rules";
 
@@ -66,14 +66,16 @@ export function useUploadQueue({ postId, kind, uploadedBy, existing, onSaved, on
       pct: 0, state: "waiting", base: countOf(f.name, existing),
     }));
     setPending((q) => [...q, ...items]);
+    let sentBack = false;
     for (let i = 0; i < list.length; i++) {
       const it = items[i];
       patch(it.key, { state: "up" });
       const file = prepare ? await prepare(list[i]).catch(() => list[i]) : list[i];
       const r = await uploadTaskFile(postId, file, kind, uploadedBy, (pct) => patch(it.key, { pct }));
-      if (r.ok) patch(it.key, { state: "done", pct: 100 });
+      if (r.ok) { patch(it.key, { state: "done", pct: 100 }); if (r.sentBack) sentBack = true; }
       else { patch(it.key, { state: "err", error: r.error }); onError?.(it.name, r.error); }
     }
+    if (sentBack) sentBackNotice();
     onSaved();
   };
   const dismiss = (key: string) => setPending((q) => q.filter((x) => { if (x.key === key && x.preview) URL.revokeObjectURL(x.preview); return x.key !== key; }));

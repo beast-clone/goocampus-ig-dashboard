@@ -66,7 +66,14 @@ type ReviewPost = {
   owner: string | null; caption: string | null; content: string | null;
   mediaUrls: string[]; assetLink: string | null; thumbnailUrl: string | null;
   hasCreative: boolean; publishingDate: string | null; updatedAt: string | null;
+  changedAfterApproval?: string | null;
 };
+
+// Back in review because the creative changed after it had been approved.
+function ChangedChip({ p }: { p: ReviewPost }) {
+  if (!p.changedAfterApproval) return null;
+  return <span title="Its creative was added, removed or replaced after it was approved — check the new version" className="inline-flex items-center text-[11px] font-medium rounded-full px-2 py-0.5 bg-amber-50 text-amber-700 whitespace-nowrap flex-shrink-0">Changed after approval</span>;
+}
 
 
 function typeChip(t: string | null) {
@@ -227,6 +234,7 @@ function Review() {
                   : <CreativeThumb thumbnailUrl={cardThumb(p)} assetLink={p.assetLink} type={p.type} title={p.title} seed={p.id} />}
               </span>
               <span className="text-[#232D42] font-medium max-w-[380px] truncate">{p.title || "Untitled"}</span>
+              <ChangedChip p={p} />
             </div>
           </td>
           <td className="px-4 py-2.5">
@@ -294,6 +302,7 @@ function Review() {
           <div className="text-sm font-medium text-[#232D42] leading-snug line-clamp-2">
             {p.title || "Untitled"}
           </div>
+          {p.changedAfterApproval && <div><ChangedChip p={p} /></div>}
           {p.sbu && (
             <div>
               <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 bg-brand-light text-[#2138B0]">
@@ -508,6 +517,7 @@ function Review() {
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span className="text-[11px] font-semibold rounded-md px-2 py-0.5" style={{ background: tc.bg, color: tc.fg }}>{p.type || "Post"}</span>
                     {p.sbu && <span className="text-[11px] font-semibold rounded-full px-2.5 py-0.5 bg-brand-light text-[#2138B0]">{p.sbu}</span>}
+                    <ChangedChip p={p} />
                   </div>
                   <h2 className="text-lg font-semibold text-[#232D42] leading-snug">{p.title || "Untitled"}</h2>
                 </div>

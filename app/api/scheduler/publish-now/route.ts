@@ -3,6 +3,7 @@ import { requireSection, requireCapability, requireSchedulerPost } from "@/lib/a
 import { getSupabase } from "@/lib/supabase";
 import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
+import { logQueueAction, istTime } from "@/lib/publish-history";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
       .select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) return notUpdated(sb, body.recordId);
+    await logQueueAction(sb, body.recordId, "publish_now", null, istTime(new Date().toISOString()));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Publish now failed"), { status: 502 });

@@ -21,6 +21,7 @@ import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { compressImage } from "@/lib/compress-image";
+import { nextPublisherCheck, clockText, durationText } from "@/lib/publisher-clock";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -45,6 +46,8 @@ type ScheduledPost = {
   instagramUrl: string | null;
   facebookUrl: string | null;
   publishedAt: string | null;
+  updatedAt?: string | null;
+  processingTry?: number | null;
 };
 
 type TimeSuggestion = {
@@ -1223,7 +1226,7 @@ function Scheduler() {
               onPublishNow={(p) => setPublishNowPost(p)}
               onDelete={(p) => setDeletePost(p)}
               onFix={async (p) => {
-                const r = await fetch("/api/scheduler/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: p.id }) });
+                const r = await fetch("/api/scheduler/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: p.id, reason: "Fix creative — taken out to change the creative" }) });
                 if (!r.ok) { const j = await r.json().catch(() => ({})); await alertDialog(`Couldn't take it out of the queue — ${(j as { error?: string }).error || "try again in a moment."}`); return; }
                 window.location.href = `/dashboard/preview/marketing-hub?tab=master&open=${p.id}`;
               }}
@@ -1442,8 +1445,8 @@ function Scheduler() {
             <div className="px-6 py-5 border-b border-gray-100 text-center">
               <h3 className="text-[15px] font-medium text-[#232D42]">Publish this now?</h3>
               <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
-                <b className="font-medium">{publishNowPost.particulars || "This post"}</b> goes out within about a
-                minute, instead of at the time it was scheduled for.
+                <b className="font-medium">{publishNowPost.particulars || "This post"}</b> goes out at the publisher&apos;s
+                next check — within 5 minutes — instead of at the time it was scheduled for.
               </p>
               <p className="mt-2.5 text-[11.5px] leading-relaxed text-[#8A92A6]">
                 Once it is live it can only be removed from Instagram or Facebook themselves.
@@ -1728,7 +1731,7 @@ function Scheduler() {
             ? <span className="text-green-700">✓ Saved as a draft. Nothing is posted until you send it.</span>
             : result.whenLabel
             ? <span className="text-green-700">✓ Scheduled for {result.whenLabel}. It goes out on its own — you don&apos;t need to be here.</span>
-            : <span className="text-green-700">✓ Publishing now. It should be live within a minute.</span>)}
+            : <span className="text-green-700">✓ Queued to go out now. The publisher checks every 5 minutes, so it should be live within 5–10 minutes.</span>)}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
           {!result && <span>{scheduleEnabled ? "Goes into your publishing queue for the time you set." : "Goes straight into your publishing queue."}</span>}
         </div>
@@ -1959,6 +1962,105 @@ function useMediaSizes(urls: string[]): Record<string, number> {
 }
 const fmtSize = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${Math.round(n / 1024 ** 2)} MB`);
 
+// Ticks once a second while mounted — drives the countdowns below.
+function useNow(on = true): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [on]);
+  return now;
+}
+
+// What is happening to a post right now, live (Praveen, 22 Oct: "Publish now just
+// shows nothing"). The publisher only looks every 5 minutes, so a due post says when
+// the next look is; a reel Instagram is still processing says which try it is on.
+function liveStatusText(p: ScheduledPost, now: number): { text: string; tone: "wait" | "busy" | "done" } | null {
+  const due = p.scheduleTime ? new Date(p.scheduleTime).getTime() : null;
+  if (p.effectiveStatus === "publishing") {
+    const since = p.updatedAt ? new Date(p.updatedAt).getTime() : due;
+    return { text: `Publishing… ${since ? clockText(now - since) : ""}`.trim(), tone: "busy" };
+  }
+  if (p.effectiveStatus === "scheduled" && due && due <= now) {
+    const next = nextPublisherCheck(now);
+    if (p.processingTry) return { text: `Instagram is processing the video · try ${p.processingTry} of 20 · next check in ${clockText(next - now)}`, tone: "busy" };
+    return { text: `Waiting for the publisher · next check in ${clockText(next - now)}`, tone: "wait" };
+  }
+  if (p.effectiveStatus === "published" && due && p.publishedAt) {
+    const took = new Date(p.publishedAt).getTime() - due;
+    if (took >= 0) return { text: `Went out ${durationText(took)} after its time`, tone: "done" };
+  }
+  return null;
+}
+function LiveStatus({ post, className = "" }: { post: ScheduledPost; className?: string }) {
+  const active = post.effectiveStatus === "publishing" || post.effectiveStatus === "scheduled";
+  const now = useNow(active);
+  const s = liveStatusText(post, now);
+  if (!s) return null;
+  const tone = s.tone === "busy" ? "text-blue-700" : s.tone === "done" ? "text-emerald-700" : "text-[#4A5468]";
+  return (
+    <div className={`flex items-center gap-1.5 text-xs tabular-nums ${tone} ${className}`}>
+      {s.tone === "done" ? <IconCircleCheck size={13} stroke={1.8} /> : <IconClock size={13} stroke={1.8} className={s.tone === "busy" ? "animate-pulse" : ""} />}
+      <span className="truncate">{s.text}</span>
+    </div>
+  );
+}
+
+// The post's publishing history — who scheduled it, Publish now, each publisher step,
+// failures, Fix creative, sent back to review — read from the task's activity log.
+const HISTORY_ACTIONS: Record<string, string> = {
+  publish_scheduled: "Scheduled for", publish_now: "Publish now pressed", publish_draft_saved: "Saved as a draft",
+  publish_rescheduled: "Publish time changed", removed_from_queue: "Taken out of the queue",
+  sent_back_for_review: "Sent back to Content Review", status_changed: "Status changed",
+  publish_started: "Publisher picked it up", publish_processing: "Instagram processing the video · try",
+  published: "Published", publish_failed: "Failed",
+};
+type HistoryRow = { id: string; action: string; actorName: string; actor_key: string | null; from_value: string | null; to_value: string | null; detail: unknown; created_at: string };
+function PublishHistory({ postId }: { postId: string }) {
+  const [rows, setRows] = useState<HistoryRow[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/marketing-hub/task-detail?id=${encodeURIComponent(postId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { activity?: HistoryRow[] } | null) => { if (alive) setRows(d?.activity || []); })
+      .catch(() => { if (alive) setRows([]); });
+    return () => { alive = false; };
+  }, [postId]);
+  if (rows === null) return <div className="text-xs text-gray-400">Loading history…</div>;
+  // Oldest first; a run of "processing" checks collapses into its latest try.
+  const list = rows.filter((r) => r.action in HISTORY_ACTIONS && (r.action !== "status_changed" || r.to_value === "Ready to Publish" || r.to_value === "Output - Ready"))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .filter((r, i, arr) => !(r.action === "publish_processing" && arr[i + 1]?.action === "publish_processing"));
+  if (!list.length) return <div className="text-xs text-gray-400">No publishing history yet.</div>;
+  const at = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", second: "2-digit" });
+  return (
+    <ol className="space-y-2.5">
+      {list.map((r) => {
+        const who = r.actor_key ? r.actorName : (["publish_started", "publish_processing", "published", "publish_failed"].includes(r.action) ? "Publisher" : "System");
+        const note = typeof r.detail === "string" ? r.detail : null;
+        const bad = r.action === "publish_failed" || r.action === "sent_back_for_review";
+        const good = r.action === "published";
+        return (
+          <li key={r.id} className="flex gap-2.5 text-[13px]">
+            <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${bad ? "bg-rose-500" : good ? "bg-emerald-500" : "bg-brand"}`} />
+            <div className="min-w-0">
+              <div className="text-[#232D42]">
+                {HISTORY_ACTIONS[r.action]}
+                {r.action === "status_changed" ? <> → {r.to_value}</> : r.action === "published" && r.to_value
+                  ? <> · <a href={r.to_value} target="_blank" rel="noreferrer" className="text-brand hover:underline">view post ↗</a></>
+                  : r.to_value && r.action !== "publish_started" && r.action !== "publish_failed" ? <> {r.from_value ? <span className="text-gray-400 line-through">{r.from_value}</span> : null}{r.from_value ? " → " : ""}{r.to_value}</> : null}
+              </div>
+              <div className="text-xs text-[#8A92A6]">{who} · {at(r.created_at)}</div>
+              {note && <div className={`text-xs mt-0.5 ${bad ? "text-rose-700" : "text-[#4A5468]"}`}>{note}</div>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // Compact list shown when a status counter (Scheduled / Publishing / Published / Failed)
 // is the active filter. Click a row to open the big preview/analytics modal.
 function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onPublishNow, onDelete, onFix }: {
@@ -2003,6 +2105,7 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
               <div className="text-xs text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
+              <LiveStatus post={p} className="mt-0.5" />
               {p.effectiveStatus === "failed" && explainFailure(p.failureReason) && (
                 <div className="text-xs text-rose-700 mt-0.5 truncate" title={`${explainFailure(p.failureReason)!.why} ${explainFailure(p.failureReason)!.fix || ""}`}>
                   Why: {explainFailure(p.failureReason)!.why}
@@ -2015,7 +2118,7 @@ function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule,
           </div>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus === "publishing" ? "Publishing…" : p.effectiveStatus}</span>
           {p.effectiveStatus === "publishing" && (
-            <span className="text-xs text-gray-500 flex-shrink-0">Going out now — can&apos;t be changed</span>
+            <span className="text-xs text-gray-500 flex-shrink-0">Can&apos;t be changed now</span>
           )}
           {/* Row actions — only for posts that are still actionable (not published, not mid-publish) */}
           {p.effectiveStatus !== "published" && p.effectiveStatus !== "publishing" && (
@@ -2572,6 +2675,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
                 ))}
               </div>
             )}
+            {!isPub && <LiveStatus post={p} />}
             {!isPub && status === "failed" && explainFailure(p.failureReason) && (
               <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm">
                 <div className="font-medium text-rose-700">Why it failed: {explainFailure(p.failureReason)!.why}</div>
@@ -2587,6 +2691,12 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
               <div className="flex gap-2 pt-1">
                 {igUrl && <a href={igUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-lg hover:bg-brand-dark">View on Instagram ↗</a>}
                 {fbUrl && <a href={fbUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-300">View on Facebook ↗</a>}
+              </div>
+            )}
+            {!isPub && p.id && (
+              <div className="pt-1">
+                <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-2">Publishing history</div>
+                <PublishHistory postId={p.id} />
               </div>
             )}
           </div>

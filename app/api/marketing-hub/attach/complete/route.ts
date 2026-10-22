@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import { activeTeamIds } from "@/lib/team-db";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 import { BUCKET, MAX_MB, UUID, asKind, mimeAllowed, mimeRefusal } from "@/lib/attach-rules";
+import { sendBackForReview } from "@/lib/re-review";
 
 // Step 2 of a task-file upload (step 1: attach/sign). The file is already in storage;
 // check what actually arrived — its stored type and size, not what the browser
@@ -54,7 +55,8 @@ export async function POST(req: Request) {
     if (error) { await sb.storage.from(BUCKET).remove([path]); throw new Error(`db insert: ${error.message}`); }
 
     await sb.from("mh_activity").insert({ post_id: b.postId, actor_key: who, action: `${kind}_added`, to_value: b.filename || name });
-    return NextResponse.json({ attachment: data });
+    const sentBack = kind === "creative" ? await sendBackForReview(sb, b.postId, who, b.filename || name) : false;
+    return NextResponse.json({ attachment: data, sentBack });
   } catch (err) {
     return NextResponse.json(safeError(err, "Upload failed"), { status: 502 });
   }

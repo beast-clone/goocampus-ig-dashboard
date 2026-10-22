@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection, requireSchedulerPages } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
+import { logQueueAction, istTime } from "@/lib/publish-history";
 
 // POST /api/scheduler/enqueue
 // Puts a post into the Supabase publish QUEUE (mh_posts). This does NOT publish to
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
       const merged = { ...((existing?.custom as Record<string, unknown>) || {}), ...customPatch };
       const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).select("id").single();
       if (error) throw new Error(error.message);
+      await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));
       return NextResponse.json({ ok: true, id: data.id, when: b.draft ? "draft" : when, scheduleTime, mode: "updated" });
     }
 
@@ -121,6 +123,7 @@ export async function POST(req: Request) {
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));
     return NextResponse.json({ ok: true, id: data.id, when, scheduleTime, mode: "inserted" });
   } catch (err) {
     return NextResponse.json(safeError(err, "Enqueue failed"), { status: 502 });

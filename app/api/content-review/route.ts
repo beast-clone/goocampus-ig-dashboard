@@ -23,7 +23,7 @@ export async function GET() {
     const { data, error } = await sb
       .from("mh_posts")
       .select(
-        "id, particulars, status, sbu, type, owner_key, caption, content, output_link, media_urls, publishing_date, updated_at",
+        "id, particulars, status, sbu, type, owner_key, caption, content, output_link, media_urls, publishing_date, updated_at, custom",
       )
       .eq("status", "Output - Ready")
       // don't surface anything already handed to the publish queue
@@ -79,6 +79,8 @@ export async function GET() {
         hasCreative: media.length > 0 || !!r.output_link || attUrls.length > 0,
         publishingDate: r.publishing_date,
         updatedAt: r.updated_at,
+        // Back here because its creative changed after it was approved (lib/re-review.ts).
+        changedAfterApproval: ((r.custom as Record<string, unknown> | null)?.changed_after_approval as string) || null,
       };
     });
 

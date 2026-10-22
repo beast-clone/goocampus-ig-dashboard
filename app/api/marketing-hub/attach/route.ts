@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import { activeTeamIds } from "@/lib/team-db";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 import { asKind, mimeAllowed, mimeRefusal } from "@/lib/attach-rules";
+import { sendBackForReview } from "@/lib/re-review";
 
 
 // Allowed types live in lib/attach-rules.ts (shared with attach/sign + attach/complete,
@@ -99,8 +100,9 @@ export async function POST(req: Request) {
       action: `${kind}_added`,
       to_value: file.name,
     });
+    const sentBack = kind === "creative" ? await sendBackForReview(sb, postId, who, file.name) : false;
 
-    return NextResponse.json({ attachment: data });
+    return NextResponse.json({ attachment: data, sentBack });
   } catch (err) {
     return NextResponse.json(safeError(err, "Upload failed"), { status: 502 });
   }
@@ -144,8 +146,10 @@ export async function DELETE(req: Request) {
       action: row.data.kind === "reference" || row.data.kind === "attachment" ? `${row.data.kind}_removed` : "creative_removed",
       to_value: row.data.filename,
     });
+    const sentBack = row.data.kind === "reference" || row.data.kind === "attachment"
+      ? false : await sendBackForReview(sb, row.data.post_id, getSessionUserId() || null, row.data.filename);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, sentBack });
   } catch (err) {
     return NextResponse.json(safeError(err, "Delete failed"), { status: 502 });
   }

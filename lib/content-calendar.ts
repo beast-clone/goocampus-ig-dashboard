@@ -7,6 +7,7 @@
 
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { getSupabase } from "@/lib/supabase";
+import { nextPublisherCheck } from "@/lib/publisher-clock";
 
 const BASE_ID = "appLdJFTrothBLDc0";
 const CONTENT_CALENDAR_TABLE = "tblRlOFss2lDKE9EG";   // Content Calendar (caption source + legacy create-post)
@@ -163,6 +164,8 @@ export type ScheduledPost = {
   instagramUrl: string | null;
   facebookUrl: string | null;
   publishedAt: string | null;
+  updatedAt?: string | null;       // last change to the row — when "publishing" began
+  processingTry?: number | null;   // set while Instagram is still processing a video
 };
 
 export type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
@@ -193,12 +196,14 @@ type MhQueueRow = {
   published_at: string | null;
   custom: Record<string, unknown> | null;
   failure_reason: string | null;
+  updated_at: string | null;
 };
 
 function deriveSupabaseStatus(
   ps: string | null,
   scheduleTime: string | null,
   hasUrl: boolean,
+  processing = false,
 ): { effective: EffectiveStatus; failureReason: string | null } {
   const now = Date.now();
   const schedMs = scheduleTime ? new Date(scheduleTime).getTime() : null;
@@ -216,7 +221,12 @@ function deriveSupabaseStatus(
       }
       return { effective: "publishing", failureReason: null };
     case "scheduled":
-      if (schedMs && schedMs <= now && now - schedMs > STUCK_SCHEDULED_MS) {
+      // A reel Instagram is still processing is handed back as "scheduled" between
+      // publisher runs (up to 20 of them) — waiting, not stuck. And a post due while
+      // the publisher sleeps (after 23:55 IST) waits for 6:00. Stuck = still here 5
+      // min after the run that should have taken it.
+      if (processing) return { effective: "scheduled", failureReason: null };
+      if (schedMs && schedMs <= now && now - nextPublisherCheck(schedMs) > STUCK_SCHEDULED_MS) {
         return { effective: "failed", failureReason: `Scheduled ${Math.floor((now - schedMs) / 60000)} min ago but never picked up by the publish worker. Check the n8n worker is active.` };
       }
       return { effective: "scheduled", failureReason: null };
@@ -230,7 +240,7 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb
     .from("mh_posts")
-    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom, failure_reason")
+    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom, failure_reason, updated_at")
     .not("publish_status", "is", null)
     .order("schedule_time", { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -261,14 +271,14 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
     const pages = r.publish_to_pages || [];
     const fullCaption = r.caption || "";
     const hasUrl = !!(r.instagram_url || r.facebook_url);
-    const derived = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl);
+    const cust = (r.custom && typeof r.custom === "object" ? r.custom : {}) as Record<string, unknown>;
+    const derived = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl, !!cust.ig_creation_id);
     const effective = derived.effective;
     // Prefer what the worker actually wrote. Overwriting it with "check the worker
     // log" is what made every failure look identical and unactionable.
     const failureReason = (r.failure_reason && String(r.failure_reason).trim()) || derived.failureReason;
     // Prefer the real media_urls; fall back to attachment creatives when that's empty.
     const media = (r.media_urls && r.media_urls.length) ? r.media_urls : (attByPost.get(r.id) || []);
-    const cust = (r.custom && typeof r.custom === "object" ? r.custom : {}) as Record<string, unknown>;
     const cover = typeof cust.cover_url === "string" && cust.cover_url ? cust.cover_url : null;
     return {
       id: r.id,
@@ -295,6 +305,8 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       instagramUrl: r.instagram_url,
       facebookUrl: r.facebook_url,
       publishedAt: r.published_at,
+      updatedAt: r.updated_at,
+      processingTry: cust.ig_creation_id ? Math.max(1, Number(cust.attempts) || 1) : null,
     } as ScheduledPost;
   });
 }

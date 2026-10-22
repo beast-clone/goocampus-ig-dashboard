@@ -342,6 +342,16 @@ export async function PATCH(req: Request) {
     });
     if (activityRows.length) await sb.from("mh_activity").insert(activityRows);
 
+    // Approved again after a creative change (lib/re-review.ts) — the "Changed after
+    // approval" flag has done its job.
+    if (clean.status === "Ready to Publish") {
+      const cur = ((clean.custom ?? (before.data as { custom?: Record<string, unknown> }).custom) || {}) as Record<string, unknown>;
+      if (cur.changed_after_approval) {
+        const rest = { ...cur }; delete rest.changed_after_approval;
+        await sb.from("mh_posts").update({ custom: rest }).eq("id", body.id);
+      }
+    }
+
     // Capture the END of the task clock the first time it reaches a done state,
     // so "Time taken" = start_at → end_at reflects how long the task took.
     const DONE_STATES = new Set(["Output - Ready", "Ready to Publish", "Published/Scheduled"]);

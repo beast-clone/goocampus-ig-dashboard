@@ -12,7 +12,7 @@ import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
-import { uploadTaskFile } from "@/lib/upload-task-file";
+import { uploadTaskFile, removeTaskFile } from "@/lib/upload-task-file";
 import { useUploadQueue } from "@/lib/use-upload-queue";
 import { FilesCard, type FileTile } from "@/components/FilesCard";
 import { useDraft } from "@/lib/use-draft";
@@ -529,7 +529,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   const q = useUploadQueue({ postId, kind: "creative", uploadedBy, onSaved,
     existing: creatives.map((c) => c.name),
     onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
-  const remove = async (attId: string) => { await fetch(`/api/marketing-hub/attach?id=${attId}`, { method: "DELETE" }); onSaved(); };
+  const remove = async (attId: string) => { await removeTaskFile(attId); onSaved(); };
   const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
   const nFiles = creatives.length;
   return (
