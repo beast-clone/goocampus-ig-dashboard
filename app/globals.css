@@ -1324,3 +1324,19 @@ html[data-theme="dark"] .preview-root [style*="solid #F3C6CE" i] { border-color:
 @media (prefers-reduced-motion: reduce) {
   .gc-bell-ring, .gc-badge-pop { animation: none; }
 }
+
+/* Dark-mode sweep, 22 Oct — the light chips and boxes still left on V2 pages
+   (Watchers "on" pills, Content Review card labels, Team save bar, Connectors icon
+   tile, Recycle bin tabs, Workflows note + tags). */
+html[data-theme="dark"] .bg-brand-light { background-color:#2C3666 !important; }
+html[data-theme="dark"] .text-brand-dark, html[data-theme="dark"] .text-\[\#2138B0\] { color:#93A3FF !important; }
+html[data-theme="dark"] .bg-\[\#EEF7F1\] { background-color:rgba(26,160,83,.16) !important; }
+html[data-theme="dark"] .text-\[\#1E7B4C\] { color:#61CE9C !important; }
+html[data-theme="dark"] .border-\[\#CDEBDF\] { border-color:rgba(26,160,83,.35) !important; }
+html[data-theme="dark"] .bg-\[\#FDECEC\] { background-color:rgba(220,46,46,.18) !important; }
+html[data-theme="dark"] .text-\[\#C0201F\] { color:#F2907F !important; }
+html[data-theme="dark"] .bg-\[\#FBEEDA\] { background-color:rgba(217,119,6,.18) !important; }
+html[data-theme="dark"] .text-\[\#8A5109\] { color:#E9A23B !important; }
+html[data-theme="dark"] .bg-\[\#FBFBFD\] { background-color:var(--d-panel) !important; }
+html[data-theme="dark"] .bg-\[\#F5EEE9\] { background-color:var(--d-raised) !important; }
+html[data-theme="dark"] .text-\[\#3A4A7A\] { color:var(--d-ink2) !important; }
