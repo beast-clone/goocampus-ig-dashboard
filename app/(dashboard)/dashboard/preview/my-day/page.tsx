@@ -22,6 +22,7 @@ export default async function PreviewMyDayPage({ searchParams }: { searchParams?
   // may deep-link a specific person via ?person= (e.g. from Team Command's
   // "View their day"). Producers can never override who they are.
   const wanted = admin && typeof searchParams?.person === "string" ? searchParams.person.toLowerCase().trim() : undefined;
-  const initialPerson = wanted || (user && !admin ? user.id : undefined);
+  // Admins open their own day too now — there's no switcher (22 Oct).
+  const initialPerson = wanted || user?.id || undefined;
   return <PreviewMyDay initialPerson={initialPerson} isAdmin={admin} viewerId={uid || undefined} />;
 }

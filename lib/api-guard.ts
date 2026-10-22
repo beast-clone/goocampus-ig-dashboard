@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
-import { CAPABILITIES, hasCapability, canAccessSection, type Capability, type Section } from "@/lib/permissions";
+import { CAPABILITIES, hasCapability, canAccessSection, maySchedulePage, type Capability, type Section } from "@/lib/permissions";
+import { getSupabase } from "@/lib/supabase";
 
 // Per-user (falls back to IP) rate-limit guard for expensive routes — the ones
 // that call paid third parties (OpenAI/Perplexity, HikerAPI, Airtable). Returns a
@@ -34,6 +35,23 @@ export function guardRate(req: Request, name: string, max: number, windowMs: num
 //
 //   const denied = await requireCapability("delete_tasks");
 //   if (denied) return denied;
+// Scheduler brand pages (Team & access → Scheduler, 22 Oct). `pages` are the
+// PublishToPage values a request wants to post to; a post id checks the row's own.
+const PAGE_LABEL: Record<string, string> = { "GooCampus Main": "GooCampus", "GooCampus World": "GooCampus World", "12Plus / GC India": "12thPlus.com" };
+export async function requireSchedulerPages(pages: string[]): Promise<NextResponse | null> {
+  const me = await rosterById(getSessionUserId());
+  const bad = pages.filter((p) => !maySchedulePage(me, p));
+  if (!bad.length) return null;
+  return NextResponse.json({ error: `You can't schedule to ${bad.map((p) => PAGE_LABEL[p] || p).join(", ")} — ask an admin to add it in Team & access.` }, { status: 403 });
+}
+export async function requireSchedulerPost(postId: string): Promise<NextResponse | null> {
+  const sb = getSupabase();
+  if (!sb || !postId) return null;
+  const { data } = await sb.from("mh_posts").select("publish_to_pages").eq("id", postId).maybeSingle();
+  const pages = Array.isArray(data?.publish_to_pages) ? (data!.publish_to_pages as string[]) : [];
+  return pages.length ? requireSchedulerPages(pages) : null;
+}
+
 export async function requireCapability(cap: Capability): Promise<NextResponse | null> {
   const me = await rosterById(getSessionUserId());
   if (!hasCapability(me, cap)) {

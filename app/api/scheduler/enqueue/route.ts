@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, requireSchedulerPages } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 
@@ -53,6 +53,8 @@ export async function POST(req: Request) {
     const when: "now" | "scheduled" = b.scheduleTimeISO && b.scheduleTimeISO.trim() ? "scheduled" : "now";
     const pages = (b.pages && b.pages.length ? b.pages : (b.publishToPage ? [b.publishToPage] : [])).filter(Boolean);
     const media = (b.mediaUrls || []).filter((u) => u && u.trim());
+    const __pages = await requireSchedulerPages(pages);
+    if (__pages) return __pages;
 
     // Format and cover ride in `custom` (jsonb), which mh_posts already carries for
     // fields outside the fixed schema. No migration, and the publisher reads the row

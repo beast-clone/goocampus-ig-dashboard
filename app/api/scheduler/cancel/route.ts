@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, requireSchedulerPost } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
   try {
     const { recordId } = (await req.json()) as { recordId?: string };
     if (!recordId) return NextResponse.json({ error: "recordId required" }, { status: 400 });
+    { const __pages = await requireSchedulerPost(recordId); if (__pages) return __pages; }
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
     const { data, error } = await sb

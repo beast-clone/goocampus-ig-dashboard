@@ -4,6 +4,8 @@ import { NavProgress } from "./NavProgress";
 import { NotificationHost } from "./NotificationHost";
 import { UndoProvider } from "./Undo";
 import { NOTIF_CSS } from "./notificationStyles";
+import { TabGuard } from "./TabGuard";
+import { Suspense } from "react";
 
 // Every Version-2 page shares this chrome — the theme root, the flex shell and the
 // sidebar. It lives in the layout so React keeps it mounted across navigation:
@@ -26,7 +28,7 @@ export default function PreviewLayout({ children }: { children: React.ReactNode 
       <UndoProvider>
         <div className="hshell">
           <PreviewSidebar />
-          {children}
+          <Suspense fallback={children}><TabGuard>{children}</TabGuard></Suspense>
         </div>
       </UndoProvider>
     </div>

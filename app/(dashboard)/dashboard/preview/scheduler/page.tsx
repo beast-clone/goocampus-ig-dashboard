@@ -280,14 +280,25 @@ function Scheduler() {
   const [topAccount, setTopAccount] = useState<string>("all");
   const [toSchedule, setToSchedule] = useState<ToScheduleItem[]>([]);
   const [toScheduleLoading, setToScheduleLoading] = useState(true);
+  // Brand pages this person may schedule to (Team & access → Scheduler); null = all.
+  // Posts for other pages are left out of every list here, and the page picker only
+  // offers these — the server refuses the rest anyway (22 Oct).
+  const [allowedPages, setAllowedPages] = useState<string[] | null>(null);
+  const mePages = useRef<Promise<string[] | null> | null>(null);
+  const loadMePages = () => (mePages.current ||= fetch("/api/me", { cache: "no-store" }).then((r) => r.json())
+    .then((d) => { const v = d?.user?.permissions?.scheduler_pages; const pages = Array.isArray(v) ? (v as string[]) : null; setAllowedPages(pages); return pages; })
+    .catch(() => null));
   const loadToSchedule = () => {
     setToScheduleLoading(true);
-    fetch("/api/scheduler/to-schedule", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { posts?: ToScheduleItem[] }) => setToSchedule(d.posts || []))
+    Promise.all([fetch("/api/scheduler/to-schedule", { cache: "no-store" }).then((r) => r.json()), loadMePages()])
+      .then(([d, pages]: [{ posts?: ToScheduleItem[] }, string[] | null]) =>
+        setToSchedule((d.posts || []).filter((t) => !pages || !t.defaultPage || pages.includes(t.defaultPage))))
       .catch(() => {})
       .finally(() => setToScheduleLoading(false));
   };
+  useEffect(() => {
+    if (allowedPages && composePages.some((p) => !allowedPages.includes(p))) setComposePages(allowedPages.slice(0, 1));
+  }, [allowedPages]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadToSchedule(); }, []);
   // Take a post out of the Scheduler without deleting it: back to "Output - Ready",
   // which is where Content Review picks it up again (for fixes, not removal).
@@ -913,6 +924,7 @@ function Scheduler() {
   // Filter derived data for the queue view — computed here so we can also use it for
   // the status-counter strip.
   const queueFiltered = queue.filter((p) => {
+    if (allowedPages && p.publishToPage && !allowedPages.includes(p.publishToPage)) return false;
     if (filterPage !== "all" && p.publishToPage !== filterPage) return false;
     if (filterInterest !== "all" && p.primaryInterest !== filterInterest) return false;
     if (filterStatus !== "all" && p.effectiveStatus !== filterStatus) return false;
@@ -1072,7 +1084,7 @@ function Scheduler() {
                               </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</label>
-                                <div className="mt-1"><PageCheckboxes value={composePages} onChange={setComposePages} /></div>
+                                <div className="mt-1"><PageCheckboxes value={composePages} onChange={setComposePages} allowed={allowedPages} /></div>
                                 <div className="mt-2">{channelTicks}</div>
                               </div>
                               <div>
@@ -1482,7 +1494,7 @@ function Scheduler() {
         {/* LEFT — form, 600px to Meta's 600 */}
         <div className="w-[600px] shrink-0 space-y-4 pb-1">
           <Card title="Post to" subtitle="Tick one or more brand pages to publish to.">
-            <PageCheckboxes value={composePages} onChange={setComposePages} />
+            <PageCheckboxes value={composePages} onChange={setComposePages} allowed={allowedPages} />
             <div className="mt-2.5 pt-2.5 border-t border-gray-100">{channelTicks}</div>
           </Card>
 
@@ -3222,7 +3234,8 @@ const PAGE_DOT: Record<string, string> = {
 
 // Multi-select brand pages — tick one or more to cross-post the same content to
 // several GooCampus accounts at once. The first ticked page is the "primary".
-function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function PageCheckboxes({ value, onChange, allowed }: { value: string[]; onChange: (v: string[]) => void; allowed?: string[] | null }) {
+  const OPTIONS = allowed ? PAGE_OPTIONS.filter((o) => allowed.includes(o.value)) : PAGE_OPTIONS;
   // A dropdown, the way Meta's composer does it, rather than three rows sitting
   // open forever. Three pages take 174px of a 600px column to answer a question
   // that is settled once and rarely changed; the trigger says who is selected and
@@ -3249,10 +3262,10 @@ function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: st
     onChange(value.includes(page) ? value.filter((p) => p !== page) : [...value, page]);
   }
 
-  const chosen = PAGE_OPTIONS.filter((o) => value.includes(o.value));
+  const chosen = OPTIONS.filter((o) => value.includes(o.value));
   const summary = chosen.length === 0 ? "Pick a page"
     : chosen.length === 1 ? chosen[0].label
-    : chosen.length === PAGE_OPTIONS.length ? "All three pages"
+    : chosen.length === OPTIONS.length ? "All three pages"
     : chosen.map((o) => o.label).join(" and ");
 
   return (
@@ -3272,7 +3285,7 @@ function PageCheckboxes({ value, onChange }: { value: string[]; onChange: (v: st
         <div role="listbox" style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
           className="absolute left-0 right-0 top-[calc(100%+4px)] z-40 bg-white border border-gray-200 rounded overflow-hidden">
           <div className="px-3 pt-2.5 pb-1.5 text-[13px] font-semibold text-[#232D42]">Brand pages</div>
-          {PAGE_OPTIONS.map((o) => {
+          {OPTIONS.map((o) => {
             const checked = value.includes(o.value);
             const isPrimary = value[0] === o.value;
             return (

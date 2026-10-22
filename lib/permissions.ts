@@ -32,7 +32,21 @@ export type Permissions = Partial<Record<Capability, boolean>> & {
    *  Not a capability — it limits rather than allows, and it applies to admins too.
    *  Unset = the rule as it always was: everyone except Maheen. (Praveen, 21 Oct) */
   date_needs_approval?: boolean;
+  // Everything below is a switch on Team & access — nothing is fixed per person in
+  // code (Praveen, 22 Oct). Unset always means "behave as before".
+  /** "full" = every task action; "partial" = only the ticked capabilities. Applies to
+   *  admins too: Admin opens every page and manages the team, task actions follow this. */
+  task_access?: "full" | "partial";
+  /** Per-tab page switches (TABS keys). Unset = the tab's default. */
+  tabs?: Record<string, boolean>;
+  /** Brand pages they may schedule to (PublishToPage values). Unset = all pages. */
+  scheduler_pages?: string[];
+  /** Drag tasks / change dates inside the Content and Mentorship calendars. */
+  calendar_edit?: boolean;
 };
+
+/** The task actions "Full access" covers — the ones Partial lets you tick. */
+export const TASK_ACTIONS: Capability[] = ["create_tasks", "edit_tasks", "delete_tasks", "assign_tasks", "approve_content", "reschedule"];
 
 export const DATE_APPROVAL_RULE = {
   label: "Date changes need admin approval",
@@ -45,11 +59,31 @@ export function needsDateApproval(user: { id?: string; permissions?: Permissions
   return typeof v === "boolean" ? v : (user.id || "").toLowerCase() !== "maheen";
 }
 
-// Does this user have `cap`? Admins bypass (they have everything).
+// Does this user have `cap`? Task actions follow the Full / Partial switch when it is
+// set — for admins too. Unset falls back to the old rule: admins have everything.
 export function hasCapability(user: { isAdmin?: boolean; permissions?: Permissions } | null | undefined, cap: Capability): boolean {
   if (!user) return false;
+  const ta = user.permissions?.task_access;
+  if (TASK_ACTIONS.includes(cap) && ta === "full") return true;
+  if (TASK_ACTIONS.includes(cap) && ta === "partial") return user.permissions?.[cap] === true;
   if (user.isAdmin) return true;
   return user.permissions?.[cap] === true;
+}
+
+/** May they drag tasks / change dates in the calendars? Unset = whoever may change dates. */
+export function canEditCalendar(user: { isAdmin?: boolean; permissions?: Permissions } | null | undefined): boolean {
+  const v = user?.permissions?.calendar_edit;
+  return typeof v === "boolean" ? v : hasCapability(user, "reschedule");
+}
+
+/** Brand pages they may schedule to; null = all of them. */
+export function schedulerPages(user: { isAdmin?: boolean; permissions?: Permissions } | null | undefined): string[] | null {
+  const v = user?.permissions?.scheduler_pages;
+  return Array.isArray(v) ? v : null;
+}
+export function maySchedulePage(user: { isAdmin?: boolean; permissions?: Permissions } | null | undefined, page: string): boolean {
+  const pages = schedulerPages(user);
+  return !pages || pages.includes(page);
 }
 
 // Normalise arbitrary jsonb into a clean Permissions object (known keys only).
@@ -58,8 +92,17 @@ export function cleanPermissions(raw: unknown): Permissions {
   if (raw && typeof raw === "object") {
     for (const c of CAPABILITIES) if ((raw as Record<string, unknown>)[c.key] === true) out[c.key] = true;
     // Kept when false as well: false is a real answer here, unlike a capability.
-    const d = (raw as Record<string, unknown>).date_needs_approval;
+    const r = raw as Record<string, unknown>;
+    const d = r.date_needs_approval;
     if (typeof d === "boolean") out.date_needs_approval = d;
+    if (r.task_access === "full" || r.task_access === "partial") out.task_access = r.task_access;
+    if (typeof r.calendar_edit === "boolean") out.calendar_edit = r.calendar_edit;
+    if (Array.isArray(r.scheduler_pages)) out.scheduler_pages = r.scheduler_pages.filter((x): x is string => typeof x === "string");
+    if (r.tabs && typeof r.tabs === "object") {
+      const t: Record<string, boolean> = {};
+      for (const tab of TABS) { const v = (r.tabs as Record<string, unknown>)[tab.key]; if (typeof v === "boolean") t[tab.key] = v; }
+      out.tabs = t;
+    }
   }
   return out;
 }
@@ -116,6 +159,76 @@ export const ROLE_PRESETS: { key: string; label: string; desc: string; sections:
   { key: "writer", label: "Content writer", desc: "Content, Analytics, AI · create, edit",
     sections: ["overview", "content", "analytics", "ai"], caps: ["create_tasks", "edit_tasks", "reschedule"] },
 ];
+
+// ---------- Per-tab access (Praveen, 22 Oct) ----------
+// One switch per sidebar tab on Team & access. A tab needs its section AND its own
+// switch. Unset = on, except tabs marked adminDefault (team-wide views), which are
+// off for non-admins until switched on. `match` says which URLs belong to the tab, so
+// a page can refuse a direct link to a tab that's switched off.
+export type TabDef = { key: string; label: string; group: string; sec: Section; adminDefault?: boolean; paths: string[]; tab?: string[]; channel?: string };
+const P = "/dashboard/preview";
+export const TABS: TabDef[] = [
+  { key: "my-day", label: "My Day", group: "My Workspace", sec: "content", paths: [`${P}/my-day`] },
+  { key: "briefing", label: "Briefing", group: "My Workspace", sec: "content", paths: [`${P}/briefing`] },
+  { key: "workload", label: "Workload", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["team", ""] },
+  { key: "attendance", label: "Attendance", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/attendance`] },
+  { key: "master-sheet", label: "Master sheet", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["master"] },
+  { key: "pipeline", label: "Pipeline", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["pipeline"] },
+  { key: "team-command", label: "Team Command", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/team-command`] },
+  { key: "content-calendar", label: "Content calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"] },
+  { key: "mentorship-calendar", label: "Mentorship calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"], channel: "goocampusworld" },
+  { key: "radar", label: "Content Radar", group: "Content", sec: "content", paths: [`${P}/radar`] },
+  { key: "content-studio", label: "Content Studio", group: "Content", sec: "content", paths: [`${P}/content-studio`] },
+  { key: "watchers", label: "Watchers", group: "Content", sec: "content", paths: [`${P}/watchers`] },
+  { key: "publishing-calendar", label: "Publishing Calendar", group: "Social media", sec: "content", paths: [`${P}/calendar`] },
+  { key: "content-review", label: "Content Review", group: "Social media", sec: "content", paths: [`${P}/content-review`] },
+  { key: "scheduler", label: "Scheduler", group: "Social media", sec: "content", paths: [`${P}/scheduler`] },
+  { key: "broadcast", label: "Community Broadcast", group: "Social media", sec: "content", paths: [`${P}/broadcast`] },
+  { key: "instagram", label: "Instagram", group: "Analytics", sec: "analytics", paths: [`${P}/posts`, `${P}/reels`, `${P}/stories`, `${P}/instagram`] },
+  { key: "linkedin", label: "LinkedIn", group: "Analytics", sec: "analytics", paths: [`${P}/linkedin`] },
+  { key: "youtube", label: "YouTube", group: "Analytics", sec: "analytics", paths: [`${P}/youtube`] },
+  { key: "facebook", label: "Facebook", group: "Analytics", sec: "analytics", paths: [`${P}/facebook`] },
+  { key: "website", label: "Website", group: "Analytics", sec: "analytics", paths: [`${P}/website`] },
+  { key: "seo", label: "SEO", group: "Analytics", sec: "analytics", paths: [`${P}/seo`] },
+  { key: "audience", label: "All platforms", group: "Analytics", sec: "analytics", paths: [`${P}/audience`] },
+  { key: "ads", label: "Ads", group: "Ads", sec: "ads", paths: [`${P}/ads`] },
+  { key: "competitor-ads", label: "Competitor Ads", group: "Ads", sec: "ads", paths: [`${P}/competitors`] },
+  { key: "competitors", label: "Competitors", group: "Ads", sec: "ads", paths: [`${P}/benchmark`] },
+  { key: "campaigns", label: "Marketing Campaigns", group: "Sales", sec: "sales", paths: [`${P}/campaigns`] },
+  { key: "inbox", label: "Inbox", group: "Sales", sec: "sales", paths: [`${P}/inbox`] },
+  { key: "leads", label: "Social Leads", group: "Sales", sec: "sales", paths: [`${P}/leads`] },
+  { key: "sales-hub", label: "Sales Hub", group: "Sales", sec: "sales", paths: [`${P}/sales-ops`] },
+  { key: "organic-sales", label: "Organic Sales", group: "Sales", sec: "sales", paths: [`${P}/organic-sales`] },
+  { key: "assistant", label: "Ask GooCampus", group: "AI", sec: "ai", paths: [`${P}/assistant`] },
+  { key: "ai-insights", label: "AI Insights", group: "AI", sec: "ai", paths: [`${P}/ai-insights`] },
+  { key: "reports", label: "Reports", group: "AI", sec: "ai", paths: [`${P}/ai-reports`, `${P}/reports`] },
+];
+
+/** Can they open this tab? Admins: always. Others: the section, then the tab's switch. */
+export function canSeeTab(user: { isAdmin?: boolean; sections?: Sections; permissions?: Permissions } | null | undefined, key: string): boolean {
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  const tab = TABS.find((t) => t.key === key);
+  if (!tab) return true;
+  if (!canAccessSection(user, tab.sec)) return false;
+  const v = user.permissions?.tabs?.[key];
+  return typeof v === "boolean" ? v : !tab.adminDefault;
+}
+
+/** Which tab a URL belongs to (pathname + its search string), or null if none. */
+export function tabForUrl(pathname: string, search: string): TabDef | null {
+  const q = new URLSearchParams(search);
+  const tabParam = q.get("tab") || "";
+  const channel = q.get("channel") || "";
+  const hits = TABS.filter((t) => t.paths.some((p) => pathname === p || pathname.startsWith(p + "/")));
+  for (const t of hits) {
+    if (t.tab && !t.tab.includes(tabParam)) continue;
+    if (t.channel && t.channel !== channel) continue;
+    if (!t.channel && t.tab?.includes("calendar") && channel) continue;
+    return t;
+  }
+  return null;
+}
 
 export function cleanSections(raw: unknown): Sections {
   const out: Sections = {};

@@ -5,7 +5,7 @@ import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand,
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
-import type { Capability, Permissions } from "@/lib/permissions";
+import { hasCapability, type Capability, type Permissions } from "@/lib/permissions";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
@@ -3027,7 +3027,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Capability gates now come from Team permissions (per-person toggles), not
   // hardcoded names. Admins implicitly have every capability.
   const activeCaps = capByPerson[person];
-  const can = (cap: Capability) => !!activeCaps && (activeCaps.isAdmin || activeCaps.permissions[cap] === true);
+  const can = (cap: Capability) => !!activeCaps && hasCapability(activeCaps as never, cap);
   const canCreate = can("create_tasks");      // + New task
   // Opening the form takes over the right-hand panel, so it also clears whatever was
   // open there — otherwise the list would still highlight a task you can no longer see.
@@ -3695,12 +3695,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             <div className="hi">{clock ? `${clock.greet.word}, ${me.name}` : `Hello, ${me.name}`}</div>
             <div className="sub">{me.role} · {clock ? `${clock.date} · ${clock.time}` : "—"} · Bengaluru 23° · <span style={{ color: "#1AA053" }}>● live</span></div>
           </div>
-          {/* Profile switcher — admins only (Maheen / owner) to view any teammate's
-              day. Producers are locked to their own logged-in identity, so it's hidden. */}
-          {viewerIsAdmin && (
-            <div className="switch" role="tablist" aria-label="Teammate">
-              {TEAM.map((t) => <button key={t.key} className={t.key === person ? "on" : ""} onClick={() => setPerson(t.key)}>{t.name}</button>)}
-            </div>
+          {/* No person switcher — everyone sees their own day; admins look at others
+              through Team Command / Workload (Praveen, 22 Oct). Opening a teammate's
+              day from Team Command still works, and says so with a way back. */}
+          {viewerIsAdmin && viewerId && person !== viewerId && (
+            <a className="teamcapbtn" href="/dashboard/preview/my-day" title="Back to your own day">Viewing {me.name}&apos;s day · Back to mine</a>
           )}
           <div className="stats-wrap">
             {/* Day control + Pipeline live HERE, aligned with the stats (user order

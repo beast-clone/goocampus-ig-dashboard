@@ -5,6 +5,7 @@ import { rosterById, fetchRoster, activeTeamIds } from "@/lib/team-db";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { fetchSbus } from "@/lib/sbus-db";
 import { CONTENT_TYPES, ALL_TYPES } from "@/lib/mh-content-types";
+import { hasCapability } from "@/lib/permissions";
 import { createTask, normalizeOwner } from "@/lib/task-create";
 import { listTasks, getTask, searchTasks, updateTask, whatsDue, listRadar } from "@/lib/mcp-tools";
 import { fetchContentTypes } from "@/lib/content-types-db";
@@ -154,7 +155,7 @@ async function liveTools() {
 
 async function createOne(id: Rpc["id"], userId: string, args: Record<string, unknown>, origin: string) {
   const me = await rosterById(userId);
-  if (!me?.isAdmin && me?.permissions.create_tasks !== true) {
+  if (!hasCapability(me, "create_tasks")) {
     return say(id, "You don't have permission to create tasks in the dashboard. Ask an admin (Team page → Create tasks).", true);
   }
   const s = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : "");
@@ -203,7 +204,7 @@ async function callTool(id: Rpc["id"], userId: string, name: string, args: Recor
     case "list_radar":   return json(id, await listRadar(args));
     case "update_task": {
       const me = await rosterById(userId);
-      if (!me?.isAdmin && me?.permissions.create_tasks !== true) {
+      if (!hasCapability(me, "create_tasks")) {
         return say(id, "You don't have permission to change tasks in the dashboard. Ask an admin (Team page → Create tasks).", true);
       }
       const res = await updateTask(args, userId, origin);

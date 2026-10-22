@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, requireSchedulerPost } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
@@ -18,6 +18,7 @@ export async function POST(req: Request) {
   if (!body.recordId || typeof body.recordId !== "string") {
     return NextResponse.json({ error: "recordId required" }, { status: 400 });
   }
+    { const __pages = await requireSchedulerPost(body.recordId); if (__pages) return __pages; }
   if (!body.scheduleTime || typeof body.scheduleTime !== "string" || Number.isNaN(Date.parse(body.scheduleTime))) {
     return NextResponse.json({ error: "scheduleTime required (valid ISO 8601)" }, { status: 400 });
   }

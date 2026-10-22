@@ -1,6 +1,6 @@
 "use client";
 import { ThemeToggle } from "@/components/Theme";
-import { canAccessSection, type Section, type Sections } from "@/lib/permissions";
+import { canAccessSection, canSeeTab, TABS, type Permissions, type Section, type Sections } from "@/lib/permissions";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -217,7 +217,7 @@ export function PreviewSidebar() {
   // it: every signed-in person saw the whole sidebar. /api/me has returned
   // `sections` for exactly this purpose since it was written. Until it loads,
   // render nothing rather than flashing tabs the person cannot open.
-  const [me, setMe] = useState<{ isAdmin?: boolean; sections?: Sections } | null>(null);
+  const [me, setMe] = useState<{ isAdmin?: boolean; sections?: Sections; permissions?: Permissions } | null>(null);
   useEffect(() => {
     let alive = true;
     fetch("/api/me", { cache: "no-store" })
@@ -226,10 +226,23 @@ export function PreviewSidebar() {
       .catch(() => { if (alive) setMe({}); });
     return () => { alive = false; };
   }, []);
-  const groups = useMemo(
-    () => (me ? GROUPS.filter((g) => canAccessSection(me, g.sec)) : []),
-    [me],
-  );
+  // Per-tab switches (Team & access, 22 Oct): a sidebar entry shows only if its tab
+  // is on for this person. Matched by label — the TABS list mirrors the sidebar.
+  const groups = useMemo(() => {
+    if (!me) return [];
+    const ok = (label: string) => { const t = TABS.find((x) => x.label === label); return !t || canSeeTab(me, t.key); };
+    return GROUPS.filter((g) => canAccessSection(me, g.sec)).map((g) => ({
+      ...g,
+      items: g.items.flatMap((it): (Leaf | Folder)[] => {
+        if (!isFolder(it)) return ok(it.label) ? [it] : [];
+        if (it.key === "my-workspace") {
+          const children = it.children.filter((c) => ok(c.label));
+          return children.length ? [{ ...it, href: children[0].href, children }] : [];
+        }
+        return ok(it.label) ? [it] : [];
+      }),
+    })).filter((g) => g.items.length);
+  }, [me]);
   const canOverview = !me || canAccessSection(me, "overview");
 
   // Live count of publish-date changes waiting for the admin to approve — drives the
@@ -399,7 +412,7 @@ export function PreviewSidebar() {
           on every page of the dashboard. */}
       <Shortcuts />
       {canOverview && <LeafRow leaf={OVERVIEW} />}
-      {me?.isAdmin && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
+      {me && canSeeTab(me, "team-command") && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} shake={ringing} />}
       {groups.map((g) => (
         <div key={g.label}>

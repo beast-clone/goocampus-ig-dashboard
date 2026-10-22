@@ -36,7 +36,7 @@ import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-t
 import { hubRoleFor } from "@/lib/hub-role";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
-import { needsDateApproval } from "@/lib/permissions";
+import { needsDateApproval, hasCapability, canEditCalendar } from "@/lib/permissions";
 
 export type Row = {
   id: string;
@@ -1550,7 +1550,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [tip, setTip] = useState<{ r: Row; x: number; y: number } | null>(null);
   const me = useApi<{ user?: { isAdmin?: boolean; permissions?: Record<string, boolean> } }>("/api/me");
-  const canCreate = !!(me.data?.user?.isAdmin || me.data?.user?.permissions?.create_tasks);
+  const canCreate = hasCapability(me.data?.user as never, "create_tasks");
+  // Team & access → "Edit calendar" (22 Oct). Off = view only: no dragging, no drops.
+  const canMove = !me.data ? false : canEditCalendar(me.data.user as never);
   const [view, setView] = useState<CalView>("month");
   // Anchor date drives every view; ‹ › shifts by month/week/day, Today resets it.
   const [anchor, setAnchor] = useState(() => new Date());
@@ -1595,6 +1597,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   const dropOn = async (e: React.DragEvent, dayKey: string) => {
     e.preventDefault();
     setDragOver(null);
+    if (!canMove) return;
     const id = e.dataTransfer.getData("text/plain");
     if (!id) return;
     const row = rows.find((r) => r.id === id);
@@ -1706,8 +1709,8 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       <button
         key={r.id}
         title={moved ? `Moved from ${moved.from ? fmtDate(moved.from) : "no date"} — waiting for an admin to approve` : undefined}
-        draggable
-        onDragStart={(e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; }}
+        draggable={canMove}
+        onDragStart={canMove ? (e) => { e.dataTransfer.setData("text/plain", r.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
         onClick={() => onOpen(r.id)}
         onMouseEnter={(e) => { const b = e.currentTarget.getBoundingClientRect(); setTip({ r, x: b.left, y: b.bottom + 6 }); }}
         onMouseLeave={() => setTip((t) => (t?.r.id === r.id ? null : t))}
@@ -1908,7 +1911,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
             <div className="mhcal-tip-row"><span className="mhcal-tip-k">Brand</span><span className="mhcal-tip-v">{tip.r.sbu || "—"}</span></div>
             <div className="mhcal-tip-row"><span className="mhcal-tip-k">Format</span><span className="mhcal-tip-v">{tip.r.type || "—"}</span></div>
             <div className="mhcal-tip-row"><span className="mhcal-tip-k">Owner</span><span className="mhcal-tip-v">{tip.r.owner || "—"}</span></div>
-            <div className="mhcal-tip-hint">Click to open · drag to reschedule</div>
+            <div className="mhcal-tip-hint">{canMove ? "Click to open · drag to reschedule" : "Click to open · view only"}</div>
           </div>
         );
       })()}
@@ -2517,7 +2520,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   // Delete → recycle bin. Only people with the delete_tasks capability see the
   // checkboxes or the bin; the API enforces the same gate.
   const { data: meData } = useApi<{ user?: { isAdmin?: boolean; permissions?: Record<string, boolean> } }>("/api/me");
-  const canDelete = !!(meData?.user?.isAdmin || meData?.user?.permissions?.delete_tasks);
+  const canDelete = hasCapability(meData?.user as never, "delete_tasks");
   const { data: binData, refresh: refreshBin } = useApi<{ items: TrashItem[]; notReady?: boolean; error?: string }>(canDelete ? "/api/marketing-hub/trash" : null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirmDel, setConfirmDel] = useState(false);
