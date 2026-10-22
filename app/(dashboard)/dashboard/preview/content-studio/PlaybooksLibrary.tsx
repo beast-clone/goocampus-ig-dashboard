@@ -251,15 +251,10 @@ function DerivedCard({ d, skillName, source, isNew, onTokens }: { d: DeriveDraft
           ) : pickOpen ? (
             <div className="inline-flex items-center gap-2">
               <span className="text-[11.5px] text-[#8A92A6]">Assign to</span>
-              <select value={assignee} onChange={(e) => setAssignee(e.target.value)}
-                className="text-[12px] text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:border-brand outline-none">
-                {TEAM.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-              <select value={sbu} onChange={(e) => setSbu(e.target.value)} title="SBU — which brand this is for"
-                className="text-[12px] text-[#232D42] border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:border-brand outline-none max-w-[180px]">
-                <option value="">SBU…</option>
-                {sbus.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <PreviewSelect size="sm" value={assignee} onChange={setAssignee}
+                options={TEAM.map((t) => ({ value: t.key, label: t.label }))} />
+              <PreviewSelect size="sm" value={sbu} onChange={setSbu} title="SBU — which brand this is for" placeholder="SBU…"
+                options={sbus.map((o) => ({ value: o, label: o }))} />
               <button onClick={approve} disabled={sending} className="text-[11.5px] inline-flex items-center gap-1 bg-brand text-white rounded-md px-3 py-1.5 hover:bg-brand-dark disabled:opacity-60">{sending ? "Sending…" : "Confirm"}</button>
               <button onClick={() => setPickOpen(false)} className="text-[11.5px] text-[#8A92A6] hover:text-[#232D42] px-1">Cancel</button>
             </div>

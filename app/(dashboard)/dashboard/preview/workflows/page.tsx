@@ -1,5 +1,6 @@
 "use client";
 
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import {
@@ -173,18 +174,11 @@ function Workflows() {
 
             {data.others.length > 0 ? (
               <div className="flex items-center gap-2 mt-3 flex-wrap">
-                <label htmlFor="wf-pick" className="sr-only">Workflow to track</label>
-                <select
-                  id="wf-pick"
-                  value={pick}
-                  onChange={(e) => setPick(e.target.value)}
-                  className="flex-1 min-w-[240px] text-[13px] text-[#232D42] bg-white border border-[#D9DEEA] rounded-lg px-3 min-h-[38px]"
-                >
-                  <option value="">Choose a workflow…</option>
-                  {data.others.map((o) => (
-                    <option key={o.id} value={o.id}>{o.name}{o.active ? "" : "  (off)"}</option>
-                  ))}
-                </select>
+                
+                <div className="flex-1 min-w-[240px]">
+                  <PreviewSelect value={pick} onChange={setPick} ariaLabel="Workflow to track" placeholder="Choose a workflow…" className="w-full justify-between"
+                    options={data.others.map((o) => ({ value: o.id, label: `${o.name}${o.active ? "" : "  (off)"}` }))} />
+                </div>
                 <button
                   type="button"
                   disabled={!pick || busy}

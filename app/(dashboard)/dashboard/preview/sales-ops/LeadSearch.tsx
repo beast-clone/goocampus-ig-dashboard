@@ -1,4 +1,5 @@
 "use client";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WhatsAppSend } from "@/components/WhatsAppSend";
@@ -86,10 +87,8 @@ export function LeadSearch({ poolMode = false }: { poolMode?: boolean } = {}) {
         {poolMode ? (
           <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#2138B0] bg-brand-light border border-[#D7DEFB] rounded-lg px-3 py-2">New-Leads pool</span>
         ) : (
-          <select value={counsellor} onChange={(e) => setCounsellor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#232D42] bg-white min-w-[150px]">
-            <option value="">All counsellors</option>
-            {roster.map((r) => <option key={r.userId} value={r.name}>{r.name}</option>)}
-          </select>
+          <PreviewSelect value={counsellor} onChange={setCounsellor} className="min-w-[150px] justify-between"
+            options={[{ value: "", label: "All counsellors" }, ...roster.map((r) => ({ value: r.name, label: r.name }))]} />
         )}
         <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="Status contains…"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-[150px] focus:outline-none focus:border-brand" />
@@ -212,10 +211,8 @@ function ReassignModal({ lead, roster, onClose, onDone }: { lead: Lead; roster: 
       {ok ? <Ok msg={ok} /> : (
         <>
           <Label>Reassign to</Label>
-          <select value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">Pick a counsellor…</option>
-            {targets.map((r) => <option key={r.userId} value={r.userId}>{r.name}</option>)}
-          </select>
+          <PreviewSelect value={to} onChange={setTo} placeholder="Pick a counsellor…" className="w-full justify-between"
+            options={targets.map((r) => ({ value: r.userId, label: r.name }))} />
           <Label className="mt-3">Reason</Label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why is this moving? — goes into the transfer note."
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
@@ -264,10 +261,8 @@ function BulkReassignModal({ leads, roster, onClose, onDone }: { leads: Lead[]; 
             {leads.slice(0, 8).map((l) => l.name).join(", ")}{leads.length > 8 ? ` +${leads.length - 8} more` : ""}
           </div>
           <Label className="mt-3">Reassign all to</Label>
-          <select value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">Pick a counsellor…</option>
-            {roster.map((r) => <option key={r.userId} value={r.userId}>{r.name}</option>)}
-          </select>
+          <PreviewSelect value={to} onChange={setTo} placeholder="Pick a counsellor…" className="w-full justify-between"
+            options={roster.map((r) => ({ value: r.userId, label: r.name }))} />
           <Label className="mt-3">Reason</Label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Why are these moving? — goes into each transfer note."
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />

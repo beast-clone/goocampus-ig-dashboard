@@ -1,10 +1,10 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconChevronDown, IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 
 // Themed custom dropdown (no native <select>). Shared by the Scheduler,
 // Marketing Hub calendar, and anywhere else that needs the branded picker.
-export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, dropUp, addOption, onRemoveOption }: {
+export function PreviewSelect({ value, onChange, options, placeholder, disabled, className, dropUp, addOption, onRemoveOption, defaultOpen, onClose, size, bare, ariaLabel, title }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; img?: string }[];
@@ -27,8 +27,25 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
   addOption?: { label: string; onAdd: (value: string) => void };
   /** Optional per-option remove (an × on hover). Used to prune a sheet's stray statuses. */
   onRemoveOption?: (value: string) => void;
+  /** Open as soon as it appears — for click-to-edit cells that swap text for a picker. */
+  defaultOpen?: boolean;
+  /** Called when the menu is dismissed without a pick (click outside / Escape). */
+  onClose?: () => void;
+  /** "sm" = table-cell size (28px, 12px text). */
+  size?: "sm";
+  /** Reads as plain muted text until hovered — for pickers inside a heading line. */
+  bare?: boolean;
+  ariaLabel?: string;
+  title?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!defaultOpen && !disabled);
+  const dismiss = () => { setOpen(false); onClose?.(); };
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") dismiss(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   // Open upwards on its own when the menu (max-h-72 = 288px) won't fit below the
   // button but will above — a picker near the bottom of the screen otherwise opens
   // off-screen and looks cut off (Automations › Add a rule). scrollIntoView was
@@ -59,16 +76,19 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
           const r = btnRef.current?.getBoundingClientRect();
           if (r) setFlip(window.innerHeight - r.bottom < 300 && r.top > window.innerHeight - r.bottom);
           setOpen((o) => !o); setShowAdd(false); setAdding("");
-        }} disabled={disabled}
-        className={`flex items-center gap-2 h-9 text-[14px] font-medium rounded-lg border border-gray-200 bg-white px-3 text-gray-800 ${
-          disabled ? "opacity-50 cursor-not-allowed" : "hover:border-gray-300"} ${className || ""}`}>
+        }} disabled={disabled} aria-label={ariaLabel} title={title}
+        className={`flex items-center gap-2 rounded-lg border ${
+          bare ? "h-7 px-1.5 -mx-1.5 text-[13px] border-transparent bg-transparent text-[#8A92A6] hover:text-[#232D42] hover:border-gray-200"
+          : size === "sm" ? "h-7 px-2 text-[12px] border-gray-200 bg-white text-gray-800"
+          : "h-9 px-3 text-[14px] font-medium border-gray-200 bg-white text-gray-800"} ${
+          disabled ? "opacity-50 cursor-not-allowed" : bare ? "" : "hover:border-gray-300"} ${className || ""}`}>
         <Avatar src={current?.img} />
         <span className={`whitespace-nowrap ${isPlaceholder ? "text-gray-400" : ""}`}>{label}</span>
         <IconChevronDown size={14} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); dismiss(); }} />
           {/* Inline boxShadow — .preview-scope strips Tailwind shadow-* to none, so the
               menu would otherwise render flat. Inline styles survive the strip. */}
           <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}

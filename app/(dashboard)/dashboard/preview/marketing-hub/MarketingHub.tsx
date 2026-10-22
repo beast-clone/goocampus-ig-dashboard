@@ -1924,8 +1924,6 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   );
 }
 
-// The header's SBU / format pickers read as plain text until you point at them.
-const HEAD_SELECT = "[field-sizing:content] appearance-none bg-transparent border border-transparent rounded px-1 -mx-1 text-[13px] text-[#8A92A6] cursor-pointer outline-none hover:border-gray-200 hover:text-[#232D42] focus:border-brand";
 
 // Status → pill colours (mirrors the pipeline stage palette; unknown = neutral).
 function statusPill(s: string): { bg: string; text: string } {
@@ -3088,7 +3086,7 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
     const v = r.custom?.[cc.key];
     if (cc.type === "checkbox") return <button onClick={(e) => { e.stopPropagation(); saveCustom(r.id, cc.key, !v); }} className={`w-4 h-4 rounded border flex items-center justify-center ${v ? "bg-brand border-brand text-white" : "border-gray-300"}`}>{v ? <IconCheck size={11} stroke={3} /> : null}</button>;
     return <EditableCell display={v != null && v !== "" ? <span className="text-gray-700">{cc.type === "date" ? fmtDateShort(String(v)) : String(v)}</span> : <span className="text-gray-300">—</span>} editControl={(done) => (
-      cc.type === "select" ? <select autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }}><option value="">—</option>{cc.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+      cc.type === "select" ? <PreviewSelect defaultOpen size="sm" onClose={done} value={String(v ?? "")} options={[{ value: "", label: "—" }, ...cc.options.map((o) => ({ value: o, label: o }))]} onChange={async (val) => { await saveCustom(r.id, cc.key, val); done(); }} />
       : cc.type === "date" ? <input type="date" autoFocus defaultValue={String(v ?? "").slice(0, 10)} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }} />
       : <input type={cc.type === "number" ? "number" : "text"} autoFocus defaultValue={String(v ?? "")} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await saveCustom(r.id, cc.key, e.target.value); done(); }} />
     )} />;
@@ -3103,9 +3101,9 @@ function MasterSheet({ rows, facets, onOpen, onSaved, loading, bare, visibleCols
       case "particulars": return <span className="text-gray-800 block max-w-[280px] truncate">{r.particulars || "(untitled)"}</span>;
       case "sbu": return <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />{r.sbu || "—"}</span>;
       case "type": return <span className="text-gray-600">{r.type || "—"}</span>;
-      case "status": return <EditableCell display={r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.status} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { status: e.target.value }); done(); }}>{statusOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
-      case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<select autoFocus defaultValue={ownerKey} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { owner_key: e.target.value || null }); done(); }}><option value="">{isVideoType(r.type) && r.status === "Content - Approved" ? "Nobody — claim pool" : "Unassigned"}</option>{TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}</select>)} />;
-      case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<select autoFocus defaultValue={r.priority} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { await save(r.id, { priority: e.target.value }); done(); }}>{priorityOptions.map((o) => <option key={o} value={o}>{o}</option>)}</select>)} />;
+      case "status": return <EditableCell display={r.status ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: sp.bg, color: sp.text }}>{r.status}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<PreviewSelect defaultOpen size="sm" onClose={done} value={r.status || ""} options={statusOptions.map((o) => ({ value: o, label: o }))} onChange={async (val) => { await save(r.id, { status: val }); done(); }} />)} />;
+      case "owner": return <EditableCell display={r.owner ? <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium" style={{ background: "#EEEDFE", color: "#3C3489" }}>{r.owner.trim().slice(0, 1).toUpperCase()}</span>{r.owner}</span> : <span className="text-gray-300">— assign</span>} editControl={(done) => (<PreviewSelect defaultOpen size="sm" onClose={done} value={ownerKey} options={[{ value: "", label: isVideoType(r.type) && r.status === "Content - Approved" ? "Nobody — claim pool" : "Unassigned" }, ...TEAM.map((m) => ({ value: m.key, label: m.label }))]} onChange={async (val) => { await save(r.id, { owner_key: val || null }); done(); }} />)} />;
+      case "priority": return <EditableCell display={r.priority ? <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: pp.bg, color: pp.text }}>{r.priority}</span> : <span className="text-gray-300">— set</span>} editControl={(done) => (<PreviewSelect defaultOpen size="sm" onClose={done} value={r.priority || ""} options={priorityOptions.map((o) => ({ value: o, label: o }))} onChange={async (val) => { await save(r.id, { priority: val }); done(); }} />)} />;
       case "publishingDate": return <EditableCell display={r.publishingDate ? <span className="text-gray-500">{fmtDateShort(r.publishingDate)}</span> : <span className="text-gray-300">— set date</span>} editControl={(done) => (<input type="date" autoFocus defaultValue={r.publishingDate?.slice(0, 10) || ""} onBlur={done} className={EDIT_SELECT_CLS} onChange={async (e) => { done(); await changeDate(r.id, e.target.value || null); }} />)} />;
       case "createdBy": return r.createdBy ? <span className="text-gray-600">{r.createdBy}</span> : <span className="text-gray-300">—</span>;
       case "dueDate": return <span className="text-gray-500">{r.dueDate ? fmtDateShort(r.dueDate) : "—"}</span>;
@@ -4051,16 +4049,12 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
             </div>
             <div className="flex items-center gap-2 mt-1 text-[13px] text-[#8A92A6] flex-wrap">
               <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(sbuCur, []) }} />
-                <select value={sbuCur} onChange={(e) => changeSbu(e.target.value)} aria-label="SBU" title="Change the SBU" className={HEAD_SELECT}>
-                  {!sbuCur && <option value="">— SBU</option>}
-                  {Array.from(new Set([...(sbuCur ? [sbuCur] : []), ...sbuList])).map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <PreviewSelect bare value={sbuCur || ""} onChange={changeSbu} ariaLabel="SBU" title="Change the SBU" placeholder="— SBU"
+                  options={Array.from(new Set([...(sbuCur ? [sbuCur] : []), ...sbuList])).map((o) => ({ value: o, label: o }))} />
               </span>
               <span className="text-gray-300">·</span>
-              <select value={typeCur} onChange={(e) => changeType(e.target.value)} aria-label="Format" title="Change the format" className={HEAD_SELECT}>
-                {!typeCur && <option value="">— format</option>}
-                {Array.from(new Set([...(typeCur ? [typeCur] : []), ...ALL_TYPES])).map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <PreviewSelect bare value={typeCur || ""} onChange={changeType} ariaLabel="Format" title="Change the format" placeholder="— format"
+                options={Array.from(new Set([...(typeCur ? [typeCur] : []), ...ALL_TYPES])).map((o) => ({ value: o, label: o }))} />
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
             </div>
           </div>
@@ -4244,11 +4238,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     Click the pill to pick a stage; saveOne already surfaces the completeness
                     gates ("can't approve yet — X missing") and logs the change to Activity. */}
                 {detailRow("Status", statusEdit ? (
-                  <select autoFocus defaultValue={statusCur || ""} onBlur={() => setStatusEdit(false)}
-                    onChange={async (e) => { setStatusEdit(false); await saveOne("status", e.target.value, { value: statusCur, label: "Status" }); }}
-                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
-                    {Array.from(new Set([...(statusCur ? [statusCur] : []), ...STATUS_CHOICES])).map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                  <PreviewSelect defaultOpen size="sm" onClose={() => setStatusEdit(false)} value={statusCur || ""}
+                    onChange={async (val) => { setStatusEdit(false); await saveOne("status", val, { value: statusCur, label: "Status" }); }}
+                    options={Array.from(new Set([...(statusCur ? [statusCur] : []), ...STATUS_CHOICES])).map((o) => ({ value: o, label: o }))} />
                 ) : (
                   <button onClick={() => setStatusEdit(true)} title="Change the status"
                     className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 hover:ring-1 hover:ring-brand/40"
@@ -4257,12 +4249,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </button>
                 ))}
                 {detailRow("Owner", ownerEdit ? (
-                  <select autoFocus defaultValue={ownerKeyCur} onBlur={() => setOwnerEdit(false)}
-                    onChange={(e) => changeOwner(e.target.value)}
-                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
-                    {poolable ? <option value={POOL}>Nobody — put in claim pool</option> : <option value="">Nobody</option>}
-                    {TEAM.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-                  </select>
+                  <PreviewSelect defaultOpen size="sm" onClose={() => setOwnerEdit(false)} value={ownerKeyCur}
+                    onChange={(val) => changeOwner(val)}
+                    options={[poolable ? { value: POOL, label: "Nobody — put in claim pool" } : { value: "", label: "Nobody" }, ...TEAM.map((m) => ({ value: m.key, label: m.label }))]} />
                 ) : (
                   <button onClick={() => setOwnerEdit(true)} title={poolable ? "Change the owner, or put it back in the claim pool" : "Change the owner"}
                     className="inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 hover:ring-1 hover:ring-brand/40">
@@ -4271,18 +4260,15 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </button>
                 ))}
                 {detailRow("Priority", priorityEdit ? (
-                  <select autoFocus defaultValue={priorityCur || ""} onBlur={() => setPriorityEdit(false)}
-                    onChange={async (e) => {
+                  <PreviewSelect defaultOpen size="sm" onClose={() => setPriorityEdit(false)} value={priorityCur || ""} placeholder="— set priority"
+                    onChange={async (val) => {
                       setPriorityEdit(false);
-                      if (!e.target.value) return;
+                      if (!val) return;
                       const was = priorityCur;
-                      setPrioritySet(e.target.value);
-                      await saveOne("priority", e.target.value, { value: was, label: "Priority" });
+                      setPrioritySet(val);
+                      await saveOne("priority", val, { value: was, label: "Priority" });
                     }}
-                    className="border border-gray-200 rounded px-1.5 py-1 text-[13px] text-[#1D1F25] outline-none focus:border-brand">
-                    <option value="">— set priority</option>
-                    {PRIORITY_CHOICES.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                    options={PRIORITY_CHOICES.map((o) => ({ value: o, label: o }))} />
                 ) : (
                   <button onClick={() => setPriorityEdit(true)} title="Change the priority"
                     className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 hover:ring-1 hover:ring-brand/40"
