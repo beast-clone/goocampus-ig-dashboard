@@ -3486,7 +3486,9 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
   const [feedLimit, setFeedLimit] = useState(25);
   // Merge activity + comments into one chronological feed, honouring the filter.
   const feed = useMemo<FeedItem[]>(() => {
-    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value, note: (a as { detail?: string | null }).detail || null }));
+    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value,
+      // Only text notes — some rows keep an object here (e.g. {source} on imports).
+      note: typeof (a as { detail?: unknown }).detail === "string" ? ((a as { detail?: string }).detail || null) : null }));
     const coms: FeedItem[] = (detail?.comments || []).filter((c) => showResolved || !c.resolved).map((c) => ({ id: `c${c.id}`, kind: "comment", at: c.created_at, name: c.authorName, key: c.author_key, body: c.body, resolved: c.resolved }));
     let items: FeedItem[] = [...acts, ...coms];
     if (feedFilter === "revisions") items = items.filter((i) => i.kind === "activity");

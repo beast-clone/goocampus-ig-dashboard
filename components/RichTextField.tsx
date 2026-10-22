@@ -389,11 +389,12 @@ function serialize(doc: JSONContent, mode: Mode): string {
 
 const RTF_CSS = `
 .gc-rtf{position:relative}
-.gc-rtf-bar{display:flex;align-items:center;gap:2px;margin:-2px 0 6px}
-.gc-rtf-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;border-radius:6px;border:0;background:none;color:#8A92A6;cursor:pointer}
-.gc-rtf-btn:hover{background:#F6F7FB;color:#232D42}
-.gc-rtf-btn.on{background:#E9ECFB;color:#3A57E8}
-.gc-rtf-sep{width:1px;height:16px;background:#E6E9F2;margin:0 4px}
+/* Toolbar as one soft bar in the dashboard theme (Praveen, 22 Oct) */
+.gc-rtf-bar{display:flex;align-items:center;gap:2px;margin:0 0 10px;padding:4px;background:#F6F7FB;border:1px solid #EEF0F4;border-radius:10px;flex-wrap:wrap}
+.gc-rtf-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;border-radius:7px;border:1px solid transparent;background:none;color:#4A5468;cursor:pointer}
+.gc-rtf-btn:hover{background:#fff;border-color:#E6E9F2;color:#232D42}
+.gc-rtf-btn.on{background:#fff;border-color:#D5DBF8;color:#3A57E8}
+.gc-rtf-sep{width:1px;height:18px;background:#E1E4EC;margin:0 5px}
 .gc-rtf-state{margin-left:auto;font-size:11px;color:#8A92A6}
 .gc-rtf-state.below{margin-top:4px;text-align:right}
 .gc-rtf-body{outline:none;min-height:44px;font-size:14px;line-height:22px;color:#1D1F25;border:1px solid transparent;border-radius:8px;padding:6px 8px;margin:0 -8px;white-space:pre-wrap;word-break:break-word}

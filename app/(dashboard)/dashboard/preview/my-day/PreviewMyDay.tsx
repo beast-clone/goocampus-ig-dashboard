@@ -509,35 +509,47 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
     else if (item.kind === "link" && item.url) await saveLinks(currentLinks().filter((l) => l !== item.url));
     onSaved();
   };
+  const files = refs.filter((r) => r.kind === "image");
+  const links = refs.filter((r) => r.kind !== "image");
   return (
-    <>
-      <div className="section-lbl">References</div>
-      <div className="refs">
-        {refs.map((r, i) => r.kind === "image" ? (
-          <div key={r.attId || r.url || i} className="thumb ref-thumb" title={r.label}>
-            {/\.pdf($|\?)/i.test(r.url || r.label)
-              ? <a className="thumb-img" href={r.url} target="_blank" rel="noreferrer" style={{ display: "block", padding: 0 }}><PdfThumb url={r.url || ""} width={110} fallback={<span style={{ display: "grid", placeItems: "center", height: "100%", color: "#8A92A6" }}><IconFileText size={20} stroke={1.7} /></span>} /></a>
-              : <div className="thumb-img" style={{ backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />}
-            <div className="thumb-name">{r.label}</div>
-            <button className="ref-x" onClick={() => remove(i)} title="Remove">✕</button>
+    // Card layout, prototype D (22 Oct) — same features as before.
+    <div className="up-card">
+      <div className="up-h">
+        <span className="up-ico"><IconFileText size={16} stroke={1.8} /></span>
+        <b>References</b>
+        <span className="up-cnt">{files.length} file{files.length === 1 ? "" : "s"} · {links.length} link{links.length === 1 ? "" : "s"}</span>
+      </div>
+      <div className="up-b">
+        <div className="up-tiles">
+          {refs.map((r, i) => r.kind === "image" ? (
+            <div key={r.attId || r.url || i} className="up-tile" title={r.label}>
+              {/\.pdf($|\?)/i.test(r.url || r.label)
+                ? <a className="up-im" href={r.url} target="_blank" rel="noreferrer"><PdfThumb url={r.url || ""} width={118} fallback={<span className="up-doc"><IconFileText size={20} stroke={1.7} /></span>} /></a>
+                : <a className="up-im" href={r.url} target="_blank" rel="noreferrer" style={{ backgroundImage: `url(${r.url})` }} />}
+              <div className="up-nm">{r.label}</div>
+              <button className="up-x" onClick={() => remove(i)} title="Remove">✕</button>
+            </div>
+          ) : null)}
+          <label className="up-add" title="Add a reference image or PDF" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}>
+            <span className="up-add-t">{busy ? "Uploading…" : "+ Add file"}</span><span className="up-add-s">or drop here</span>
+            <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
+          </label>
+        </div>
+        <div className="up-linkin">
+          <IconLink size={15} stroke={1.8} className="up-linkic" />
+          <input placeholder="Paste a reference link…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addUrl()} />
+          <button type="button" className="btn primary sm" onClick={addUrl} disabled={!url.trim()}>Add link</button>
+        </div>
+        {refs.map((r, i) => r.kind !== "image" ? (
+          <div key={r.url || i} className="up-lrow">
+            <span className="up-host">{hostLabel(r.url || "")}</span>
+            <a className="up-u" href={refHref(r.url)} target="_blank" rel="noreferrer" title={r.url}>{r.url || r.label}</a>
+            <a className="up-act" href={refHref(r.url)} target="_blank" rel="noreferrer">Open</a>
+            <button type="button" className="up-act red" onClick={() => remove(i)}>Remove</button>
           </div>
-        ) : (
-          <a key={r.url || i} className="ref-link" href={refHref(r.url)} target="_blank" rel="noreferrer" title={r.url}>
-            <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
-            <span className="ref-link-lbl">{r.url || r.label}</span>
-            <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }} title="Remove">✕</span>
-          </a>
-        ))}
-        <label className="thumb thumb-add" title="Add a reference image or PDF">
-          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "File"}</span>
-          <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-        </label>
+        ) : null)}
       </div>
-      <div className="ref-url">
-        <input className="nt-input" placeholder="Paste a reference URL…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addUrl()} />
-        <button className="btn primary sm" onClick={addUrl} disabled={!url.trim()}>Add link</button>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -578,64 +590,84 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   };
   const remove = async (attId: string) => { await fetch(`/api/marketing-hub/attach?id=${attId}`, { method: "DELETE" }); onSaved(); };
   const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
+  const nFiles = creatives.length;
   return (
-    <>
-      <div className="section-lbl">Creatives &amp; files</div>
-      {creatives.length ? (
-        <div className="thumbs">
-          {creatives.map((f, i) => (
-            <div key={i} className="thumb" title={f.name}>
-              {/* A PDF shows its first page and opens in a new tab (Praveen, 21 Oct). */}
-              {f.url && (f.type === "doc" || isPdf(f.url, null)) ? (
-                <a className="thumb-img clk" href={f.url} target="_blank" rel="noreferrer" title={`Open ${f.name}`} style={{ display: "block", padding: 0 }}>
-                  <PdfThumb url={f.url} width={110} fallback={<span className="thumb-doc"><IconFileText size={20} stroke={1.7} /></span>} />
-                </a>
-              ) : (
-              <div
-                className={`thumb-img ${f.url && f.type !== "doc" ? "clk" : ""}`}
-                style={f.url && f.type === "image" ? { backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: THUMB_BG[i % THUMB_BG.length] }}
-                onClick={() => openPreview(f)}
-              >
-                {f.type === "video" && <span className="thumb-play">▶</span>}
-                {f.type === "doc" && <span className="thumb-doc"><IconFileText size={20} stroke={1.7} /></span>}
-              </div>
-              )}
-              <div className="thumb-name">{f.name}</div>
-              {f.attId && <button className="ref-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
-            </div>
-          ))}
-          <label className="thumb thumb-add" title="Add creative">
-            <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">{busy ? "…" : "Add"}</span>
-            <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-          </label>
-        </div>
-      ) : (
-        <label className="upload-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
-          <span className="upload-ic"><IconUpload size={18} stroke={1.7} /></span>
-          <span><b>{busy ? "Uploading…" : "Upload files"}</b><span className="upload-sub">Drag &amp; drop or click — images, videos or PDFs</span></span>
+    // Card layout, prototype D (22 Oct) — same features as before.
+    <div className="up-card">
+      <div className="up-h">
+        <span className="up-ico"><IconUpload size={16} stroke={1.8} /></span>
+        <b>Creatives &amp; files</b>
+        <span className="up-cnt">{nFiles} file{nFiles === 1 ? "" : "s"}{link ? " · 1 link" : ""}</span>
+        <label className="btn sm up-btn"><IconUpload size={14} stroke={1.8} /> Upload
           <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </label>
-      )}
-      {/* Output link — a task can be delivered as an uploaded file OR a link (Drive/Canva). */}
-      {link ? (
-        <div className="refs" style={{ marginTop: ".55rem" }}>
-          <a className="ref-link" href={link} target="_blank" rel="noreferrer" title={link}>
-            <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
-            <span className="ref-link-lbl">{link}</span>
-            <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveLink(""); }} title="Remove">✕</span>
-          </a>
-        </div>
-      ) : (
-        <div className="ref-url" style={{ marginTop: ".55rem" }}>
-          <input className="nt-input" placeholder="…or paste the output link (Drive / Canva)…" value={linkInput} onChange={(e) => setLinkInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }} />
-          <button type="button" className="btn primary sm" onClick={addLink} disabled={!linkInput.trim()}>Add link</button>
-        </div>
-      )}
+      </div>
+      <div className="up-b">
+        <label className="up-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
+          <span className="up-ci"><IconUpload size={18} stroke={1.7} /></span>
+          <span><span className="up-dt">{busy ? "Uploading…" : <>Drop files here or <span className="up-browse">browse</span></>}</span>
+            <span className="up-ds">Images, videos or PDFs · up to 300 MB each</span></span>
+          <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        </label>
+        {nFiles > 0 && (
+          <div className="up-tiles">
+            {creatives.map((f, i) => (
+              <div key={i} className="up-tile" title={f.name}>
+                {/* A PDF shows its first page and opens in a new tab (Praveen, 21 Oct). */}
+                {f.url && (f.type === "doc" || isPdf(f.url, null)) ? (
+                  <a className="up-im" href={f.url} target="_blank" rel="noreferrer" title={`Open ${f.name}`}>
+                    <PdfThumb url={f.url} width={118} fallback={<span className="up-doc"><IconFileText size={20} stroke={1.7} /></span>} />
+                  </a>
+                ) : (
+                  <div className={`up-im ${f.url && f.type !== "doc" ? "clk" : ""}`}
+                    style={f.url && f.type === "image" ? { backgroundImage: `url(${f.url})` } : { background: THUMB_BG[i % THUMB_BG.length] }}
+                    onClick={() => openPreview(f)}>
+                    {f.type === "video" && <span className="up-play">▶</span>}
+                    {f.type === "doc" && <span className="up-doc"><IconFileText size={20} stroke={1.7} /></span>}
+                  </div>
+                )}
+                <span className="up-n">{i + 1}</span>
+                <div className="up-nm">{f.name}</div>
+                {f.attId && <button className="up-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Output link — a task can be delivered as an uploaded file OR a link (Drive/Canva). */}
+        {link ? (
+          <div className="up-lrow">
+            <span className="up-host">{hostLabel(link)}</span>
+            <a className="up-u" href={link} target="_blank" rel="noreferrer" title={link}>{link}</a>
+            <a className="up-act" href={link} target="_blank" rel="noreferrer">Open</a>
+            <button type="button" className="up-act red" onClick={() => saveLink("")}>Remove</button>
+          </div>
+        ) : (
+          <div className="up-linkin">
+            <IconLink size={15} stroke={1.8} className="up-linkic" />
+            <input placeholder="Paste the output link (Drive / Canva)…" value={linkInput} onChange={(e) => setLinkInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }} />
+            <button type="button" className="btn primary sm" onClick={addLink} disabled={!linkInput.trim()}>Add link</button>
+          </div>
+        )}
+      </div>
       {preview !== null && viewable.length > 0 && (
         <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
       )}
-    </>
+    </div>
   );
+}
+
+// Where a link points, as a short label for its chip.
+function hostLabel(u: string): string {
+  try {
+    const h = new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "");
+    if (h.includes("drive.google") || h.includes("docs.google")) return "Google Drive";
+    if (h.includes("canva")) return "Canva";
+    if (h.includes("instagram")) return "Instagram";
+    if (h.includes("youtube") || h.includes("youtu.be")) return "YouTube";
+    if (h.includes("notion")) return "Notion";
+    if (h.includes("figma")) return "Figma";
+    return h;
+  } catch { return "Link"; }
 }
 
 // Fullscreen creative preview — image / carousel slideshow (‹ › + dots) / video play.
@@ -817,6 +849,7 @@ function ViewPicker({ current, statusViews, myViews, typeOptions, statusOptions,
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
   // Start with no time set opens Set duration first (#23).
   const [durOpen, setDurOpen] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
   const [startAfterPick, setStartAfterPick] = useState(false);
   // Permission-gated task actions (edit / reassign / delete). Only rendered when
   // the viewed person's Team capabilities allow them.
@@ -971,18 +1004,21 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
     ([, p]) => p.name !== task.detail.owner && !collabs.some((c) => c.name === p.name),
   );
   return (
-    // Two columns, like the Master sheet's task popup: the task on the left, its
-    // history + comments on the right. flex-wrap drops the column underneath where
-    // the panel is too narrow for both (the plan popup, a small screen).
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", alignItems: "flex-start" }}>
-    <div style={{ flex: "1 1 460px", minWidth: 0 }}>
-      {/* Header — title + sub on the left, STATUS dropdown pinned top-right (above owner) */}
+    // One column (prototype D, 22 Oct): History & comments slide in from the right
+    // only when asked for, so the brief and files get the whole width.
+    <div className="tb-d">
+    <div style={{ minWidth: 0 }}>
+      {/* Header — title + sub on the left, History button on the right; the status /
+          duration / start bar sits under the title. */}
       <div className="d-head">
         <div className="d-head-main">
           {label && <div className="lbl" style={{ marginBottom: ".45rem" }}>{label}</div>}
-          <div className="d-title">{task.title}</div>
           <div className="d-sub">{task.detail.typeLine} · {task.detail.brand}</div>
+          <div className="d-title">{task.title}</div>
         </div>
+        <button type="button" className={`btn sm hist-btn ${histOpen ? "on" : ""}`} onClick={() => setHistOpen((v) => !v)}><IconHistory size={14} stroke={1.8} /> History &amp; comments</button>
+      </div>
+      <div className="d-actions">
         <div className="status-box">
           <div className="status-row">
             {onStatusChange ? (
@@ -1049,7 +1085,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       </div>
 
       <>
-          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap", marginTop: ".7rem", alignItems: "center" }}>
+          <div className="d-tools">
             {canEdit && !editing && <button className="btn sm" onClick={() => { setEditing(true); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
             {canEdit && editing && <>
               <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
@@ -1335,11 +1371,16 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
 
 
     </div>
-    {/* Narrower and quieter — history is reference, not the focus (Praveen, 21 Oct). */}
-    <aside className="hist-side" style={{ flex: "0 1 240px", minWidth: 210, borderLeft: "1px solid var(--line)", paddingLeft: ".8rem" }}>
-      <div className="section-lbl" style={{ marginTop: 0 }}>History &amp; comments</div>
-      <TaskFeed key={`feed-${task.id}`} postId={task.id} />
-    </aside>
+    {/* History & comments — closed until asked for (prototype D, 22 Oct). */}
+    {histOpen && (
+      <aside className="hist-drawer" role="dialog" aria-label="History and comments">
+        <div className="hist-drawer-h">
+          <b>History &amp; comments</b>
+          <button type="button" className="closebtn" onClick={() => setHistOpen(false)} title="Close"><IconX size={15} stroke={2} /></button>
+        </div>
+        <div className="hist-drawer-b"><TaskFeed key={`feed-${task.id}`} postId={task.id} /></div>
+      </aside>
+    )}
     </div>
   );
 }

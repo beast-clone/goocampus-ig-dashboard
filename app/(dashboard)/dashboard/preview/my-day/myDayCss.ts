@@ -933,4 +933,69 @@ html[data-theme="dark"] .hmd{
    empty on each side. It now fills the space, keeping about a quarter of that gap. */
 .preview-scope.hmd{flex:1;min-width:0;margin-inline:0}
 .hmd .main{padding-inline:clamp(1rem,3.2vw,3.75rem)}
+
+/* Task panel — prototype D (22 Oct): one column, room to breathe */
+.hmd .work .detail{padding:1.6rem 1.9rem}
+.hmd .tb-d .d-head{align-items:flex-start}
+.hmd .tb-d .d-sub{font-size:12.5px;color:var(--muted);margin:0 0 .35rem}
+.hmd .tb-d .d-title{font-size:21px;font-weight:500;line-height:1.25;color:var(--ink)}
+.hmd .hist-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:.35rem}
+.hmd .hist-btn.on{background:var(--brand-soft);border-color:#D5DBF8;color:var(--brand-ink)}
+.hmd .d-actions{margin-top:1.1rem}
+.hmd .d-actions .status-box{text-align:left}
+.hmd .d-actions .status-row{justify-content:flex-start}
+.hmd .d-tools{display:flex;gap:.15rem;flex-wrap:wrap;margin-top:.55rem;align-items:center}
+.hmd .d-tools .btn.sm:not(.primary){border-color:transparent;background:transparent;color:var(--ink-soft);padding-left:.5rem;padding-right:.5rem}
+.hmd .d-tools .btn.sm:not(.primary):hover{background:var(--panel-2)}
+.hmd .tb-d .meta-grid{margin-top:1.4rem !important;padding:1.1rem 0;gap:1.2rem 1.6rem;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.hmd .tb-d .section-head,.hmd .tb-d .section-lbl{margin-top:1.7rem}
+.hmd .tb-d .section-lbl{font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
+.hmd .tb-d .brief{background:#FAFBFD;padding:1rem 1.1rem;font-size:13.5px;line-height:1.75}
+/* History & comments drawer */
+.hmd .hist-drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);background:var(--panel);border-left:1px solid var(--line);z-index:80;display:flex;flex-direction:column;animation:histIn .2s ease}
+@keyframes histIn{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.hmd .hist-drawer-h{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;border-bottom:1px solid var(--line);font-size:14px}
+.hmd .hist-drawer-b{flex:1;overflow:auto;padding:1rem 1.2rem}
+.hmd .d-tools .btn.sm:not(.primary){border-color:transparent !important}
+.hmd .tb-d .meta-grid + *{margin-top:0}
+
+/* Creatives & files / References cards — prototype D (22 Oct) */
+.hmd .up-card{border:1px solid var(--line);border-radius:14px;margin-top:1.4rem;background:var(--panel)}
+.hmd .up-h{display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem;border-bottom:1px solid var(--line)}
+.hmd .up-ico{width:30px;height:30px;border-radius:9px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;flex:0 0 auto}
+.hmd .up-h b{font-size:14px;font-weight:500;color:var(--ink)}
+.hmd .up-cnt{font-size:12px;color:var(--muted)}
+.hmd .up-btn{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;cursor:pointer}
+.hmd .up-b{padding:.9rem 1rem 1rem;display:flex;flex-direction:column;gap:.8rem}
+.hmd .up-drop{display:flex;align-items:center;gap:.8rem;border:1.5px dashed #C8D0F5;background:#F7F8FE;border-radius:12px;padding:.85rem 1rem;cursor:pointer}
+.hmd .up-drop:hover{border-color:var(--brand)}
+.hmd .up-ci{width:40px;height:40px;border-radius:50%;background:var(--panel);border:1px solid #DCE2FA;color:var(--brand);display:grid;place-items:center;flex:0 0 auto}
+.hmd .up-dt{display:block;font-weight:500;font-size:13.5px;color:var(--ink)}
+.hmd .up-browse{color:var(--brand)}
+.hmd .up-ds{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.hmd .up-tiles{display:flex;gap:.7rem;flex-wrap:wrap}
+.hmd .up-tile{position:relative;width:118px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.hmd .up-im{display:block;height:118px;background-size:cover;background-position:center;background-color:#E3E6EE;position:relative}
+.hmd .up-im.clk{cursor:zoom-in}
+.hmd .up-doc{display:grid;place-items:center;height:100%;color:var(--muted)}
+.hmd .up-play{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:20px;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+.hmd .up-nm{font-size:11.5px;padding:.4rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-soft)}
+.hmd .up-n{position:absolute;top:6px;left:6px;font-size:10.5px;background:rgba(35,45,66,.6);color:#fff;border-radius:5px;padding:0 5px}
+.hmd .up-x{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:6px;border:none;background:rgba(35,45,66,.6);color:#fff;font-size:11px;display:grid;place-items:center;cursor:pointer;opacity:0;transition:opacity .12s}
+.hmd .up-tile:hover .up-x{opacity:1}
+.hmd .up-add{width:118px;height:150px;border:1.5px dashed #C8D0F5;background:#F7F8FE;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;text-align:center}
+.hmd .up-add:hover{border-color:var(--brand)}
+.hmd .up-add-t{font-size:12.5px;font-weight:500;color:var(--brand)}
+.hmd .up-add-s{font-size:11px;color:var(--muted)}
+.hmd .up-linkin{display:flex;align-items:center;gap:.5rem;border:1px solid var(--line);border-radius:10px;padding:4px 4px 4px 12px;background:var(--panel)}
+.hmd .up-linkin:focus-within{border-color:var(--brand)}
+.hmd .up-linkic{color:var(--muted);flex:0 0 auto}
+.hmd .up-linkin input{flex:1;min-width:0;border:none;outline:none;background:transparent;font:inherit;font-size:13px;color:var(--ink)}
+.hmd .up-lrow{display:flex;align-items:center;gap:.6rem;border:1px solid var(--line);border-radius:10px;padding:.55rem .75rem;font-size:12.5px}
+.hmd .up-host{font-size:11px;font-weight:500;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:2px 7px;flex:0 0 auto}
+.hmd .up-u{flex:1;min-width:0;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
+.hmd .up-u:hover{color:var(--brand-ink);text-decoration:underline}
+.hmd .up-act{font-size:12px;font-weight:500;color:var(--ink-soft);background:none;border:none;cursor:pointer;text-decoration:none;padding:2px 4px}
+.hmd .up-act:hover{color:var(--brand-ink)}
+.hmd .up-act.red{color:#C0392B}
 `;
