@@ -782,6 +782,102 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
   }
 }
 
+// "My report" (prototype D, 22 Oct): what someone finished, over a date range —
+// last 2 days by default, or Today / Yesterday / Last 7 days / Custom.
+type ReportData = { done: { id: string; title: string; type: string; status: string; day: string; start: string | null; end: string | null; mins: number | null }[]; open: { id: string; title: string; type: string; status: string; due: string | null }[]; totals: { completed: number; minutes: number; open: number } };
+type RangeKey = "today" | "yday" | "two" | "week" | "custom";
+const ymdIST = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(d);
+const shiftDay = (ymd: string, n: number) => { const d = new Date(ymd + "T12:00:00+05:30"); d.setDate(d.getDate() + n); return ymdIST(d); };
+const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }) : "");
+const dayHead = (ymd: string, today: string) => {
+  const nice = new Date(ymd + "T12:00:00+05:30").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return ymd === today ? `Today · ${nice}` : ymd === shiftDay(today, -1) ? `Yesterday · ${nice}` : nice;
+};
+function ReportPanel({ person, name, onClose }: { person: string; name: string; onClose: () => void }) {
+  const today = ymdIST(new Date());
+  const [range, setRange] = useState<RangeKey>("two");
+  const [cFrom, setCFrom] = useState(shiftDay(today, -6));
+  const [cTo, setCTo] = useState(today);
+  const [data, setData] = useState<ReportData | null>(null);
+  const [from, to] = range === "today" ? [today, today] : range === "yday" ? [shiftDay(today, -1), shiftDay(today, -1)]
+    : range === "two" ? [shiftDay(today, -1), today] : range === "week" ? [shiftDay(today, -6), today] : [cFrom, cTo];
+  useEffect(() => {
+    let alive = true; setData(null);
+    fetch(`/api/my-day/report?person=${encodeURIComponent(person)}&from=${from}&to=${to}`, { cache: "no-store" })
+      .then((r) => r.json()).then((d) => { if (alive) setData(d.error ? { done: [], open: [], totals: { completed: 0, minutes: 0, open: 0 } } : d); })
+      .catch(() => { if (alive) setData({ done: [], open: [], totals: { completed: 0, minutes: 0, open: 0 } }); });
+    return () => { alive = false; };
+  }, [person, from, to]);
+  const days = data ? Array.from(new Set(data.done.map((d) => d.day))).sort().reverse() : [];
+  const title = range === "custom" ? `${dayHead(from, today)} – ${dayHead(to, today)}` : range === "today" ? dayHead(today, today) : range === "yday" ? dayHead(shiftDay(today, -1), today) : range === "two" ? "Last 2 days" : "Last 7 days";
+  const summary = () => !data ? "" : [
+    `${name} — report · ${title}`,
+    `${data.totals.completed} completed · ${fmtMins(data.totals.minutes)} on tasks · ${data.totals.open} still open`,
+    ...days.flatMap((d) => [``, dayHead(d, today), ...data.done.filter((x) => x.day === d).map((x) => `• ${x.title}${x.mins ? ` (${fmtMins(x.mins)})` : ""}`)]),
+    ...(data.open.length ? [``, `Still open`, ...data.open.map((o) => `• ${o.title}${o.due ? ` — due ${o.due}` : ""}`)] : []),
+  ].join("\n");
+  const print = () => {
+    const w = window.open("", "_blank"); if (!w) return;
+    const esc = (t: string) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+    w.document.write(`<html><head><title>${esc(name)} — report</title><style>body{font-family:Inter,system-ui,sans-serif;color:#232D42;padding:32px;line-height:1.6}pre{font:inherit;white-space:pre-wrap}</style></head><body><pre>${esc(summary())}</pre></body></html>`);
+    w.document.close(); w.focus(); w.print();
+  };
+  return (
+    <div className="rpt-bg" onClick={onClose}>
+      <aside className="rpt-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="My report">
+        <div className="rpt-h">
+          <div><div className="lbl">My report</div><b>{title}</b></div>
+          <button type="button" className="closebtn" onClick={onClose} title="Close"><IconX size={15} stroke={2} /></button>
+        </div>
+        <div className="rpt-rng">
+          {([["today", "Today"], ["yday", "Yesterday"], ["two", "Last 2 days"], ["week", "Last 7 days"], ["custom", "Custom…"]] as const).map(([k, l]) => (
+            <button key={k} type="button" className={range === k ? "on" : ""} onClick={() => setRange(k)}>{l}</button>
+          ))}
+        </div>
+        {range === "custom" && (
+          <div className="rpt-cust">From <input type="date" value={cFrom} max={cTo} onChange={(e) => setCFrom(e.target.value)} /> to <input type="date" value={cTo} min={cFrom} max={today} onChange={(e) => setCTo(e.target.value)} /></div>
+        )}
+        {!data ? <div className="empty" style={{ padding: "2rem 0" }}>Loading…</div> : (
+          <>
+            <div className="rpt-tot">
+              <div><div className="n g">{data.totals.completed}</div><div className="k">Completed</div></div>
+              <div><div className="n">{fmtMins(data.totals.minutes)}</div><div className="k">Time on tasks</div></div>
+              <div><div className="n w">{data.totals.open}</div><div className="k">Still open</div></div>
+            </div>
+            {days.length === 0 && <div className="empty" style={{ padding: "1rem 0" }}>Nothing finished in this range.</div>}
+            {days.map((d) => (
+              <div key={d}>
+                <div className="rpt-day"><span>{dayHead(d, today)}</span><span>{data.done.filter((x) => x.day === d).length} done</span></div>
+                {data.done.filter((x) => x.day === d).map((x) => (
+                  <div key={x.id} className="rpt-it">
+                    <div className="rpt-tm">{x.start ? `${hm(x.start)} – ${hm(x.end)}` : `finished ${hm(x.end)}`}</div>
+                    <div><div className="rpt-t">{x.title}</div><div className="rpt-s">{[x.type, x.mins ? fmtMins(x.mins) : "", STATUS[x.status as CCStatus]?.label || x.status].filter(Boolean).join(" · ")}</div></div>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {data.open.length > 0 && (
+              <div>
+                <div className="rpt-day" style={{ marginTop: "1.2rem" }}><span>Still open</span><span>{data.open.length}</span></div>
+                {data.open.map((o) => (
+                  <div key={o.id} className="rpt-it">
+                    <div className="rpt-tm">{o.due ? (o.due < today ? "overdue" : o.due === today ? "due today" : `due ${o.due.slice(8)}/${o.due.slice(5, 7)}`) : "no date"}</div>
+                    <div><div className="rpt-t">{o.title}</div><div className="rpt-s">{[o.type, STATUS[o.status as CCStatus]?.label || o.status].filter(Boolean).join(" · ")}</div></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="rpt-acts">
+              <button type="button" className="btn sm" onClick={print}>Download as PDF</button>
+              <button type="button" className="btn sm" onClick={() => { navigator.clipboard?.writeText(summary()); showToast({ who: "Copied", body: "The report summary is on your clipboard.", color: "#1AA053", av: "✓" }); }}>Copy summary</button>
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
+  );
+}
+
 // The My tasks "View" picker (approved prototype D, 22 Oct).
 function ViewPicker({ current, statusViews, myViews, typeOptions, statusOptions, onPick, onSave, onDelete }: {
   current: string;
@@ -3716,6 +3812,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   return (
     <div className="hmd preview-scope">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      {reportOpen && <ReportPanel person={person} name={me.name} onClose={() => setReportOpen(false)} />}
 
       {/* click-away layer for the top popovers */}
       {panel && <div className="backdrop" onClick={() => setPanel(null)} />}

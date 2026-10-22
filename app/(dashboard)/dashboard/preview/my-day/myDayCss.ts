@@ -998,4 +998,27 @@ html[data-theme="dark"] .hmd{
 .hmd .up-act{font-size:12px;font-weight:500;color:var(--ink-soft);background:none;border:none;cursor:pointer;text-decoration:none;padding:2px 4px}
 .hmd .up-act:hover{color:var(--brand-ink)}
 .hmd .up-act.red{color:#C0392B}
+
+/* My report panel */
+.hmd .rpt-bg{position:fixed;inset:0;background:rgba(35,45,66,.18);z-index:90}
+.hmd .rpt-panel{position:absolute;top:0;right:0;bottom:0;width:min(440px,94vw);background:var(--panel);border-left:1px solid var(--line);padding:1.4rem 1.5rem;overflow:auto;animation:histIn .2s ease}
+.hmd .rpt-h{display:flex;justify-content:space-between;align-items:flex-start}
+.hmd .rpt-h b{font-size:18px;font-weight:500;color:var(--ink)}
+.hmd .rpt-rng{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:1rem}
+.hmd .rpt-rng button{font:inherit;font-size:12px;font-weight:500;padding:.32rem .7rem;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer}
+.hmd .rpt-rng button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.hmd .rpt-cust{display:flex;align-items:center;gap:.45rem;margin-top:.7rem;font-size:12.5px;color:var(--muted)}
+.hmd .rpt-cust input{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:.3rem .5rem;color:var(--ink);background:var(--panel)}
+.hmd .rpt-tot{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin:1.1rem 0 1rem}
+.hmd .rpt-tot>div{background:var(--panel-2);border-radius:10px;padding:.7rem .8rem}
+.hmd .rpt-tot .n{font-size:19px;font-weight:500;white-space:nowrap}
+.hmd .rpt-tot .n.g{color:#1AA053}.hmd .rpt-tot .n.w{color:#B7791F}
+.hmd .rpt-tot .k{font-size:11.5px;color:var(--muted)}
+.hmd .rpt-day{display:flex;justify-content:space-between;font-size:12px;font-weight:500;color:var(--ink);margin:1rem 0 .2rem}
+.hmd .rpt-day span:last-child{color:var(--muted);font-weight:400}
+.hmd .rpt-it{display:flex;gap:.8rem;padding:.65rem 0;border-bottom:1px solid var(--line)}
+.hmd .rpt-tm{width:96px;flex:0 0 auto;font-size:11.5px;color:var(--muted);padding-top:2px}
+.hmd .rpt-t{font-weight:500;font-size:13px;color:var(--ink)}
+.hmd .rpt-s{font-size:12px;color:var(--muted);margin-top:2px}
+.hmd .rpt-acts{display:flex;gap:.5rem;margin-top:1.2rem}
 `;
