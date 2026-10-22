@@ -368,13 +368,13 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         </div>
       )}
 
+      {/* Same files cards as My Day and the task window (22 Oct). */}
       <div className="nt-field">
-        <label className="nt-label">References <span className="nt-hint">image references or links for the designer</span></label>
-        <PendingAssets hint="Moodboard images, examples, or links the designer should see." value={refs} onChange={setRefs} />
+        <PendingAssets title="References" value={refs} onChange={setRefs} />
       </div>
       <div className="nt-field">
-        <label className="nt-label">Output <span className="nt-hint">finishing it yourself? drop the ready creative here</span></label>
-        <PendingAssets oneLink hint="Upload the ready creative (images) + its Drive/Canva link — for tasks you can complete without a designer." value={output} onChange={setOutput} />
+        <PendingAssets title="Creatives & files" drop oneLink value={output} onChange={setOutput} />
+        <span className="nt-hint" style={{ display: "block", marginTop: ".35rem" }}>Finishing it yourself? Drop the ready creative here — otherwise leave it for the designer.</span>
       </div>
       <div className="nt-actions">
         <button className="btn" onClick={onClose}>Cancel</button>

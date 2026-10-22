@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { inNumberOrder } from "@/lib/upload-task-file";
+import { FilesCard, type FileTile } from "@/components/FilesCard";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { IconLink } from "@tabler/icons-react";
 import { useTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 
@@ -140,55 +142,34 @@ export type PendingAsset = { links: string[]; files: PendingFile[] };
 export type NewTaskAssets = { refLinks: string[]; refFiles: File[]; outLink: string; outFiles: File[] };
 export const EMPTY_ASSET: PendingAsset = { links: [], files: [] };
 
-export function PendingAssets({ hint, oneLink, value, onChange }: { hint: string; oneLink?: boolean; value: PendingAsset; onChange: (p: PendingAsset) => void }) {
-  const [url, setUrl] = useState("");
-  const addUrl = () => {
-    const raw = url.trim(); if (!raw) return;
-    const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-    onChange({ ...value, links: oneLink ? [href] : [...value.links, href] });
-    setUrl("");
-  };
-  const addFiles = (files: FileList | null) => {
-    if (!files || !files.length) return;
+export function PendingAssets({ title, drop, oneLink, value, onChange }: { title: string; drop?: boolean; oneLink?: boolean; value: PendingAsset; onChange: (p: PendingAsset) => void }) {
+  const addFiles = async (files: FileList) => {
+    let list = inNumberOrder(files);
+    // Same as an uploaded task: a name that's already here is called out first (22 Oct).
+    const stem = (n: string) => n.toLowerCase().replace(/\.[a-z0-9]+$/, "");
+    const have = new Set(value.files.map((f) => stem(f.file.name)));
+    const dups = list.filter((f) => have.has(stem(f.name)));
+    if (dups.length && !(await confirmDialog({
+      title: dups.length === 1 ? `${dups[0].name} is already added` : `${dups.length} of these files are already added`,
+      body: `${dups.map((f) => f.name).slice(0, 8).join(", ")} — add ${dups.length === 1 ? "it" : "them"} again anyway?`,
+      action: "Add anyway", cancel: dups.length === list.length ? "Don't add" : "Skip duplicates",
+    }))) list = list.filter((f) => !dups.includes(f));
     // A batch goes in number order, after whatever was already added (22 Oct).
-    const added = inNumberOrder(files).map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+    const added = list.map((f) => ({ file: f, url: URL.createObjectURL(f) }));
     onChange({ ...value, files: [...value.files, ...added] });
   };
   const rmFile = (i: number) => { const f = value.files[i]; if (f) URL.revokeObjectURL(f.url); onChange({ ...value, files: value.files.filter((_, j) => j !== i) }); };
-  const rmLink = (i: number) => onChange({ ...value, links: value.links.filter((_, j) => j !== i) });
+  // The shared files card (components/FilesCard) — the same look as My Day and the task
+  // window. Nothing uploads until the task is saved; these are local previews.
   return (
-    <>
-      <div className="refs">
-        {value.files.map((f, i) => (
-          <div key={i} className="thumb ref-thumb" title={f.file.name}>
-            {f.file.type.startsWith("image/")
-              ? <div className="thumb-img" style={{ backgroundImage: `url(${f.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-              : <div className="thumb-img" style={{ display: "grid", placeItems: "center", fontSize: 11, fontWeight: 500, color: "#8A92A6" }}>PDF</div>}
-            <div className="thumb-name">{f.file.name}</div>
-            <button type="button" className="ref-x" onClick={() => rmFile(i)} title="Remove">✕</button>
-          </div>
-        ))}
-        <label className="thumb thumb-add" title="Add an image or PDF">
-          <span className="thumb-add-plus">＋</span><span className="thumb-add-lbl">File</span>
-          <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-        </label>
-      </div>
-      {value.links.length > 0 && (
-        <div className="refs" style={{ marginTop: ".45rem" }}>
-          {value.links.map((l, i) => (
-            <a key={i} className="ref-link" href={l} target="_blank" rel="noreferrer" title={l}>
-              <span className="ref-link-ic"><IconLink size={14} stroke={1.8} /></span>
-              <span className="ref-link-lbl">{l}</span>
-              <span className="ref-x sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); rmLink(i); }} title="Remove">✕</span>
-            </a>
-          ))}
-        </div>
-      )}
-      <div className="ref-url" style={{ marginTop: ".45rem" }}>
-        <input className="nt-input" placeholder={oneLink ? "Paste the final creative link (Drive / Canva)…" : "Paste a reference URL…"} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrl(); } }} />
-        <button type="button" className="btn primary sm" onClick={addUrl} disabled={!url.trim()}>Add link</button>
-      </div>
-      <div className="nt-hint" style={{ marginTop: ".35rem", display: "block" }}>{hint}</div>
-    </>
+    <FilesCard title={title} drop={drop} numbered={drop}
+      count={`${value.files.length} file${value.files.length === 1 ? "" : "s"}${value.links.length ? ` · ${value.links.length} link${value.links.length === 1 ? "" : "s"}` : ""}`}
+      accept="image/*,.pdf,application/pdf" onFiles={addFiles}
+      tiles={value.files.map((f, i): FileTile => ({ key: f.url, name: f.file.name, url: f.url, preview: f.url,
+        kind: f.file.type.startsWith("image/") ? "image" : /pdf/i.test(f.file.type) ? "pdf" : "file", onRemove: () => rmFile(i) }))}
+      links={value.links} singleLink={oneLink}
+      linkPlaceholder={oneLink ? "Paste the final creative link (Drive / Canva)…" : "Paste a reference link…"}
+      onAddLink={(href) => onChange({ ...value, links: oneLink ? [href] : [...value.links, href] })}
+      onRemoveLink={(l) => onChange({ ...value, links: value.links.filter((x) => x !== l) })} />
   );
 }

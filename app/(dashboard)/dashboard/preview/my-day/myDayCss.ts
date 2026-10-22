@@ -1167,4 +1167,7 @@ html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 .hmd .up-ring-x{background:#C0392B}
 .hmd .up-pend.err{border-color:#F3C6CE}
 .hmd .up-pend .up-nm{color:var(--muted)}
+
+/* Shared files card (components/FilesCard) sits where the up-cards were */
+.hmd .up-wrap{margin-top:1rem}
 `;

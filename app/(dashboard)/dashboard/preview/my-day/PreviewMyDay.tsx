@@ -11,10 +11,11 @@ import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
-import { uploadTaskFile, inNumberOrder } from "@/lib/upload-task-file";
-import { useUploadQueue, type PendingUpload } from "@/lib/use-upload-queue";
+import { uploadTaskFile } from "@/lib/upload-task-file";
+import { useUploadQueue } from "@/lib/use-upload-queue";
+import { FilesCard, type FileTile } from "@/components/FilesCard";
 import { useDraft } from "@/lib/use-draft";
-import { PdfThumb, isPdf } from "@/components/PdfThumb";
+import { isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
 import { ClampBox } from "@/components/ClampBox";
 import { Markdown } from "@/components/Markdown";
@@ -428,7 +429,6 @@ function DueChip({ due, today }: { due: string; today: string }) {
 // The full task detail — shared by the inline "Up next" panel and the Today's-plan
 // popup, so both show the complete picture (title, meta, team, content, files,
 // progress, activity).
-const THUMB_BG = ["linear-gradient(135deg,#3A57E8,#6478F0)", "linear-gradient(135deg,#079AA2,#3AC5CD)", "linear-gradient(135deg,#E83A8A,#F582B0)", "linear-gradient(135deg,#D97706,#F0A94A)"];
 
 // Custom status dropdown — a styled menu (not a native <select>, which can't be
 // themed) so it matches the themed card: each row shows the status's own tone dot.
@@ -468,116 +468,43 @@ function StatusDropdown({ value, onChange }: { value: CCStatus; onChange: (s: CC
 // or upload image files; both persist to the same backend as the Marketing Hub
 // modal (reference links → mh_posts.reference_links, images → mh_attachments
 // kind='reference'). Seeded from the task's own references; remounted per task.
-// References are rarely pasted as a bare URL. 20 of the 23 on the board read like
-// "MCC Revised UG Information Bulletin 2026 (20.08.2026), Q. No. 32: https://…" —
-// a citation with the link inside it. Putting that whole string in href makes it a
-// relative path, so the browser stays inside the dashboard and the link looks
-// dead. "Reference links are not clickable" (Nikhil, 7 Oct).
-//
-// Pull the first real URL out and link to that, keeping the full text as the
-// label. A reference with no URL in it is a note, not a link, so it renders
-// without an href rather than as a link that goes nowhere.
-const refHref = (s?: string | null): string | undefined =>
-  String(s || "").match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 
 function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: RefItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [refs, setRefs] = useState<RefItem[]>(initial);
   // Follow the server's list after a reload, so a new upload replaces its preview tile.
   useEffect(() => { setRefs(initial); }, [JSON.stringify(initial)]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [url, setUrl] = useState("");
-  const urlDraft = useDraft(`reflink:${postId}`, url, setUrl);
   const currentLinks = () => refs.filter((r) => r.kind === "link" && r.url).map((r) => r.url!) as string[];
   const saveLinks = (links: string[]) =>
     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: uploadedBy, fields: { reference_links: links } }) });
-  const addUrl = async () => {
-    const raw = url.trim(); if (!raw) return;
-    const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-    setUrl(""); urlDraft.clear();
-    setRefs((r) => [...r, { kind: "link", label: raw.replace(/^https?:\/\//i, ""), url: href }]);
+  const addUrl = async (href: string) => {
+    setRefs((r) => [...r, { kind: "link", label: href.replace(/^https?:\/\//i, ""), url: href }]);
     await saveLinks([...currentLinks(), href]); onSaved();
   };
   const q = useUploadQueue({ postId, kind: "reference", uploadedBy, onSaved,
     existing: refs.filter((r) => r.kind === "image").map((r) => r.label),
     onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
-  const addImages = (files: FileList | null) => { q.add(files); };
-  const busy = q.busy;
-  const remove = async (i: number) => {
-    const item = refs[i];
-    setRefs((r) => r.filter((_, j) => j !== i));
+  const files = refs.filter((r) => r.kind === "image");
+  const links = refs.filter((r) => r.kind !== "image");
+  const removeRef = async (item: RefItem) => {
+    setRefs((r) => r.filter((x) => x !== item));
     if (item.kind === "image" && item.attId) await fetch(`/api/marketing-hub/attach?id=${item.attId}`, { method: "DELETE" });
     else if (item.kind === "link" && item.url) await saveLinks(currentLinks().filter((l) => l !== item.url));
     onSaved();
   };
-  const files = refs.filter((r) => r.kind === "image");
-  const links = refs.filter((r) => r.kind !== "image");
+  // The shared files card (components/FilesCard) — same look in the task window and
+  // the New task form.
   return (
-    // Card layout, prototype D (22 Oct) — same features as before.
-    <div className="up-card">
-      <div className="up-h">
-        <span className="up-ico"><IconFileText size={16} stroke={1.8} /></span>
-        <b>References</b>
-        <span className="up-cnt">{files.length} file{files.length === 1 ? "" : "s"} · {links.length} link{links.length === 1 ? "" : "s"}</span>
-      </div>
-      <div className="up-b">
-        <div className="up-tiles">
-          {refs.map((r, i) => r.kind === "image" ? (
-            <div key={r.attId || r.url || i} className="up-tile" title={r.label}>
-              {/\.pdf($|\?)/i.test(r.url || r.label)
-                ? <a className="up-im" href={r.url} target="_blank" rel="noreferrer"><PdfThumb url={r.url || ""} width={118} fallback={<span className="up-doc"><IconFileText size={20} stroke={1.7} /></span>} /></a>
-                : <a className="up-im" href={r.url} target="_blank" rel="noreferrer" style={{ backgroundImage: `url(${r.url})` }} />}
-              <div className="up-nm">{r.label}</div>
-              <button className="up-x" onClick={() => remove(i)} title="Remove">✕</button>
-            </div>
-          ) : null)}
-          <PendingTiles items={q.pending} onDismiss={q.dismiss} />
-          <label className="up-add" title="Add a reference image or PDF" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}>
-            <span className="up-add-t">{busy ? "Uploading…" : "+ Add file"}</span><span className="up-add-s">or drop here</span>
-            <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-          </label>
-        </div>
-        <div className="up-linkin">
-          <IconLink size={15} stroke={1.8} className="up-linkic" />
-          <input placeholder="Paste a reference link…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addUrl()} />
-          <button type="button" className="btn primary sm" onClick={addUrl} disabled={!url.trim()}>Add link</button>
-        </div>
-        {refs.map((r, i) => r.kind !== "image" ? (
-          <div key={r.url || i} className="up-lrow">
-            <span className="up-host">{hostLabel(r.url || "")}</span>
-            <a className="up-u" href={refHref(r.url)} target="_blank" rel="noreferrer" title={r.url}>{r.url || r.label}</a>
-            <a className="up-act" href={refHref(r.url)} target="_blank" rel="noreferrer">Open</a>
-            <button type="button" className="up-act red" onClick={() => remove(i)}>Remove</button>
-          </div>
-        ) : null)}
-      </div>
+    <div className="up-wrap">
+      <FilesCard icon={<IconFileText size={15} stroke={1.8} />} title="References"
+        count={`${files.length} file${files.length === 1 ? "" : "s"} · ${links.length} link${links.length === 1 ? "" : "s"}`}
+        accept="image/*,.pdf,application/pdf" onFiles={(f) => q.add(f)} busyText={q.busy ? q.status : undefined}
+        tiles={files.map((r, i): FileTile => ({ key: r.attId || r.url || String(i), name: r.label, url: r.url,
+          kind: /\.pdf($|\?)/i.test(r.url || r.label) ? "pdf" : "image", onRemove: () => removeRef(r) }))}
+        pending={q.pending} onDismiss={q.dismiss}
+        links={links.map((r) => r.url || r.label)} linkPlaceholder="Paste a reference link…"
+        onAddLink={addUrl} onRemoveLink={(l) => { const it = links.find((r) => (r.url || r.label) === l); if (it) removeRef(it); }} />
     </div>
   );
-}
-
-// Files on their way up — a preview with a progress ring, like Slack (22 Oct). Each
-// tile hands over to the real one once the upload lands.
-function PendingTiles({ items, onDismiss, startAt }: { items: PendingUpload[]; onDismiss: (key: string) => void; startAt?: number }) {
-  return (<>{items.map((p, i) => {
-    const R = 15, C = 2 * Math.PI * R;
-    return (
-      <div key={p.key} className={`up-tile up-pend ${p.state}`} title={p.state === "err" ? `${p.name} — ${p.error}` : p.name}>
-        <div className="up-im" style={p.preview ? { backgroundImage: `url(${p.preview})` } : undefined}>
-          {!p.preview && <span className="up-doc">{p.type === "video" ? "▶" : <IconFileText size={20} stroke={1.7} />}</span>}
-          <span className="up-ring">
-            {p.state === "err" ? <span className="up-ring-x">!</span> : p.state === "done" ? <span className="up-ring-ok">✓</span> : (
-              <svg width="38" height="38" viewBox="0 0 38 38" aria-label={`${p.pct}% uploaded`}>
-                <circle cx="19" cy="19" r={R} fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="3.5" />
-                <circle cx="19" cy="19" r={R} fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round"
-                  strokeDasharray={C} strokeDashoffset={C * (1 - (p.state === "waiting" ? 0.04 : Math.max(0.04, p.pct / 100)))} transform="rotate(-90 19 19)" />
-              </svg>
-            )}
-          </span>
-        </div>
-        {startAt !== undefined && <span className="up-n">{startAt + i + 1}</span>}
-        <div className="up-nm">{p.state === "err" ? "Didn't upload" : p.state === "waiting" ? "Waiting…" : p.state === "done" ? p.name : `${p.pct}% · ${p.name}`}</div>
-        {p.state === "err" && <button className="up-x" style={{ opacity: 1 }} onClick={() => onDismiss(p.key)} title="Dismiss">✕</button>}
-      </div>
-    );
-  })}</>);
 }
 
 type CreativeItem = { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string };
@@ -591,87 +518,34 @@ const UPLOAD_ACCEPT = "image/*,video/*,.pdf,application/pdf";
 function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }: { creatives: CreativeItem[]; outputLink?: string; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [preview, setPreview] = useState<number | null>(null);
   const [link, setLink] = useState(outputLink || "");   // the output link (Drive/Canva) — output_link
-  const [linkInput, setLinkInput] = useState("");
-  const linkDraft = useDraft(`outlink:${postId}`, linkInput, setLinkInput);
   const viewable = creatives.filter((c) => c.url && c.type !== "doc");
   const saveLink = async (url: string) => {
     setLink(url);
     await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: uploadedBy, fields: { output_link: url } }) }).catch(() => {});
     onSaved();
   };
-  const addLink = () => {
-    const raw = linkInput.trim(); if (!raw) return;
-    setLinkInput(""); linkDraft.clear();
-    saveLink(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
-  };
   // Tiles appear at once with a progress ring; duplicates are called out first (22 Oct).
   const q = useUploadQueue({ postId, kind: "creative", uploadedBy, onSaved,
     existing: creatives.map((c) => c.name),
     onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
-  const addFiles = (files: FileList | null) => { q.add(files); };
-  const busy = q.busy;
   const remove = async (attId: string) => { await fetch(`/api/marketing-hub/attach?id=${attId}`, { method: "DELETE" }); onSaved(); };
   const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
   const nFiles = creatives.length;
   return (
-    // Card layout, prototype D (22 Oct) — same features as before.
-    <div className="up-card">
-      <div className="up-h">
-        <span className="up-ico"><IconUpload size={16} stroke={1.8} /></span>
-        <b>Creatives &amp; files</b>
-        <span className="up-cnt">{nFiles} file{nFiles === 1 ? "" : "s"}{link ? " · 1 link" : ""}</span>
-        <label className="btn sm up-btn"><IconUpload size={14} stroke={1.8} /> Upload
-          <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-        </label>
-      </div>
-      <div className="up-b">
-        <label className="up-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
-          <span className="up-ci"><IconUpload size={18} stroke={1.7} /></span>
-          <span><span className="up-dt">{busy ? "Uploading…" : <>Drop files here or <span className="up-browse">browse</span></>}</span>
-            <span className="up-ds">Images, videos or PDFs · up to 300 MB each</span></span>
-          <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-        </label>
-        {(nFiles > 0 || q.pending.length > 0) && (
-          <div className="up-tiles">
-            {creatives.map((f, i) => (
-              <div key={i} className="up-tile" title={f.name}>
-                {/* A PDF shows its first page and opens in a new tab (Praveen, 21 Oct). */}
-                {f.url && (f.type === "doc" || isPdf(f.url, null)) ? (
-                  <a className="up-im" href={f.url} target="_blank" rel="noreferrer" title={`Open ${f.name}`}>
-                    <PdfThumb url={f.url} width={118} fallback={<span className="up-doc"><IconFileText size={20} stroke={1.7} /></span>} />
-                  </a>
-                ) : (
-                  <div className={`up-im ${f.url && f.type !== "doc" ? "clk" : ""}`}
-                    style={f.url && f.type === "image" ? { backgroundImage: `url(${f.url})` } : { background: THUMB_BG[i % THUMB_BG.length] }}
-                    onClick={() => openPreview(f)}>
-                    {f.type === "video" && <span className="up-play">▶</span>}
-                    {f.type === "doc" && <span className="up-doc"><IconFileText size={20} stroke={1.7} /></span>}
-                  </div>
-                )}
-                <span className="up-n">{i + 1}</span>
-                <div className="up-nm">{f.name}</div>
-                {f.attId && <button className="up-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
-              </div>
-            ))}
-            <PendingTiles items={q.pending} onDismiss={q.dismiss} startAt={nFiles} />
-          </div>
-        )}
-        {/* Output link — a task can be delivered as an uploaded file OR a link (Drive/Canva). */}
-        {link ? (
-          <div className="up-lrow">
-            <span className="up-host">{hostLabel(link)}</span>
-            <a className="up-u" href={link} target="_blank" rel="noreferrer" title={link}>{link}</a>
-            <a className="up-act" href={link} target="_blank" rel="noreferrer">Open</a>
-            <button type="button" className="up-act red" onClick={() => saveLink("")}>Remove</button>
-          </div>
-        ) : (
-          <div className="up-linkin">
-            <IconLink size={15} stroke={1.8} className="up-linkic" />
-            <input placeholder="Paste the output link (Drive / Canva)…" value={linkInput} onChange={(e) => setLinkInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }} />
-            <button type="button" className="btn primary sm" onClick={addLink} disabled={!linkInput.trim()}>Add link</button>
-          </div>
-        )}
-      </div>
+    <div className="up-wrap">
+      <FilesCard icon={<IconUpload size={15} stroke={1.8} />} title="Creatives & files" drop numbered
+        count={`${nFiles} file${nFiles === 1 ? "" : "s"}${link ? " · 1 link" : ""}`}
+        accept={UPLOAD_ACCEPT} onFiles={(f) => q.add(f)} busyText={q.busy ? q.status : undefined}
+        tiles={creatives.map((f, i): FileTile => {
+          const pdf = !!f.url && (f.type === "doc" || isPdf(f.url, null));
+          return { key: f.attId || f.url || String(i), name: f.name, url: f.url,
+            kind: pdf ? "pdf" : f.type === "video" ? "video" : f.type === "image" ? "image" : "file",
+            onOpen: !pdf && f.url && f.type !== "doc" ? () => openPreview(f) : undefined,
+            onRemove: f.attId ? () => remove(f.attId!) : undefined };
+        })}
+        pending={q.pending} onDismiss={q.dismiss}
+        links={link ? [link] : []} singleLink linkPlaceholder="Paste the output link (Drive / Canva)…"
+        onAddLink={(v) => saveLink(v)} onRemoveLink={() => saveLink("")} />
       {preview !== null && viewable.length > 0 && (
         <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
       )}
@@ -679,19 +553,6 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   );
 }
 
-// Where a link points, as a short label for its chip.
-function hostLabel(u: string): string {
-  try {
-    const h = new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "");
-    if (h.includes("drive.google") || h.includes("docs.google")) return "Google Drive";
-    if (h.includes("canva")) return "Canva";
-    if (h.includes("instagram")) return "Instagram";
-    if (h.includes("youtube") || h.includes("youtu.be")) return "YouTube";
-    if (h.includes("notion")) return "Notion";
-    if (h.includes("figma")) return "Figma";
-    return h;
-  } catch { return "Link"; }
-}
 
 // Fullscreen creative preview — image / carousel slideshow (‹ › + dots) / video play.
 function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeItem[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
