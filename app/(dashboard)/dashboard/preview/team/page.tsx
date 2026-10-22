@@ -105,6 +105,12 @@ const BRAND_PAGES: { value: string; label: string }[] = [
   { value: "12Plus / GC India", label: "12thPlus.com" },
 ];
 const GROUPS = Array.from(new Set(TABS.map((t) => t.group)));
+// List order asked for on 22 Oct; anyone added later goes after, A–Z.
+const PEOPLE_ORDER = ["maheen", "nandu", "praveen", "manya", "nikhil"];
+const byOrder = (a: Member, b: Member) => {
+  const ia = PEOPLE_ORDER.indexOf(a.id), ib = PEOPLE_ORDER.indexOf(b.id);
+  return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.name.localeCompare(b.name);
+};
 const SENSITIVE: Record<string, string> = { Sales: "customer names and phone numbers", Ads: "ad spend and budgets" };
 
 /** Is this tab on in the draft? Admin = every tab. */
@@ -142,8 +148,9 @@ function TeamManager() {
       const r = await fetch("/api/admin/team");
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Failed to load the team");
-      setTeam(d.team);
-      setSelId((cur) => cur || d.team?.[0]?.id || null);
+      const sorted = [...(d.team as Member[])].sort(byOrder);
+      setTeam(sorted);
+      setSelId((cur) => cur || sorted[0]?.id || null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load the team");
       setTeam([]);
