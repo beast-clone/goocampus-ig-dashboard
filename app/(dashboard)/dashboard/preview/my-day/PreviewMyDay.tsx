@@ -1525,7 +1525,7 @@ function DurationPicker({ value, onChange, open: openProp, onOpenChange, title }
   const chipStyle = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 500, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: on ? "1px solid #3A57E8" : "1px solid #E6E8EE", background: on ? "#3A57E8" : "#fff", color: on ? "#fff" : "#232D42" });
   const S: Record<string, React.CSSProperties> = {
     trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, color: value ? "var(--ink, #232D42)" : "var(--muted, #8A92A6)", background: "var(--panel, #fff)", border: "1px solid var(--line, #E6E8EE)", borderRadius: 9, padding: "0 12px", height: 36, boxSizing: "border-box", cursor: "pointer", whiteSpace: "nowrap" },
-    pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 60, background: "#fff", border: "1px solid #E6E8EE", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)", textAlign: "left" },
+    pop: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 60, background: "var(--panel, #fff)", border: "1px solid var(--line, #E6E8EE)", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)", textAlign: "left" },
     chips: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 },
     row: { display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid #F0F1F5", paddingTop: 10 },
     num: { width: 46, textAlign: "center", fontSize: 13, border: "1px solid #E6E8EE", borderRadius: 7, padding: "5px 4px", outline: "none" },
@@ -2543,8 +2543,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Claimable videos show INLINE in each editor's Content-Approved tab (spec §8) —
   // both Nandu and Nikhil see the same pool; first to claim owns it.
   const claimableHere = useMemo(
-    () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id)).sort(cmpTasks) : [],
-    [isEditor, curTab.key, claimPool, claimedTasks, cmpTasks],
+    // Never a task already on their own list (e.g. one they're on camera for) — each
+    // task shows once (22 Oct; the same id twice also left ghost rows behind).
+    () => (isEditor && curTab.key === "approved") ? claimPool.filter((v) => !claimedTasks.some((c) => c.id === v.id) && !workingTasks.some((w) => w.id === v.id)).sort(cmpTasks) : [],
+    [isEditor, curTab.key, claimPool, claimedTasks, workingTasks, cmpTasks],
   );
   // Who is holding the video work right now, for when there is none left to claim.
   //
@@ -4246,7 +4248,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 // tab; first to claim owns it. Nikhil also picks how he'll work it.
                 const confirming = claimConfirm === v.id;
                 return (
-                  <div key={v.id} className={`task ${peekId === v.id ? "sel" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setPeekId(v.id); }} title="Open to see the task"
+                  <div key={`pool-${v.id}`} className={`task ${peekId === v.id ? "sel" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setPeekId(v.id); }} title="Open to see the task"
                     style={{ borderStyle: "dashed", borderColor: peekId === v.id ? undefined : "#B9C0D0", display: "flex", justifyContent: "space-between", gap: ".8rem", cursor: "pointer" }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="tt">{v.title}</div>

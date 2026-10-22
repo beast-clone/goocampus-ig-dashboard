@@ -1132,4 +1132,7 @@ html[data-theme="dark"] .hmd .plan-bar .pb-lunch{background:repeating-linear-gra
 html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 .hmd .plan-mini:focus{outline:none}
 .hmd .plan-mini:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* The status button now sits at the left edge, so its menu opens to the right. */
+.hmd .d-bar .status-dd-menu{left:0;right:auto}
 `;
