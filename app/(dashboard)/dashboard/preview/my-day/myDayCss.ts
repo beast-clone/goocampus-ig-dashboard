@@ -1094,6 +1094,7 @@ html[data-theme="dark"] .hmd{
 /* Header: big greeting, date + IST time lines, report button with icon (22 Oct) */
 .hmd .hb-d .who .hi{font-size:26px}
 .hmd .hb-d .who .sub{font-size:13px;margin-top:.25rem}
-.hmd .hb-d{align-items:center}
+.hmd .headband.hb-d{align-items:center}
+.hmd .hb-nums{align-items:center}
 .hmd .hb-report{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;align-self:center}
 `;
