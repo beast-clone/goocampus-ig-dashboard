@@ -1,14 +1,17 @@
-// When the n8n publisher (frQoNFQjqVSnZsTp) next looks at the queue. It runs every 5
-// minutes from 6:00 to 23:55 IST (cron */5 6-23), so a post due at 00:30 waits for
-// 6:00. Shared by the queue (so a waiting post isn't called "stuck") and the
-// Scheduler's live countdown.
+// When the n8n publisher next looks at the queue. Publisher v3 (RssNBI5xb6F3gIH4)
+// runs every minute from 6:00 to 23:59 IST (cron * 6-23), so a post due at 00:30
+// waits for 6:00. It sends a post's file to Instagram / Facebook / LinkedIn up to
+// SEND_AHEAD_MIN before its time, and only presses "post" at the time (22 Oct).
+// Shared by the queue (so a waiting post isn't called "stuck") and the Scheduler's
+// live countdown.
 const IST_MS = 5.5 * 3600_000;
-const FIVE_MIN = 5 * 60_000;
+const EVERY = 60_000;   // the run interval (was 5 min before v3)
+export const SEND_AHEAD_MIN = 30;
 
 /** The first publisher run at or after `fromMs`. */
 export function nextPublisherCheck(fromMs: number): number {
   const ist = fromMs + IST_MS;
-  let next = Math.ceil(ist / FIVE_MIN) * FIVE_MIN;   // IST wall-clock, as UTC fields
+  let next = Math.ceil(ist / EVERY) * EVERY;   // IST wall-clock, as UTC fields
   const h = new Date(next).getUTCHours();
   if (h < 6) {
     const d = new Date(next); d.setUTCHours(6, 0, 0, 0); next = d.getTime();

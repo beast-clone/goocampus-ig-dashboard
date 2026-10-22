@@ -165,6 +165,8 @@ export type ScheduledPost = {
   facebookUrl: string | null;
   publishedAt: string | null;
   updatedAt?: string | null;       // last change to the row — when "publishing" began
+  prepState?: "sending" | "ready" | "error" | null;   // file sent ahead of the time (publisher v3)
+  prepError?: string | null;
   processingTry?: number | null;   // set while Instagram is still processing a video
 };
 
@@ -197,7 +199,21 @@ type MhQueueRow = {
   custom: Record<string, unknown> | null;
   failure_reason: string | null;
   updated_at: string | null;
+  collaborators: string[] | null;
 };
+
+// Must match fingerprint() in n8n/publisher-v3 — what the file sent ahead was made
+// from. A different one means the post changed since, and the upload is redone.
+function prepFingerprint(r: MhQueueRow): string {
+  const c = (r.custom || {}) as Record<string, unknown>;
+  return JSON.stringify([r.media_urls || [], r.caption || "", c.caption_fb || "", c.cover_url || "", r.collaborators || [], c.publish_format || "reel", c.channels || [], r.publish_to_pages || []]);
+}
+function prepStateOf(r: MhQueueRow): { state: "sending" | "ready" | "error" | null; error: string | null } {
+  const p = (r.custom as Record<string, unknown> | null)?.prep as { fp?: string; error?: string; ig?: { ready?: boolean } } | undefined;
+  if (!p || p.fp !== prepFingerprint(r)) return { state: null, error: null };
+  if (p.error) return { state: "error", error: p.error };
+  return { state: p.ig && !p.ig.ready ? "sending" : "ready", error: null };
+}
 
 function deriveSupabaseStatus(
   ps: string | null,
@@ -240,7 +256,7 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
   if (!sb) throw new Error("Supabase not configured");
   const { data, error } = await sb
     .from("mh_posts")
-    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom, failure_reason, updated_at")
+    .select("id, particulars, sbu, type, caption, media_urls, publish_to, publish_to_page, publish_to_pages, schedule_time, publish_status, instagram_url, facebook_url, published_at, custom, failure_reason, updated_at, collaborators")
     .not("publish_status", "is", null)
     .order("schedule_time", { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -307,6 +323,8 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       publishedAt: r.published_at,
       updatedAt: r.updated_at,
       processingTry: cust.ig_creation_id ? Math.max(1, Number(cust.attempts) || 1) : null,
+      prepState: prepStateOf(r).state,
+      prepError: prepStateOf(r).error,
     } as ScheduledPost;
   });
 }

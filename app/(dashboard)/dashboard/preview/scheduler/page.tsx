@@ -21,7 +21,7 @@ import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { compressImage } from "@/lib/compress-image";
-import { nextPublisherCheck, clockText, durationText } from "@/lib/publisher-clock";
+import { nextPublisherCheck, clockText, durationText, SEND_AHEAD_MIN } from "@/lib/publisher-clock";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -48,6 +48,8 @@ type ScheduledPost = {
   publishedAt: string | null;
   updatedAt?: string | null;
   processingTry?: number | null;
+  prepState?: "sending" | "ready" | "error" | null;
+  prepError?: string | null;
 };
 
 type TimeSuggestion = {
@@ -1446,7 +1448,7 @@ function Scheduler() {
               <h3 className="text-[15px] font-medium text-[#232D42]">Publish this now?</h3>
               <p className="mt-2 text-[12.5px] leading-relaxed text-[#4A5468]">
                 <b className="font-medium">{publishNowPost.particulars || "This post"}</b> goes out at the publisher&apos;s
-                next check — within 5 minutes — instead of at the time it was scheduled for.
+                next check — within a minute — instead of at the time it was scheduled for.
               </p>
               <p className="mt-2.5 text-[11.5px] leading-relaxed text-[#8A92A6]">
                 Once it is live it can only be removed from Instagram or Facebook themselves.
@@ -1731,9 +1733,9 @@ function Scheduler() {
             ? <span className="text-green-700">✓ Saved as a draft. Nothing is posted until you send it.</span>
             : result.whenLabel
             ? <span className="text-green-700">✓ Scheduled for {result.whenLabel}. It goes out on its own — you don&apos;t need to be here.</span>
-            : <span className="text-green-700">✓ Queued to go out now. The publisher checks every 5 minutes, so it should be live within 5–10 minutes.</span>)}
+            : <span className="text-green-700">✓ Queued to go out now — live within a minute (a video can take a few more while Instagram processes it).</span>)}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
-          {!result && <span>{scheduleEnabled ? "Goes into your publishing queue for the time you set." : "Goes straight into your publishing queue."}</span>}
+          {!result && <span>{scheduleEnabled ? sendAheadHint(scheduleDate, scheduleTime) : "Goes straight into your publishing queue."}</span>}
         </div>
         <div className="flex items-center gap-2">
           {/* A draft is OURS, not Meta's. Instagram has no draft API at all, so this
@@ -1962,6 +1964,15 @@ function useMediaSizes(urls: string[]): Record<string, number> {
 }
 const fmtSize = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${Math.round(n / 1024 ** 2)} MB`);
 
+// "File goes to Instagram at 5:00 · live at 5:30" — what scheduling a post means now
+// that the publisher sends the file ahead (22 Oct).
+function sendAheadHint(date: string, time: string): string {
+  const at = date && time ? new Date(`${date}T${time}:00`) : null;
+  if (!at || Number.isNaN(at.getTime())) return "Goes into your publishing queue for the time you set.";
+  const f = (d: Date) => d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `The file goes to Instagram, Facebook and LinkedIn from ${f(new Date(at.getTime() - SEND_AHEAD_MIN * 60_000))} · live at ${f(at)}.`;
+}
+
 // Ticks once a second while mounted — drives the countdowns below.
 function useNow(on = true): number {
   const [now, setNow] = useState(() => Date.now());
@@ -1976,8 +1987,19 @@ function useNow(on = true): number {
 // What is happening to a post right now, live (Praveen, 22 Oct: "Publish now just
 // shows nothing"). The publisher only looks every 5 minutes, so a due post says when
 // the next look is; a reel Instagram is still processing says which try it is on.
-function liveStatusText(p: ScheduledPost, now: number): { text: string; tone: "wait" | "busy" | "done" } | null {
+function liveStatusText(p: ScheduledPost, now: number): { text: string; tone: "wait" | "busy" | "done" | "bad" } | null {
   const due = p.scheduleTime ? new Date(p.scheduleTime).getTime() : null;
+  // Before its time: the file goes to Instagram up to SEND_AHEAD_MIN early, so at the
+  // time only "post" is left to press.
+  if (p.effectiveStatus === "scheduled" && due && due > now) {
+    const at = new Date(due).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+    const left = `goes live at ${at} (in ${clockText(due - now)})`;
+    if (p.prepState === "error") return { text: `Instagram couldn't take the file — ${p.prepError || "check it"}. Fix it before ${at}.`, tone: "bad" };
+    if (p.prepState === "ready") return { text: `File is on Instagram, ready · ${left}`, tone: "done" };
+    if (p.prepState === "sending") return { text: `Sending the file to Instagram… · ${left}`, tone: "busy" };
+    if (due - now <= SEND_AHEAD_MIN * 60_000) return { text: `Sending the file to Instagram shortly · ${left}`, tone: "wait" };
+    return null;
+  }
   if (p.effectiveStatus === "publishing") {
     const since = p.updatedAt ? new Date(p.updatedAt).getTime() : due;
     return { text: `Publishing… ${since ? clockText(now - since) : ""}`.trim(), tone: "busy" };
@@ -1998,10 +2020,10 @@ function LiveStatus({ post, className = "" }: { post: ScheduledPost; className?:
   const now = useNow(active);
   const s = liveStatusText(post, now);
   if (!s) return null;
-  const tone = s.tone === "busy" ? "text-blue-700" : s.tone === "done" ? "text-emerald-700" : "text-[#4A5468]";
+  const tone = s.tone === "busy" ? "text-blue-700" : s.tone === "done" ? "text-emerald-700" : s.tone === "bad" ? "text-rose-700" : "text-[#4A5468]";
   return (
     <div className={`flex items-center gap-1.5 text-xs tabular-nums ${tone} ${className}`}>
-      {s.tone === "done" ? <IconCircleCheck size={13} stroke={1.8} /> : <IconClock size={13} stroke={1.8} className={s.tone === "busy" ? "animate-pulse" : ""} />}
+      {s.tone === "bad" ? <IconAlertTriangle size={13} stroke={1.8} /> : s.tone === "done" ? <IconCircleCheck size={13} stroke={1.8} /> : <IconClock size={13} stroke={1.8} className={s.tone === "busy" ? "animate-pulse" : ""} />}
       <span className="truncate">{s.text}</span>
     </div>
   );

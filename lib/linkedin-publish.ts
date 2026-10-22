@@ -88,8 +88,15 @@ function documentTitle(text: string, pdfUrl: string): string {
   return (name || "Document").slice(0, 100);
 }
 
-// Publish one post to one org page. Returns the new post URN.
-export async function publishToOrg(token: string, orgUrn: string, text: string, imageUrl?: string | null): Promise<string> {
+// Upload a post's image or PDF without posting it — the cron does this up to 30 min
+// before the post's time, so at the time only the post itself is created.
+export async function uploadMedia(token: string, orgUrn: string, url: string): Promise<string> {
+  return isPdfUrl(url) ? uploadDocument(token, orgUrn, url) : uploadImage(token, orgUrn, url);
+}
+
+// Publish one post to one org page. Returns the new post URN. `mediaUrn` is an image
+// or document already uploaded for this exact imageUrl (see uploadMedia).
+export async function publishToOrg(token: string, orgUrn: string, text: string, imageUrl?: string | null, mediaUrn?: string | null): Promise<string> {
   const body: Record<string, unknown> = {
     author: orgUrn,
     commentary: text || "",
@@ -100,10 +107,10 @@ export async function publishToOrg(token: string, orgUrn: string, text: string, 
   };
   if (imageUrl) {
     if (isPdfUrl(imageUrl)) {
-      const documentUrn = await uploadDocument(token, orgUrn, imageUrl);
+      const documentUrn = mediaUrn || await uploadDocument(token, orgUrn, imageUrl);
       body.content = { media: { id: documentUrn, title: documentTitle(text, imageUrl) } };
     } else {
-      const imageUrn = await uploadImage(token, orgUrn, imageUrl);
+      const imageUrn = mediaUrn || await uploadImage(token, orgUrn, imageUrl);
       body.content = { media: { id: imageUrn } };
     }
   }
@@ -113,7 +120,9 @@ export async function publishToOrg(token: string, orgUrn: string, text: string, 
 }
 
 // Publish the same post to one or more pages. Never throws — returns a result per page.
-export async function publishToPages(pages: string[], text: string, imageUrl?: string | null): Promise<LinkedInPublishResult[]> {
+export type PreparedMedia = Record<string, { src: string; urn: string }>;
+
+export async function publishToPages(pages: string[], text: string, imageUrl?: string | null, prepared?: PreparedMedia | null): Promise<LinkedInPublishResult[]> {
   const token = await linkedinToken();
   if (!token) return pages.map((page) => ({ page, ok: false as const, error: "LinkedIn not connected (no access token)" }));
 
@@ -122,7 +131,8 @@ export async function publishToPages(pages: string[], text: string, imageUrl?: s
     const orgUrn = orgUrnFor(page);
     if (!orgUrn) { results.push({ page, ok: false, error: `unknown page "${page}"` }); continue; }
     try {
-      const postUrn = await publishToOrg(token, orgUrn, text || "", imageUrl);
+      const ready = prepared?.[page];
+      const postUrn = await publishToOrg(token, orgUrn, text || "", imageUrl, ready && ready.src === imageUrl ? ready.urn : null);
       results.push({ page, ok: true, orgUrn, postUrn, permalink: postUrn ? `https://www.linkedin.com/feed/update/${postUrn}` : null });
     } catch (e) {
       results.push({ page, ok: false, error: (e as Error).message });

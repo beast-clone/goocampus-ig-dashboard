@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
-import { publishToPages } from "@/lib/linkedin-publish";
+import { publishToPages, uploadMedia, orgUrnFor, type PreparedMedia } from "@/lib/linkedin-publish";
+import { linkedinToken } from "@/lib/linkedin";
 import { ensureFreshLinkedInToken } from "@/lib/linkedin-refresh";
 
 // Cron worker — publishes due LinkedIn scheduled posts. Fully separate from the Meta
@@ -45,18 +46,42 @@ async function run(req: Request) {
     .eq("status", "publishing").lt("schedule_time", strandedBefore)
     .select("id");
 
-  // Due = scheduled and time has passed. Bounded batch so a tick can't run away.
+  // Send ahead: upload the image / PDF of posts due in the next 30 minutes, so at the
+  // time only the post itself is created (22 Oct: "if it is going at 5:30, it should
+  // go at 5:30"). Best effort — anything not uploaded here is uploaded at the time.
   const nowIso = new Date().toISOString();
+  const soonIso = new Date(Date.now() + 30 * 60_000).toISOString();
+  const { data: soon } = await sb.from("linkedin_scheduled_posts")
+    .select("id, pages, image_url, prepared")
+    .eq("status", "scheduled").gt("schedule_time", nowIso).lte("schedule_time", soonIso)
+    .not("image_url", "is", null).limit(10);
+  let preparedCount = 0;
+  if (soon?.length) {
+    const token = await linkedinToken().catch(() => null);
+    for (const row of token ? soon : []) {
+      const prepared: PreparedMedia = { ...((row.prepared as PreparedMedia) || {}) };
+      let changed = false;
+      for (const page of (row.pages as string[]) || []) {
+        const org = orgUrnFor(page);
+        if (!org || prepared[page]?.src === row.image_url) continue;
+        try { prepared[page] = { src: row.image_url as string, urn: await uploadMedia(token!, org, row.image_url as string) }; changed = true; preparedCount++; }
+        catch { /* uploaded at the time instead */ }
+      }
+      if (changed) await sb.from("linkedin_scheduled_posts").update({ prepared }).eq("id", row.id).eq("status", "scheduled");
+    }
+  }
+
+  // Due = scheduled and time has passed. Bounded batch so a tick can't run away.
   const { data: due, error } = await sb
     .from("linkedin_scheduled_posts")
-    .select("id, pages, body, image_url")
+    .select("id, pages, body, image_url, prepared")
     .eq("status", "scheduled")
     .lte("schedule_time", nowIso)
     .order("schedule_time", { ascending: true })
     .limit(10);
   if (error) return NextResponse.json(safeError(new Error(error.message), "query failed"), { status: 502 });
   const reapedCount = (reaped || []).length;
-  if (!due || due.length === 0) return NextResponse.json({ ok: true, published: 0, processed: 0, reaped: reapedCount, token: tokenState });
+  if (!due || due.length === 0) return NextResponse.json({ ok: true, published: 0, processed: 0, prepared: preparedCount, reaped: reapedCount, token: tokenState });
 
   let published = 0;
   const outcomes: { id: string; status: string }[] = [];
@@ -77,7 +102,7 @@ async function run(req: Request) {
     // surfaced. It simply never went out.
     let results: Awaited<ReturnType<typeof publishToPages>>;
     try {
-      results = await publishToPages((row.pages as string[]) || [], (row.body as string) || "", row.image_url as string | null);
+      results = await publishToPages((row.pages as string[]) || [], (row.body as string) || "", row.image_url as string | null, row.prepared as PreparedMedia | null);
     } catch (e) {
       results = ((row.pages as string[]) || []).map((p) => ({ page: p, ok: false, error: (e as Error).message }));
     }

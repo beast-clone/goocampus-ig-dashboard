@@ -23,6 +23,8 @@ export async function notUpdated(sb: SupabaseClient, id: string) {
 export function freshPublishState(custom: unknown): Record<string, unknown> {
   const c = { ...((custom as Record<string, unknown>) || {}) };
   delete c.ig_creation_id;
+  delete c.ig_kids;
   delete c.attempts;
+  delete c.prep;      // a file sent ahead for the old version of the post
   return c;
 }
