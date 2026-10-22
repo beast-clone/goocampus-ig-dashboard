@@ -1270,14 +1270,14 @@ function AssignedFollowUp({ range }: { range: { from: string; to: string } }) {
             const pct = Math.round((r.contacted / Math.max(1, r.n)) * 100);
             return (
               <button key={r.name} type="button" onClick={() => focus(r.name)} title={`Show ${r.name}'s leads not contacted yet`}
-                className="w-full text-left py-3 border-b border-gray-100 last:border-b-0 group">
+                className="w-full text-left py-2.5 border-b border-gray-100 last:border-b-0 group">
                 <div className="flex items-center gap-2">
-                  <span className="w-[22px] h-[22px] rounded-full bg-brand-light text-brand text-[10.5px] font-medium grid place-items-center">{r.name.trim().charAt(0).toUpperCase()}</span>
-                  <span className="text-[13.5px] font-medium text-[#232D42] group-hover:text-brand">{r.name}</span>
-                  <span className="ml-auto text-[18px] font-medium text-[#232D42] tabular-nums">{pct}%<span className="text-[11.5px] text-gray-500 font-normal ml-1">contacted</span></span>
+                  <span className="w-5 h-5 rounded-full bg-brand-light text-brand text-[10px] font-medium grid place-items-center">{r.name.trim().charAt(0).toUpperCase()}</span>
+                  <span className="text-[13px] font-medium text-[#232D42] group-hover:text-brand">{r.name}</span>
+                  <span className="ml-auto text-[14px] font-medium text-[#232D42] tabular-nums">{pct}%<span className="text-[11px] text-gray-500 font-normal ml-1">contacted</span></span>
                 </div>
-                <div className="h-1.5 rounded-full bg-[#EEF0F4] my-2 overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} /></div>
-                <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-gray-500 tabular-nums">
+                <div className="h-1 rounded-full bg-[#EEF0F4] my-1.5 overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} /></div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-gray-500 tabular-nums">
                   <span>{r.n} assigned</span>
                   <span><b className="font-medium text-[#C0201F]">{r.notYet}</b> not contacted</span>
                   <span><b className="font-medium text-[#232D42]">{r.noAnswer}</b> no answer</span>
@@ -1287,10 +1287,10 @@ function AssignedFollowUp({ range }: { range: { from: string; to: string } }) {
             );
           })}
         </div>
-        <div className="grid grid-cols-3 gap-2 mt-3">
-          <div className="rounded-lg bg-[#F7F8FC] px-3 py-2"><div className="text-[18px] font-medium text-[#C0201F] tabular-nums">{sum.notYet}</div><div className="text-[11.5px] text-gray-500">not contacted</div></div>
-          <div className="rounded-lg bg-[#F7F8FC] px-3 py-2"><div className="text-[18px] font-medium text-[#B7791F] tabular-nums">{sum.noAnswer}</div><div className="text-[11.5px] text-gray-500">called, no answer</div></div>
-          <div className="rounded-lg bg-[#F7F8FC] px-3 py-2"><div className="text-[18px] font-medium text-[#1A8A4A] tabular-nums">{sum.talking}</div><div className="text-[11.5px] text-gray-500">in conversation</div></div>
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          <div className="rounded-lg bg-[#F7F8FC] px-2.5 py-1.5"><div className="text-[14px] font-medium text-[#C0201F] tabular-nums">{sum.notYet}</div><div className="text-[11px] text-gray-500">not contacted</div></div>
+          <div className="rounded-lg bg-[#F7F8FC] px-2.5 py-1.5"><div className="text-[14px] font-medium text-[#B7791F] tabular-nums">{sum.noAnswer}</div><div className="text-[11px] text-gray-500">called, no answer</div></div>
+          <div className="rounded-lg bg-[#F7F8FC] px-2.5 py-1.5"><div className="text-[14px] font-medium text-[#1A8A4A] tabular-nums">{sum.talking}</div><div className="text-[11px] text-gray-500">in conversation</div></div>
         </div>
       </>)}
     </Card>
