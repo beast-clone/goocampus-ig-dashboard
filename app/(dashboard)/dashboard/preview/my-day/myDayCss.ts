@@ -179,10 +179,33 @@ export const MY_DAY_CSS = `
 /* Left "My tasks" card fills the column height (mirrors the sticky detail) so the
    list uses the whole screen instead of a fixed 460px box with dead space below.
    The header + tabs stay pinned; only the list scrolls. */
-.hmd .work > .card:not(.detail){position:sticky;top:.8rem;max-height:calc(100vh - 1.6rem);display:flex;flex-direction:column;overflow:hidden}
+.hmd .work > .card:not(.detail){position:sticky;top:.8rem;max-height:calc(100vh - 1.6rem);display:flex;flex-direction:column;overflow:visible;z-index:5}
 .hmd .tasklist{display:flex;flex-direction:column;gap:.4rem;flex:1;min-height:0;overflow:auto}
 .hmd .tasklist::-webkit-scrollbar{width:6px}
 .hmd .tasklist::-webkit-scrollbar-thumb{background:var(--cE3E6EE);border-radius:3px}
+/* View picker (prototype D, 22 Oct) — replaces the row of status pills. */
+.hmd .vpick{position:relative;margin-bottom:.8rem}
+.hmd .vpick-btn{width:100%;display:flex;align-items:center;gap:.5rem;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.55rem .75rem;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left}
+.hmd .vpick-btn:hover{border-color:#C9CEDA}
+.hmd .vpick-btn b{font-weight:500}
+.hmd .vpick-n{margin-left:auto;font-size:12px;color:var(--muted);font-weight:500}
+.hmd .vpick-car{width:7px;height:7px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:rotate(45deg) translateY(-2px);margin-left:.5rem}
+.hmd .vpick-menu{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 5px);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.35rem;max-height:420px;overflow:auto}
+.hmd .vpick-h{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:.5rem .6rem .25rem;font-weight:500}
+.hmd .vpick-i{width:100%;display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;border-radius:8px;font:inherit;font-size:13px;color:var(--ink);background:none;border:none;cursor:pointer;text-align:left}
+.hmd .vpick-i:hover{background:var(--panel-2)}
+.hmd .vpick-i.on{background:var(--brand-soft);color:var(--brand-ink);font-weight:500}
+.hmd .vpick-x{border:none;background:none;color:var(--faint);font-size:11px;cursor:pointer;padding:0 .2rem}
+.hmd .vpick-x:hover{color:#C0392B}
+.hmd .vpick-add{color:var(--brand-ink);font-weight:500;border-top:1px solid var(--line);border-radius:0 0 8px 8px;margin-top:.25rem}
+.hmd .vpick-empty{font-size:12px;color:var(--muted);padding:.25rem .6rem .45rem}
+.hmd .vpick-form{padding:.6rem .6rem .5rem;font-size:13px}
+.hmd .vpick-form .lbl{display:block;margin:.55rem 0 .3rem}
+.hmd .vpick-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.hmd .vpick-chips button{font:inherit;font-size:12px;padding:.3rem .6rem;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);cursor:pointer}
+.hmd .vpick-chips button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.hmd .vpick-name{width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:.45rem .6rem;background:var(--panel);color:var(--ink)}
+.hmd .vpick-acts{display:flex;justify-content:flex-end;gap:.4rem;margin-top:.7rem}
 .hmd .task-tabs{display:flex;gap:.25rem;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:.2rem;margin-bottom:.7rem}
 .hmd .task-tab{flex:1;border:none;background:transparent;font:inherit;font-size:12px;font-weight:500;color:var(--muted);padding:.35em .3em;white-space:nowrap;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.3rem}
 .hmd .task-tab.on{background:var(--panel);color:var(--brand-ink);box-shadow:var(--shadow)}

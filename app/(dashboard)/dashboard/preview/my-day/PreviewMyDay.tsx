@@ -108,11 +108,28 @@ const MANYA_TABS: TabDef[] = [
   { key: "feedback", label: "Incorporating Feedback", short: "Feedback", statuses: ["Incorporating Feedback"] },
   { key: "claimed",  label: "Claimed Task",           short: "Claimed",  statuses: ["Content - Approved"], videoOnly: true },
 ];
+// In progress has its own view now, next to Approved (Praveen, 22 Oct).
 const PRODUCER_TABS: TabDef[] = [
-  { key: "approved", label: "Content Approved",       short: "Approved", statuses: ["Content - Approved", "Output - In Progress"] },
-  { key: "feedback", label: "Incorporating Feedback", short: "Feedback", statuses: ["Incorporating Feedback"] },
-  { key: "output",   label: "Output Ready",           short: "Output",   statuses: ["Output - Ready"] },
+  { key: "approved",   label: "Approved",               short: "Approved",     statuses: ["Content - Approved"] },
+  { key: "inprogress", label: "In progress",            short: "In progress",  statuses: ["Output - In Progress"] },
+  { key: "output",     label: "Output ready",           short: "Output ready", statuses: ["Output - Ready"] },
+  { key: "feedback",   label: "Feedback",               short: "Feedback",     statuses: ["Incorporating Feedback"] },
 ];
+// Saved views — the person's own filters, kept as a tab in the View picker. Stored in
+// this browser per person (they're personal, like a remembered sort).
+type MyView = { id: string; name: string; statuses: CCStatus[]; types: string[]; when: "any" | "overdue" | "today" | "week" };
+const VIEWS_KEY = (p: string) => `gc-myday-views:${p}`;
+function inMyView(t: { status: string; due: string; detail: { typeLine: string } }, v: MyView, today: string): boolean {
+  if (v.statuses.length && !v.statuses.includes(t.status as CCStatus)) return false;
+  if (v.types.length && !v.types.includes(t.detail.typeLine)) return false;
+  if (v.when === "any") return true;
+  if (!t.due) return false;
+  if (v.when === "overdue") return t.due < today;
+  if (v.when === "today") return t.due === today;
+  const end = new Date(today + "T00:00:00"); end.setDate(end.getDate() + 6);
+  const endKey = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  return t.due >= today && t.due <= endKey;
+}
 function tabsForPerson(name: string): TabDef[] {
   return name === "Manya" || name === "Maheen" ? MANYA_TABS : PRODUCER_TABS;
 }
@@ -731,6 +748,70 @@ function taskComparator(by: TaskSort, planOrder?: Map<string, number>, todayStr?
     // Publishing date: overdue first, then Urgent/High, then earliest date.
     return (late(a) - late(b)) || (hot(a) - hot(b)) || due(a, b) || (PRIO_RANK[a.detail.priority] - PRIO_RANK[b.detail.priority]);
   }
+}
+
+// The My tasks "View" picker (approved prototype D, 22 Oct).
+function ViewPicker({ current, statusViews, myViews, typeOptions, statusOptions, onPick, onSave, onDelete }: {
+  current: string;
+  statusViews: { key: string; label: string; n: number }[];
+  myViews: { key: string; label: string; n: number; id: string }[];
+  typeOptions: string[]; statusOptions: CCStatus[];
+  onPick: (key: string) => void; onSave: (v: Omit<MyView, "id">) => void; onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [making, setMaking] = useState(false);
+  const [draft, setDraft] = useState<Omit<MyView, "id">>({ name: "", statuses: [], types: [], when: "any" });
+  const all = [...statusViews, ...myViews];
+  const cur = all.find((v) => v.key === current) || statusViews[0];
+  const toggle = <T,>(list: T[], x: T) => list.includes(x) ? list.filter((y) => y !== x) : [...list, x];
+  return (
+    <div className="vpick">
+      <button type="button" className="vpick-btn" onClick={() => { setOpen((o) => !o); setMaking(false); }} aria-expanded={open}>
+        <span className="lbl">View</span><b>{cur?.label}</b><span className="vpick-n">{cur?.n ?? 0}</span><span className="vpick-car" aria-hidden="true" />
+      </button>
+      {open && (
+        <>
+          <div className="backdrop" onClick={() => setOpen(false)} />
+          <div className="vpick-menu">
+            {!making ? (
+              <>
+                <div className="vpick-h">Status</div>
+                {statusViews.map((v) => (
+                  <button key={v.key} type="button" className={`vpick-i ${v.key === current ? "on" : ""}`} onClick={() => { onPick(v.key); setOpen(false); }}><span>{v.label}</span><span className="vpick-n">{v.n}</span></button>
+                ))}
+                <div className="vpick-h">My views</div>
+                {myViews.length === 0 && <div className="vpick-empty">Save your own filter as a view.</div>}
+                {myViews.map((v) => (
+                  <div key={v.key} className={`vpick-i ${v.key === current ? "on" : ""}`} onClick={() => { onPick(v.key); setOpen(false); }} role="button">
+                    <span>{v.label}</span><span className="vpick-n">{v.n}</span>
+                    <button type="button" className="vpick-x" title="Delete this view" onClick={(e) => { e.stopPropagation(); onDelete(v.id); }}>✕</button>
+                  </div>
+                ))}
+                <button type="button" className="vpick-i vpick-add" onClick={() => { setMaking(true); setDraft({ name: "", statuses: [], types: [], when: "any" }); }}>+ New view…</button>
+              </>
+            ) : (
+              <div className="vpick-form">
+                <b>New view</b>
+                <div className="muted" style={{ fontSize: ".72rem", margin: ".1rem 0 .6rem" }}>Saved as a view, only for you.</div>
+                <div className="lbl">Status</div>
+                <div className="vpick-chips">{statusOptions.map((st) => <button key={st} type="button" className={draft.statuses.includes(st) ? "on" : ""} onClick={() => setDraft((d) => ({ ...d, statuses: toggle(d.statuses, st) }))}>{STATUS[st]?.label || st}</button>)}</div>
+                <div className="lbl">Type</div>
+                <div className="vpick-chips">{typeOptions.map((ty) => <button key={ty} type="button" className={draft.types.includes(ty) ? "on" : ""} onClick={() => setDraft((d) => ({ ...d, types: toggle(d.types, ty) }))}>{ty}</button>)}</div>
+                <div className="lbl">Publishing</div>
+                <div className="vpick-chips">{([["any", "Any time"], ["overdue", "Overdue"], ["today", "Today"], ["week", "Next 7 days"]] as const).map(([k, l]) => <button key={k} type="button" className={draft.when === k ? "on" : ""} onClick={() => setDraft((d) => ({ ...d, when: k }))}>{l}</button>)}</div>
+                <div className="lbl">Name</div>
+                <input className="vpick-name" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="e.g. Carousels this week" />
+                <div className="vpick-acts">
+                  <button type="button" className="btn sm" onClick={() => setMaking(false)}>Cancel</button>
+                  <button type="button" className="btn primary sm" disabled={!draft.name.trim()} onClick={() => { onSave({ ...draft, name: draft.name.trim() }); setMaking(false); setOpen(false); }}>Save view</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
@@ -2210,7 +2291,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const myTabs = useMemo(() => tabsForPerson(me.name), [me.name]);
   const tabCounts = useMemo(() => myTabs.map((tb) => ({ ...tb, n: workingTasks.filter((t) => matchesTab(t, tb)).length })), [workingTasks, myTabs]);
   // When the viewed person changes, their tab set changes — snap to the first valid tab.
-  useEffect(() => { if (!myTabs.some((tb) => tb.key === taskTab)) setTaskTab(myTabs[0].key); }, [myTabs, taskTab]);
+  useEffect(() => { if (!taskTab.startsWith("view:") && !myTabs.some((tb) => tb.key === taskTab)) setTaskTab(myTabs[0].key); }, [myTabs, taskTab]);
   // Header stat tiles — live, for the person being viewed.
   const stats = useMemo(() => {
     const mine = uniqById([...claimedTasks, ...tasks]).filter((t) => t.detail.owner === me.name);
@@ -2226,7 +2307,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       done: n((s) => s === "Published/Scheduled"),
     };
   }, [tasks, claimedTasks, me.name]);
-  const curTab = myTabs.find((t) => t.key === taskTab) || myTabs[0];
+  const [myViews, setMyViews] = useState<MyView[]>([]);
+  useEffect(() => { try { setMyViews(JSON.parse(localStorage.getItem(VIEWS_KEY(person)) || "[]")); } catch { setMyViews([]); } }, [person]);
+  const saveMyViews = (v: MyView[]) => { setMyViews(v); try { localStorage.setItem(VIEWS_KEY(person), JSON.stringify(v)); } catch { /* private mode */ } };
+  const customView = taskTab.startsWith("view:") ? myViews.find((v) => `view:${v.id}` === taskTab) || null : null;
+  const curTab = customView ? { key: taskTab, label: customView.name, short: customView.name, statuses: [] as CCStatus[] } : (myTabs.find((t) => t.key === taskTab) || myTabs[0]);
   // My tasks sort (Nandu's "Sort" comment). Default = publishing date with Urgent/High
   // first — so "Due today" sits above "Due in 3 days". Applies to claimable videos too.
   const [sortBy, setSortBy] = useState<TaskSort>("date");
@@ -2278,8 +2363,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const planOrder = useMemo(() => new Map(plan.map((p, i) => [p.taskId, i])), [plan]);
   const cmpTasks = useMemo(() => taskComparator(sortBy, planOrder, todayStr), [sortBy, planOrder, todayStr]);
   const shownTasks = useMemo(() => {
-    return workingTasks.filter((t) => matchesTab(t, curTab)).sort(cmpTasks);
-  }, [workingTasks, taskTab, cmpTasks]);
+    return workingTasks.filter((t) => customView ? inMyView(t, customView, todayStr) : matchesTab(t, curTab)).sort(cmpTasks);
+  }, [workingTasks, taskTab, cmpTasks, customView, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
   // What "Wrap up your day" asks about: today's work only, taken from My tasks (so
   // Pending / Approved / Feedback / Claimed — never "Tasks I created", which is other
   // people's work to follow, not hers to finish).
@@ -3906,15 +3991,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               <PreviewSelect className="flex-1" value={sortBy} onChange={(v) => { pickSort(v as TaskSort); setSel(null); }}
                 options={(Object.keys(TASK_SORTS) as TaskSort[]).map((k) => ({ value: k, label: TASK_SORTS[k] }))} />
             </div>
-            <div className="task-tabs">
-              {tabCounts.map((tb) => (
-                // Short names: four full status names don't fit this column (the last
-                // tab was clipped). The full name is the tooltip.
-                <button key={tb.key} title={tb.label} className={`task-tab ${taskTab === tb.key ? "on" : ""}`} onClick={() => { setTaskTab(tb.key); setSel(null); setPeekId(null); }}>
-                  {tb.short}<span className="task-tab-n">{tb.n}</span>
-                </button>
-              ))}
-            </div>
+            {/* One tidy View picker instead of a row of pills (Praveen, 22 Oct): the
+                status views, your own saved views, and "+ New view…". */}
+            <ViewPicker
+              current={taskTab}
+              statusViews={tabCounts.map((tb) => ({ key: tb.key, label: tb.label, n: tb.n }))}
+              myViews={myViews.map((v) => ({ key: `view:${v.id}`, label: v.name, n: workingTasks.filter((t) => inMyView(t, v, todayStr)).length, id: v.id }))}
+              typeOptions={Array.from(new Set(workingTasks.map((t) => t.detail.typeLine).filter(Boolean))).sort()}
+              statusOptions={Array.from(new Set(tabCounts.flatMap((tb) => tb.statuses)))}
+              onPick={(k) => { setTaskTab(k); setSel(null); setPeekId(null); }}
+              onSave={(v) => { const id = String(Date.now()); saveMyViews([...myViews, { ...v, id }]); setTaskTab(`view:${id}`); }}
+              onDelete={(id) => { saveMyViews(myViews.filter((v) => v.id !== id)); if (taskTab === `view:${id}`) setTaskTab(myTabs[0].key); }}
+            />
             <div className="tasklist">
               {shownTasks.length === 0 && claimableHere.length === 0 && (
                 <div className="empty" style={{ padding: "1.6rem 0" }}>
