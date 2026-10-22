@@ -1119,4 +1119,17 @@ html[data-theme="dark"] .hmd{
 .hmd .task.duetomorrow{background:linear-gradient(90deg,rgba(183,121,31,.10),rgba(183,121,31,0) 55%)}
 .hmd .task.overdue:hover,.hmd .task.duetoday:hover,.hmd .task.duetomorrow:hover{background-color:var(--panel-2)}
 .hmd .task.sel.overdue,.hmd .task.sel.duetoday,.hmd .task.sel.duetomorrow{background:var(--brand-soft)}
+
+/* Dark theme for the newer pieces (Nikhil's screen, 22 Oct): they used fixed light
+   colours, so the brief, the upload boxes and the plan bar stayed white in dark. */
+html[data-theme="dark"] .hmd .tb-d .brief{background:var(--panel-2)}
+html[data-theme="dark"] .hmd .up-drop,html[data-theme="dark"] .hmd .up-add{background:var(--panel-2);border-color:#3A4159}
+html[data-theme="dark"] .hmd .up-im{background-color:#272C3E}
+html[data-theme="dark"] .hmd .plan-mini:hover{border-color:#3A4159}
+html[data-theme="dark"] .hmd .plan-bar{background:var(--line)}
+html[data-theme="dark"] .hmd .plan-bar .pb-done{background:#4A5270}
+html[data-theme="dark"] .hmd .plan-bar .pb-lunch{background:repeating-linear-gradient(45deg,#272C3E,#272C3E 4px,#323950 4px,#323950 8px)}
+html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
+.hmd .plan-mini:focus{outline:none}
+.hmd .plan-mini:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 `;

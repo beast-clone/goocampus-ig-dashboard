@@ -427,5 +427,10 @@ const RTF_CSS = `
 html[data-theme="dark"] .gc-rtf-body{color:var(--d-ink)}
 html[data-theme="dark"] .gc-rtf-body h1,html[data-theme="dark"] .gc-rtf-body h2,html[data-theme="dark"] .gc-rtf-body h3,html[data-theme="dark"] .gc-rtf-body strong{color:var(--d-ink)}
 html[data-theme="dark"] .gc-rtf-btn:hover{background:var(--d-raised);color:var(--d-ink)}
+html[data-theme="dark"] .gc-rtf-bar{background:var(--d-panel);border-color:var(--d-line)}
+html[data-theme="dark"] .gc-rtf-btn{color:var(--d-ink2)}
+html[data-theme="dark"] .gc-rtf-btn.on{background:var(--d-raised);border-color:#3A4159;color:#93A3FF}
+html[data-theme="dark"] .gc-rtf-sep{background:var(--d-line2)}
+html[data-theme="dark"] .gc-rtf-body code{background:var(--d-raised)}
 html[data-theme="dark"] .gc-rtf-body:hover{border-color:var(--d-line)}
 `;
