@@ -98,7 +98,7 @@ function Pill({ tone, children }: { tone: "good" | "mute" | "brand"; children: R
 // code (Praveen, 22 Oct): Admin, one switch per sidebar tab, Scheduler pages (full or
 // selected), task actions (full or partial), calendar editing, date approval.
 
-type Draft = { isAdmin: boolean; sections: Record<string, boolean>; permissions: Perm; email: string; role: string; active: boolean };
+type Draft = { isAdmin: boolean; sections: Record<string, boolean>; permissions: Perm; name: string; email: string; role: string; active: boolean };
 const BRAND_PAGES: { value: string; label: string }[] = [
   { value: "GooCampus Main", label: "GooCampus" },
   { value: "GooCampus World", label: "GooCampus World" },
@@ -209,7 +209,7 @@ function TeamManager() {
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${m.id === selId ? "bg-brand-light" : "hover:bg-[#F6F7FB]"} ${m.active ? "" : "opacity-60"}`}>
                 <span className="w-9 h-9 rounded-full bg-brand-light text-brand text-[12px] font-medium flex items-center justify-center shrink-0 border border-white">{m.initials}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13.5px] font-medium text-[#232D42] truncate">{m.first || m.name}</span>
+                  <span className="block text-[13.5px] font-medium text-[#232D42] truncate">{m.name}</span>
                   <span className="block text-[11.5px] text-[#8A92A6] truncate">{m.role || m.email}</span>
                 </span>
                 {m.isAdmin && <Pill tone="brand">Admin</Pill>}
@@ -222,6 +222,7 @@ function TeamManager() {
           <PersonEditor key={sel.id} m={sel} busy={busy}
             onSave={async (d) => {
               const updates: Record<string, unknown> = { is_admin: d.isAdmin, sections: d.sections, permissions: d.permissions, active: d.active };
+              if (d.name.trim() && d.name.trim() !== sel.name) updates.name = d.name.trim();
               if (d.email.trim() !== sel.email) updates.email = d.email.trim();
               if (d.role.trim() !== sel.role) updates.role = d.role.trim();
               if (await call("PATCH", { id: sel.id, updates })) flash(`Saved ${sel.first}'s access — it applies from their next page load.`);
@@ -261,7 +262,7 @@ function Tick({ checked, label, onChange, disabled }: { checked: boolean; label:
 }
 
 function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean; onSave: (d: Draft) => void; onAction: (body: unknown, msg: string) => void }) {
-  const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, email: m.email, role: m.role, active: m.active });
+  const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, name: m.name, email: m.email, role: m.role, active: m.active });
   const [d, setD] = useState<Draft>(fresh);
   const [pw, setPw] = useState<string | null>(null);
   const dirty = JSON.stringify(d) !== JSON.stringify(fresh());
@@ -350,7 +351,8 @@ function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean;
       </Section>
 
       <Section icon={<IconIdBadge2 size={16} stroke={1.8} />} title="Profile & sign-in">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end">
+          <label className="block"><span className="block text-[11px] text-[#8A92A6] mb-1">Full name</span><input value={d.name} onChange={(e) => setD((x) => ({ ...x, name: e.target.value }))} className={`${FIELD} border-gray-200`} /></label>
           <label className="block"><span className="block text-[11px] text-[#8A92A6] mb-1">Work email</span><input value={d.email} onChange={(e) => setD((x) => ({ ...x, email: e.target.value }))} className={`${FIELD} border-gray-200`} /></label>
           <label className="block"><span className="block text-[11px] text-[#8A92A6] mb-1">Job title</span><input value={d.role} onChange={(e) => setD((x) => ({ ...x, role: e.target.value }))} className={`${FIELD} border-gray-200`} /></label>
           <label className="flex items-center gap-2 pb-1.5 text-[12.5px] text-[#232D42]"><Toggle checked={d.active} disabled={busy} label="Can sign in" onChange={(v) => setD((x) => ({ ...x, active: v }))} /> Can sign in</label>
