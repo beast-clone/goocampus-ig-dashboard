@@ -12,6 +12,7 @@ import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
 import { uploadTaskFile, inNumberOrder } from "@/lib/upload-task-file";
+import { useUploadQueue, type PendingUpload } from "@/lib/use-upload-queue";
 import { useDraft } from "@/lib/use-draft";
 import { PdfThumb, isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
@@ -481,9 +482,10 @@ const refHref = (s?: string | null): string | undefined =>
 
 function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: RefItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [refs, setRefs] = useState<RefItem[]>(initial);
+  // Follow the server's list after a reload, so a new upload replaces its preview tile.
+  useEffect(() => { setRefs(initial); }, [JSON.stringify(initial)]); // eslint-disable-line react-hooks/exhaustive-deps
   const [url, setUrl] = useState("");
   const urlDraft = useDraft(`reflink:${postId}`, url, setUrl);
-  const [busy, setBusy] = useState(false);
   const currentLinks = () => refs.filter((r) => r.kind === "link" && r.url).map((r) => r.url!) as string[];
   const saveLinks = (links: string[]) =>
     fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: uploadedBy, fields: { reference_links: links } }) });
@@ -494,16 +496,11 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
     setRefs((r) => [...r, { kind: "link", label: raw.replace(/^https?:\/\//i, ""), url: href }]);
     await saveLinks([...currentLinks(), href]); onSaved();
   };
-  const addImages = async (files: FileList | null) => {
-    if (!files || !files.length) return;
-    setBusy(true);
-    try {
-      for (const f of inNumberOrder(files)) {
-        const r = await uploadTaskFile(postId, f, "reference", uploadedBy);
-        if (!r.ok) showToast({ who: `Couldn't add ${f.name}`, body: r.error, color: "#C03221", av: "!" });
-      }
-    } finally { setBusy(false); onSaved(); }
-  };
+  const q = useUploadQueue({ postId, kind: "reference", uploadedBy, onSaved,
+    existing: refs.filter((r) => r.kind === "image").map((r) => r.label),
+    onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
+  const addImages = (files: FileList | null) => { q.add(files); };
+  const busy = q.busy;
   const remove = async (i: number) => {
     const item = refs[i];
     setRefs((r) => r.filter((_, j) => j !== i));
@@ -532,6 +529,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
               <button className="up-x" onClick={() => remove(i)} title="Remove">✕</button>
             </div>
           ) : null)}
+          <PendingTiles items={q.pending} onDismiss={q.dismiss} />
           <label className="up-add" title="Add a reference image or PDF" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}>
             <span className="up-add-t">{busy ? "Uploading…" : "+ Add file"}</span><span className="up-add-s">or drop here</span>
             <input type="file" accept="image/*,.pdf,application/pdf" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
@@ -555,6 +553,33 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
   );
 }
 
+// Files on their way up — a preview with a progress ring, like Slack (22 Oct). Each
+// tile hands over to the real one once the upload lands.
+function PendingTiles({ items, onDismiss, startAt }: { items: PendingUpload[]; onDismiss: (key: string) => void; startAt?: number }) {
+  return (<>{items.map((p, i) => {
+    const R = 15, C = 2 * Math.PI * R;
+    return (
+      <div key={p.key} className={`up-tile up-pend ${p.state}`} title={p.state === "err" ? `${p.name} — ${p.error}` : p.name}>
+        <div className="up-im" style={p.preview ? { backgroundImage: `url(${p.preview})` } : undefined}>
+          {!p.preview && <span className="up-doc">{p.type === "video" ? "▶" : <IconFileText size={20} stroke={1.7} />}</span>}
+          <span className="up-ring">
+            {p.state === "err" ? <span className="up-ring-x">!</span> : p.state === "done" ? <span className="up-ring-ok">✓</span> : (
+              <svg width="38" height="38" viewBox="0 0 38 38" aria-label={`${p.pct}% uploaded`}>
+                <circle cx="19" cy="19" r={R} fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="3.5" />
+                <circle cx="19" cy="19" r={R} fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round"
+                  strokeDasharray={C} strokeDashoffset={C * (1 - (p.state === "waiting" ? 0.04 : Math.max(0.04, p.pct / 100)))} transform="rotate(-90 19 19)" />
+              </svg>
+            )}
+          </span>
+        </div>
+        {startAt !== undefined && <span className="up-n">{startAt + i + 1}</span>}
+        <div className="up-nm">{p.state === "err" ? "Didn't upload" : p.state === "waiting" ? "Waiting…" : p.state === "done" ? p.name : `${p.pct}% · ${p.name}`}</div>
+        {p.state === "err" && <button className="up-x" style={{ opacity: 1 }} onClick={() => onDismiss(p.key)} title="Dismiss">✕</button>}
+      </div>
+    );
+  })}</>);
+}
+
 type CreativeItem = { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string };
 // PDFs as well as images and videos — "I can't add PDFs as creatives; they're greyed
 // out" (Praveen, 21 Oct). The server always took PDFs; only the picker refused them.
@@ -564,7 +589,6 @@ const UPLOAD_ACCEPT = "image/*,video/*,.pdf,application/pdf";
 // or drag-drop) persists to mh_attachments (kind='creative') and shows immediately;
 // click any creative to open the preview (image / carousel slideshow / video play).
 function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }: { creatives: CreativeItem[]; outputLink?: string; postId: string; uploadedBy: string; onSaved: () => void }) {
-  const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
   const [link, setLink] = useState(outputLink || "");   // the output link (Drive/Canva) — output_link
   const [linkInput, setLinkInput] = useState("");
@@ -580,17 +604,12 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
     setLinkInput(""); linkDraft.clear();
     saveLink(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
   };
-  const addFiles = async (files: FileList | null) => {
-    if (!files || !files.length) return;
-    setBusy(true);
-    try {
-      for (const f of inNumberOrder(files)) {
-        const r = await uploadTaskFile(postId, f, "creative", uploadedBy);
-        // A refused upload used to vanish without a word.
-        if (!r.ok) showToast({ who: `Couldn't add ${f.name}`, body: r.error, color: "#C03221", av: "!" });
-      }
-    } finally { setBusy(false); onSaved(); }
-  };
+  // Tiles appear at once with a progress ring; duplicates are called out first (22 Oct).
+  const q = useUploadQueue({ postId, kind: "creative", uploadedBy, onSaved,
+    existing: creatives.map((c) => c.name),
+    onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
+  const addFiles = (files: FileList | null) => { q.add(files); };
+  const busy = q.busy;
   const remove = async (attId: string) => { await fetch(`/api/marketing-hub/attach?id=${attId}`, { method: "DELETE" }); onSaved(); };
   const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
   const nFiles = creatives.length;
@@ -612,7 +631,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
             <span className="up-ds">Images, videos or PDFs · up to 300 MB each</span></span>
           <input type="file" accept={UPLOAD_ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </label>
-        {nFiles > 0 && (
+        {(nFiles > 0 || q.pending.length > 0) && (
           <div className="up-tiles">
             {creatives.map((f, i) => (
               <div key={i} className="up-tile" title={f.name}>
@@ -634,6 +653,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
                 {f.attId && <button className="up-x" onClick={() => remove(f.attId!)} title="Remove">✕</button>}
               </div>
             ))}
+            <PendingTiles items={q.pending} onDismiss={q.dismiss} startAt={nFiles} />
           </div>
         )}
         {/* Output link — a task can be delivered as an uploaded file OR a link (Drive/Canva). */}

@@ -12,7 +12,7 @@ import { Overlay } from "./Overlay";
 //   alertDialog("Couldn't save", err.message);
 //   const name = await promptDialog({ title: "Rename view", defaultValue: v.name });  // null = cancelled
 export type DialogOpts = {
-  title: string; body?: React.ReactNode; action?: string; danger?: boolean;
+  title: string; body?: React.ReactNode; action?: string; danger?: boolean; cancel?: string;
   kind?: "confirm" | "notice" | "prompt"; defaultValue?: string; placeholder?: string;
 };
 type Pending = DialogOpts & { resolve: (v: boolean | string | null) => void };
@@ -63,7 +63,7 @@ export function DialogHost() {
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-4 mt-4 border-t border-gray-100">
-          {cur.kind !== "notice" && <button onClick={() => done(false)} className="h-9 px-3 rounded text-[14px] font-medium text-gray-600 hover:text-gray-900">Cancel</button>}
+          {cur.kind !== "notice" && <button onClick={() => done(false)} className="h-9 px-3 rounded text-[14px] font-medium text-gray-600 hover:text-gray-900">{cur.cancel || "Cancel"}</button>}
           <button autoFocus={cur.kind !== "prompt"} onClick={() => done(true)}
             className={`h-9 px-4 rounded text-[14px] font-medium text-white hover:brightness-110 ${cur.danger && cur.kind !== "notice" ? "bg-[#C0392B]" : "bg-brand"}`}>
             {cur.action || (cur.kind === "notice" ? "OK" : cur.kind === "prompt" ? "Save" : "Confirm")}

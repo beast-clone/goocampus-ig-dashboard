@@ -12,7 +12,7 @@ export function inNumberOrder(files: FileList | File[]): File[] {
 
 export type UploadResult = { ok: true; attachment: Record<string, unknown> } | { ok: false; error: string };
 
-export async function uploadTaskFile(postId: string, file: File, kind: AttachKind = "creative", uploadedBy?: string): Promise<UploadResult> {
+export async function uploadTaskFile(postId: string, file: File, kind: AttachKind = "creative", uploadedBy?: string, onProgress?: (pct: number) => void): Promise<UploadResult> {
   const fail = async (r: Response | null, fallback: string): Promise<UploadResult> => {
     const j = r ? await r.json().catch(() => ({})) : {};
     return { ok: false, error: (j as { error?: string }).error || fallback };
@@ -25,11 +25,20 @@ export async function uploadTaskFile(postId: string, file: File, kind: AttachKin
   if (!sign || !sign.ok) return fail(sign, "Couldn't start the upload — try again.");
   const { path, signedUrl } = (await sign.json()) as { path: string; signedUrl: string };
 
-  const put = await fetch(signedUrl, {
-    method: "PUT", body: file,
-    headers: { "content-type": mime, "x-upsert": "false", "cache-control": "max-age=3600" },
-  }).catch(() => null);
-  if (!put || !put.ok) return { ok: false, error: "The file didn't upload — check the connection and try again." };
+  // XHR, not fetch, for the PUT: fetch can't report upload progress, and the tiles
+  // show a progress ring while a file goes up (22 Oct).
+  const putOk = await new Promise<boolean>((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", signedUrl);
+    xhr.setRequestHeader("content-type", mime);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("cache-control", "max-age=3600");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100))); };
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+    xhr.onerror = () => resolve(false);
+    xhr.send(file);
+  });
+  if (!putOk) return { ok: false, error: "The file didn't upload — check the connection and try again." };
 
   const done = await fetch("/api/marketing-hub/attach/complete", {
     method: "POST", headers: { "Content-Type": "application/json" },

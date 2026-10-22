@@ -31,7 +31,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
-import { uploadTaskFile, inNumberOrder } from "@/lib/upload-task-file";
+import { useUploadQueue } from "@/lib/use-upload-queue";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
@@ -3643,7 +3643,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   // Refused save → the shared missing-fields popup (422) or a visible toast.
   const [failure, setFailure] = useState<SaveFailure | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<{ items: Creative[]; index: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // "Which live post is this?" — see app/api/marketing-hub/link-suggest.
@@ -3960,17 +3959,17 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const workFiles = (detail?.attachments || []).filter((a) => a.kind === "attachment").map(attMap);
   const refLinks = detail?.referenceLinks ?? [];
 
-  const upload = async (files: FileList | File[], kind: "creative" | "reference" | "attachment" = "creative") => {
-    setUploading(true);
-    try {
-      for (const f of inNumberOrder(files)) {
-        // Same compression the composer uses — a 5 MB slide export helps nobody.
-        const r = await uploadTaskFile(row.id, await compressImage(f), kind, uploaderKey);
-        if (!r.ok) setFailure({ kind: "error", message: `${f.name}: ${r.error}` });
-      }
-      await loadDetail();
-    } finally { setUploading(false); }
-  };
+  // One upload queue per section (22 Oct): tiles/progress show at once, files go up in
+  // number order, and a name already on the task is called out first. Same compression
+  // the composer uses — a 5 MB slide export helps nobody.
+  const qOpts = { postId: row.id, uploadedBy: uploaderKey, onSaved: () => { loadDetail(); }, prepare: compressImage,
+    onError: (name: string, msg: string) => setFailure({ kind: "error", message: `${name}: ${msg}` }) };
+  const qCre = useUploadQueue({ ...qOpts, kind: "creative", existing: creatives.map((c) => c.name) });
+  const qRef = useUploadQueue({ ...qOpts, kind: "reference", existing: refImages.map((c) => c.name) });
+  const qAtt = useUploadQueue({ ...qOpts, kind: "attachment", existing: workFiles.map((c) => c.name) });
+  const upload = (files: FileList | File[], kind: "creative" | "reference" | "attachment" = "creative") =>
+    (kind === "reference" ? qRef : kind === "attachment" ? qAtt : qCre).add(files);
+  const uploading = qCre.busy || qRef.busy || qAtt.busy;
   const removeCreative = async (id: string) => {
     const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't remove that file" }); return; }
@@ -4097,7 +4096,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 </>}>
                 <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
                   onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = ""; }} />
-                {creatives.length > 0 ? (
+                {creatives.length > 0 || qCre.pending.length > 0 ? (
                   <div className="flex flex-wrap gap-2.5">
                     {creatives.map((c, i) => {
                       const kind = creativeKind(c.name, c.type);
@@ -4124,6 +4123,24 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                         </div>
                       );
                     })}
+                    {/* Files on their way up — preview + progress ring, like Slack (22 Oct). */}
+                    {qCre.pending.map((p, i) => (
+                      <div key={p.key} title={p.state === "err" ? `${p.name} — ${p.error}` : p.name}
+                        className={`relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border ${p.state === "err" ? "border-rose-300" : "border-gray-100"} bg-gray-100`}>
+                        {p.preview
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={p.preview} alt={p.name} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center text-gray-400"><IconFileText size={24} /></div>}
+                        <div className={`absolute inset-0 flex items-center justify-center ${p.state === "done" ? "bg-black/10" : "bg-black/40"}`}>
+                          {p.state === "err" ? <button onClick={() => qCre.dismiss(p.key)} title="Didn't upload — dismiss" className="w-7 h-7 rounded-full bg-rose-600 text-white text-[13px]">!</button>
+                            : p.state === "done" ? <span className="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center"><IconCheck size={15} stroke={2.5} /></span>
+                            : <svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="3.5" />
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 14}
+                                  strokeDashoffset={2 * Math.PI * 14 * (1 - Math.max(0.04, p.state === "waiting" ? 0 : p.pct / 100))} transform="rotate(-90 18 18)" /></svg>}
+                        </div>
+                        <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{creatives.length + i + 1}</span>
+                      </div>
+                    ))}
                     <button onClick={() => fileRef.current?.click()} className="w-24 h-24 flex-shrink-0 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
                       <IconPlus size={18} /><span className="text-[10px] mt-1">{uploading ? "…" : "Add"}</span>
                     </button>
@@ -4132,7 +4149,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
                     className="border border-dashed border-brand/30 bg-brand-light/40 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
                     <IconCloudUpload size={18} className="text-brand mb-0.5" stroke={1.6} />
-                    <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Upload creatives"}</div>
+                    <div className="text-[13px] font-medium text-[#232D42]">{qCre.busy ? qCre.status : "Upload creatives"}</div>
                     <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop, click to browse, or paste an image (Ctrl/Cmd+V)</div>
                   </div>
                 )}
@@ -4191,7 +4208,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   </div>
                 )}
                 <div className="flex items-center gap-4">
-                  <button onClick={() => refFileRef.current?.click()} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconPhoto size={15} />{uploading ? "Uploading…" : "Add file"}</button>
+                  <button onClick={() => refFileRef.current?.click()} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconPhoto size={15} />{qRef.busy ? qRef.status : "Add file"}</button>
                   <button onClick={() => { setRefLinkDraft(""); setRefLinkAdd(true); }} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconExternalLink size={15} />Add link</button>
                 </div>
                 {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image, a PDF or a link.</div>}
@@ -4219,7 +4236,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 )}
                 <div onClick={() => workFileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files, "attachment"); }}
                   className="border border-dashed border-gray-200 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:border-brand/40 hover:bg-brand-light/30 transition">
-                  <div className="text-[13px] font-medium text-[#232D42]">{uploading ? "Uploading…" : "Add attachments"}</div>
+                  <div className="text-[13px] font-medium text-[#232D42]">{qAtt.busy ? qAtt.status : "Add attachments"}</div>
                   <div className="text-[11px] text-[#8A92A6] mt-0.5">Working files — never published. Drag &amp; drop, click, or paste.</div>
                 </div>
               </Panel>

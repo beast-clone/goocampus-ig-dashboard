@@ -1157,4 +1157,14 @@ html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 .hmd .done-none{color:var(--faint)}
 .hmd .done-open{padding:.8rem 1rem 1rem;border-top:1px solid var(--line)}
 @media(max-width:900px){.hmd .done-tr{grid-template-columns:minmax(0,1fr) 90px}.hmd .done-tr>span:not(:first-child):not(:nth-child(4)){display:none}}
+
+/* Upload tiles in flight (22 Oct) */
+.hmd .up-pend .up-im{background-color:var(--panel-2);background-size:cover;background-position:center;position:relative}
+.hmd .up-pend .up-im::after{content:"";position:absolute;inset:0;background:rgba(20,24,40,.38)}
+.hmd .up-pend.done .up-im::after{background:rgba(20,24,40,.15)}
+.hmd .up-ring{position:absolute;inset:0;display:grid;place-items:center;z-index:1}
+.hmd .up-ring-ok,.hmd .up-ring-x{width:30px;height:30px;border-radius:99px;display:grid;place-items:center;font-size:15px;color:#fff;background:var(--brand)}
+.hmd .up-ring-x{background:#C0392B}
+.hmd .up-pend.err{border-color:#F3C6CE}
+.hmd .up-pend .up-nm{color:var(--muted)}
 `;
