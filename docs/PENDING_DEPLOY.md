@@ -9,19 +9,21 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
-**22 Oct build (pushed, not live):** Team & access switches (per-tab, Scheduler pages,
-Full/Partial task actions, Edit calendar), no person switcher, My Day redesign (header,
-View picker + saved views, day-grouped list, full width, one-column task panel, History
-drawer, card uploads, editor toolbar), My report, End day → Telegram, reason box on every
-date move, superseded date requests, back-to-where-you-were + drafts.
+Nothing — everything on `feat/dashboard-reskin` up to `5df838e` is live (deploy
+`6ad9cbaec31c0f34d13a0a68`, 22 Oct afternoon). Access script applied (Manya + Nandu no
+longer admins — applies at their next sign-in). Netlify env `DAY_REPORT_TELEGRAM_CHAT`
+= -5153594903 set via the Netlify API (the CLI reads the leading minus as a flag).
 
-**At deploy:**
-1. `node scripts/access-2026-10-22.mjs --apply` — the agreed starting access (Manya and
-   Nandu stop being admins; admin changes apply at their next sign-in).
-2. Netlify env `DAY_REPORT_TELEGRAM_CHAT` = the Telegram group's chat id (bot must be in
-   the group). Without it, End day logs out without posting.
+---
 
-Nothing — everything on `feat/dashboard-reskin` up to `2ef1209` is live (9th deploy of 21 Oct, `6ad8b601`: End day & log out really signs out).
+## Live as of 22 Oct 2026 (afternoon)
+
+My Day redesign (header, folded plan, View picker, day groups, one-line task controls,
+due-date tints, Completed by me, My report), Team & access switches + access lock with
+requests, Team Command / Approvals tabs, admin page switches (My Day off for Maheen), End
+day → Telegram day report, published posts → Telegram group, watchers → group, upload
+order fix, task links left-to-right + clone-link sync, claim-pool fix for editors' videos.
+
 
 ---
 
