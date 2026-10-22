@@ -31,7 +31,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
-import { useUploadQueue } from "@/lib/use-upload-queue";
+import { useUploadQueue, type PendingUpload } from "@/lib/use-upload-queue";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
@@ -3325,6 +3325,64 @@ function CreativeViewer({ creatives, index, setIndex, onClose }: {
 
 // Themed card: white surface, hairline border, rounded-xl, labelled header (optional
 // brand accent + trailing slot). The building block that gives the modal real sections.
+// Task window file sections (22 Oct): the dashed Add tile, a tile for a file on its
+// way up, and the paste-a-link field — shared so all three sections look the same.
+function AddTile({ label, sub, onPick, onDropFiles }: { label: string; sub?: string; onPick: () => void; onDropFiles: (f: FileList) => void }) {
+  return (
+    <button type="button" onClick={onPick} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) onDropFiles(e.dataTransfer.files); }}
+      title="Click to browse, drop files here, or paste an image"
+      className="w-24 h-24 flex-shrink-0 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-0.5 px-1.5 text-center text-gray-400 hover:border-brand hover:text-brand transition">
+      <IconPlus size={18} /><span className="text-[11px] font-medium leading-tight">{label}</span>
+      {sub && <span className="text-[10px] leading-tight text-gray-400">{sub}</span>}
+    </button>
+  );
+}
+function UploadingTile({ p, n, onDismiss }: { p: PendingUpload; n: number; onDismiss: (key: string) => void }) {
+  const C = 2 * Math.PI * 14;
+  return (
+    <div title={p.state === "err" ? `${p.name} — ${p.error}` : p.name}
+      className={`relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border ${p.state === "err" ? "border-rose-300" : "border-gray-100"} bg-gray-100`}>
+      {p.preview
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={p.preview} alt={p.name} className="w-full h-full object-cover" />
+        : <div className="w-full h-full flex items-center justify-center text-gray-400"><IconFileText size={24} /></div>}
+      <div className={`absolute inset-0 flex items-center justify-center ${p.state === "done" ? "bg-black/10" : "bg-black/40"}`}>
+        {p.state === "err" ? <button onClick={() => onDismiss(p.key)} title="Didn't upload — dismiss" className="w-7 h-7 rounded-full bg-rose-600 text-white text-[13px]">!</button>
+          : p.state === "done" ? <span className="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center"><IconCheck size={15} stroke={2.5} /></span>
+          : <svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="3.5" />
+              <circle cx="18" cy="18" r="14" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={C}
+                strokeDashoffset={C * (1 - Math.max(0.04, p.state === "waiting" ? 0 : p.pct / 100))} transform="rotate(-90 18 18)" /></svg>}
+      </div>
+      <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{n}</span>
+    </div>
+  );
+}
+function LinkField({ label, placeholder, links, single, onAdd, onRemove }: { label: string; placeholder: string; links: string[]; single?: boolean; onAdd: (v: string) => void | Promise<unknown>; onRemove: (v: string) => void | Promise<unknown> }) {
+  const [v, setV] = useState("");
+  const add = async () => { const t = v.trim(); if (!t) return; setV(""); await onAdd(/^https?:\/\//i.test(t) ? t : `https://${t}`); };
+  return (
+    <div className="mt-3 space-y-1.5">
+      <div className="text-[11px] font-medium uppercase tracking-[.06em] text-[#A6ACBE]">{label}</div>
+      {links.map((l) => (
+        <div key={l} className="group flex items-center gap-2">
+          <a href={l} target="_blank" rel="noreferrer" title="Open in a new tab"
+            className="flex-1 min-w-0 flex items-center gap-2 rounded-lg border border-gray-100 bg-[#F7F8FC] px-2.5 py-1.5 text-[13px] text-brand hover:border-brand">
+            <IconExternalLink size={14} className="text-gray-400 flex-shrink-0" /><span className="truncate">{l}</span></a>
+          <button onClick={() => onRemove(l)} title="Remove" className="text-gray-300 hover:text-rose-600 flex-shrink-0"><IconTrash size={13} /></button>
+        </div>
+      ))}
+      {!(single && links.length) && (
+        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white pl-2.5 pr-1 focus-within:border-brand">
+          <IconLink size={14} className="text-gray-400 flex-shrink-0" />
+          <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder={placeholder}
+            className="flex-1 min-w-0 bg-transparent py-1.5 text-[13px] outline-none" />
+          <button onClick={add} disabled={!v.trim()} className="text-[12px] font-medium bg-brand text-white rounded-md px-2.5 py-1 disabled:opacity-40">Add link</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Panel({ icon: Ic, title, right, accent, children }: {
   icon?: typeof IconPhoto; title: string; right?: React.ReactNode; accent?: boolean; children: React.ReactNode;
 }) {
@@ -3991,13 +4049,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     upload(named, pasteKind.current);
   };
   const workFileRef = useRef<HTMLInputElement>(null);
-  const [refLinkAdd, setRefLinkAdd] = useState(false);
-  const [refLinkDraft, setRefLinkDraft] = useState("");
-  const addRefLink = async () => {
-    const v = refLinkDraft.trim(); if (!v) { setRefLinkAdd(false); return; }
-    await saveOne("reference_links", [...refLinks, v]);
-    setRefLinkDraft(""); setRefLinkAdd(false);
-  };
   const removeRefLink = async (link: string) => { await saveOne("reference_links", refLinks.filter((l) => l !== link)); };
   // Content and Caption are always editable (RichTextField) and save themselves —
   // "remove both edit and save button" (Manya, 10 Oct). Saving writes to mh_posts,
@@ -4089,15 +4140,13 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               </Panel>
 
               <div className="contents" onMouseOver={() => { pasteKind.current = "creative"; }}>
-              <Panel icon={IconPhoto} title="Creatives" accent
-                right={<>
-                  <span className="text-[11px] text-gray-400">{creatives.length || ""}</span>
-                  {creatives.length > 0 && <button onClick={() => fileRef.current?.click()} className="text-[12px] font-medium text-brand inline-flex items-center gap-1"><IconPlus size={13} />Add</button>}
-                </>}>
+              {/* Creatives · References · Attachments — one shape for all three (22 Oct):
+                  a row of tiles ending in a dashed Add tile (drop / browse / paste),
+                  and one paste-a-link field where a link applies. */}
+              <Panel icon={IconPhoto} title="Creatives" accent>
                 <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
                   onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.currentTarget.value = ""; }} />
-                {creatives.length > 0 || qCre.pending.length > 0 ? (
-                  <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-2.5">
                     {creatives.map((c, i) => {
                       const kind = creativeKind(c.name, c.type);
                       return (
@@ -4123,95 +4172,43 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                         </div>
                       );
                     })}
-                    {/* Files on their way up — preview + progress ring, like Slack (22 Oct). */}
-                    {qCre.pending.map((p, i) => (
-                      <div key={p.key} title={p.state === "err" ? `${p.name} — ${p.error}` : p.name}
-                        className={`relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border ${p.state === "err" ? "border-rose-300" : "border-gray-100"} bg-gray-100`}>
-                        {p.preview
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={p.preview} alt={p.name} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-gray-400"><IconFileText size={24} /></div>}
-                        <div className={`absolute inset-0 flex items-center justify-center ${p.state === "done" ? "bg-black/10" : "bg-black/40"}`}>
-                          {p.state === "err" ? <button onClick={() => qCre.dismiss(p.key)} title="Didn't upload — dismiss" className="w-7 h-7 rounded-full bg-rose-600 text-white text-[13px]">!</button>
-                            : p.state === "done" ? <span className="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center"><IconCheck size={15} stroke={2.5} /></span>
-                            : <svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="3.5" />
-                                <circle cx="18" cy="18" r="14" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 14}
-                                  strokeDashoffset={2 * Math.PI * 14 * (1 - Math.max(0.04, p.state === "waiting" ? 0 : p.pct / 100))} transform="rotate(-90 18 18)" /></svg>}
-                        </div>
-                        <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white rounded px-1.5 py-0.5">{creatives.length + i + 1}</span>
-                      </div>
-                    ))}
-                    <button onClick={() => fileRef.current?.click()} className="w-24 h-24 flex-shrink-0 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-brand hover:text-brand transition">
-                      <IconPlus size={18} /><span className="text-[10px] mt-1">{uploading ? "…" : "Add"}</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files); }}
-                    className="border border-dashed border-brand/30 bg-brand-light/40 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-brand-light/70 transition">
-                    <IconCloudUpload size={18} className="text-brand mb-0.5" stroke={1.6} />
-                    <div className="text-[13px] font-medium text-[#232D42]">{qCre.busy ? qCre.status : "Upload creatives"}</div>
-                    <div className="text-[11px] text-[#8A92A6] mt-0.5">Drag &amp; drop, click to browse, or paste an image (Ctrl/Cmd+V)</div>
-                  </div>
-                )}
-                {/* A link instead of (or as well as) a file — "include creatives link or
-                    creative" (Nandu, 13 Oct). It's the task's output link: it counts as
-                    the deliverable for Output - Ready, as it always has. */}
-                <div className="mt-1">{urlRow("output_link", "Creatives link (Drive / Canva)", detail?.outputLink ?? row.outputLink ?? "", IconLink)}</div>
+                  {qCre.pending.map((p, i) => <UploadingTile key={p.key} p={p} n={creatives.length + i + 1} onDismiss={qCre.dismiss} />)}
+                  <AddTile label={qCre.busy ? qCre.status : "Add"} onPick={() => fileRef.current?.click()} onDropFiles={(f) => upload(f)} />
+                </div>
+                <LinkField label="Creatives link" placeholder="Paste the creatives link (Drive / Canva)…"
+                  links={(detail?.outputLink ?? row.outputLink ?? "") ? [detail?.outputLink ?? row.outputLink ?? ""] : []}
+                  single onAdd={(v) => saveOne("output_link", v)} onRemove={() => saveOne("output_link", null)} />
               </Panel>
 
               </div>
 
-              {/* References — mood-board (above Content): reference images and/or links */}
+              {/* References — mood-board: reference images / PDFs and links */}
               <div className="contents" onMouseOver={() => { pasteKind.current = "reference"; }}>
               <Panel icon={IconBookmark} title="References">
                 <input ref={refFileRef} type="file" multiple accept="image/*,video/*,.pdf" className="hidden"
                   onChange={(e) => { if (e.target.files?.length) upload(e.target.files, "reference"); e.currentTarget.value = ""; }} />
-                {refImages.length > 0 && (
-                  <div className="flex flex-wrap gap-2.5 mb-3">
+                <div className="flex flex-wrap gap-2.5">
                     {refImages.map((c, i) => {
                       const kind = creativeKind(c.name, c.type);
                       return (
-                        <div key={c.id || i} className="group relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-100 bg-gray-100">
+                        <div key={c.id || i} className="group relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border border-gray-100 bg-gray-100">
                           {kind === "image" ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={c.url} alt={c.name} onClick={() => setLightbox({ items: refImages, index: i })} className="w-full h-full object-cover cursor-pointer" />
                           ) : (
                             <a href={c.url} target="_blank" rel="noreferrer" title={`Open ${c.name}`} className="block w-full h-full">{kind === "pdf"
-                              ? <PdfThumb url={c.url} width={80} fallback={<span className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">PDF</span></span>} />
+                              ? <PdfThumb url={c.url} width={96} fallback={<span className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">PDF</span></span>} />
                               : <span className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"><IconFileText size={22} /><span className="text-[12px] uppercase">file</span></span>}</a>
                           )}
                           {c.id && <button onClick={() => removeCreative(c.id!)} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 shadow-sm rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={12} /></button>}
                         </div>
                       );
                     })}
-                  </div>
-                )}
-                {refLinks.length > 0 && (
-                  <div className="space-y-1.5 mb-3">
-                    {refLinks.map((l) => (
-                      <div key={l} className="flex items-start gap-2 text-[14px] group">
-                        <a href={l} target="_blank" rel="noreferrer" title="Open in a new tab"
-                          className="flex-1 min-w-0 flex items-start gap-2 break-all rounded-lg border border-gray-100 bg-[#F7F8FC] px-2.5 py-1.5 text-[13px] leading-[18px] text-brand hover:border-brand hover:underline">
-                          <IconExternalLink size={14} className="text-gray-400 flex-shrink-0 mt-[2px]" /><span className="min-w-0">{l}</span></a>
-                        <button onClick={() => removeRefLink(l)} title="Remove" className="text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 flex-shrink-0"><IconTrash size={12} /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {refLinkAdd && (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <input value={refLinkDraft} onChange={(e) => setRefLinkDraft(e.target.value)} autoFocus placeholder="Paste a reference link…"
-                      onKeyDown={(e) => { if (e.key === "Enter") addRefLink(); if (e.key === "Escape") setRefLinkAdd(false); }}
-                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[14px] outline-none focus:border-brand" />
-                    <button onClick={addRefLink} className="text-[12px] font-medium bg-brand text-white rounded-lg px-3 py-1.5">Add</button>
-                    <button onClick={() => setRefLinkAdd(false)} className="text-[12px] text-gray-500 px-1">Cancel</button>
-                  </div>
-                )}
-                <div className="flex items-center gap-4">
-                  <button onClick={() => refFileRef.current?.click()} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconPhoto size={15} />{qRef.busy ? qRef.status : "Add file"}</button>
-                  <button onClick={() => { setRefLinkDraft(""); setRefLinkAdd(true); }} className="text-[13px] font-medium text-brand inline-flex items-center gap-1.5"><IconExternalLink size={15} />Add link</button>
+                  {qRef.pending.map((p, i) => <UploadingTile key={p.key} p={p} n={refImages.length + i + 1} onDismiss={qRef.dismiss} />)}
+                  <AddTile label={qRef.busy ? qRef.status : "Add file"} onPick={() => refFileRef.current?.click()} onDropFiles={(f) => upload(f, "reference")} />
                 </div>
-                {refImages.length === 0 && refLinks.length === 0 && !refLinkAdd && <div className="text-[14px] text-gray-400 italic mt-2.5">No references yet — add an image, a PDF or a link.</div>}
+                <LinkField label="Reference links" placeholder="Paste a reference link…" links={refLinks}
+                  onAdd={(v) => saveOne("reference_links", [...refLinks, v])} onRemove={removeRefLink} />
               </Panel>
 
               </div>
@@ -4219,25 +4216,22 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               {/* Attachments — working files that are never published, as in Airtable:
                   "references are different and attachments are different" (Manya, 10 Oct). */}
               <div className="contents" onMouseOver={() => { pasteKind.current = "attachment"; }}>
-              <Panel icon={IconPaperclip} title="Attachments" right={<span className="text-[11px] text-gray-400">{workFiles.length || ""}</span>}>
+              <Panel icon={IconPaperclip} title="Attachments">
                 <input ref={workFileRef} type="file" multiple className="hidden"
                   accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv"
                   onChange={(e) => { if (e.target.files?.length) upload(e.target.files, "attachment"); e.currentTarget.value = ""; }} />
-                {workFiles.length > 0 && (
-                  <div className="space-y-1.5 mb-3">
-                    {workFiles.map((c, i) => (
-                      <div key={c.id || i} className="flex items-center gap-2 text-[14px] group">
-                        <IconPaperclip size={14} className="text-gray-400 flex-shrink-0" />
-                        <a href={c.url} target="_blank" rel="noreferrer" className="text-brand truncate hover:underline flex-1 min-w-0">{c.name}</a>
-                        {c.id && <button onClick={() => removeCreative(c.id!)} title="Remove" className="text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 flex-shrink-0"><IconTrash size={12} /></button>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div onClick={() => workFileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) upload(e.dataTransfer.files, "attachment"); }}
-                  className="border border-dashed border-gray-200 rounded py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:border-brand/40 hover:bg-brand-light/30 transition">
-                  <div className="text-[13px] font-medium text-[#232D42]">{qAtt.busy ? qAtt.status : "Add attachments"}</div>
-                  <div className="text-[11px] text-[#8A92A6] mt-0.5">Working files — never published. Drag &amp; drop, click, or paste.</div>
+                <div className="flex flex-wrap gap-2.5">
+                  {workFiles.map((c, i) => (
+                    <a key={c.id || i} href={c.url} target="_blank" rel="noreferrer" title={c.name}
+                      className="group relative w-24 h-24 flex-shrink-0 rounded-lg border border-gray-100 bg-[#F7F8FC] flex flex-col items-center justify-center gap-1 px-2 text-center hover:border-brand">
+                      <IconPaperclip size={18} className="text-gray-400" />
+                      <span className="text-[10px] uppercase tracking-wide text-gray-400">{(c.name.split(".").pop() || "file").slice(0, 5)}</span>
+                      <span className="w-full truncate text-[11px] text-[#4A5468]">{c.name}</span>
+                      {c.id && <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeCreative(c.id!); }} title="Remove" className="absolute top-1 right-1 hidden group-hover:flex bg-white/95 rounded-full p-1 text-gray-500 hover:text-rose-600"><IconTrash size={12} /></button>}
+                    </a>
+                  ))}
+                  {qAtt.pending.map((p, i) => <UploadingTile key={p.key} p={p} n={workFiles.length + i + 1} onDismiss={qAtt.dismiss} />)}
+                  <AddTile label={qAtt.busy ? qAtt.status : "Add file"} sub="Never published" onPick={() => workFileRef.current?.click()} onDropFiles={(f) => upload(f, "attachment")} />
                 </div>
               </Panel>
               </div>
