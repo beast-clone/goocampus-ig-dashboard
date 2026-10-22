@@ -9,6 +9,18 @@ Deploys do not happen automatically — see "How to deploy" at the bottom.
 
 ## Waiting to deploy
 
+**22 Oct build (pushed, not live):** Team & access switches (per-tab, Scheduler pages,
+Full/Partial task actions, Edit calendar), no person switcher, My Day redesign (header,
+View picker + saved views, day-grouped list, full width, one-column task panel, History
+drawer, card uploads, editor toolbar), My report, End day → Telegram, reason box on every
+date move, superseded date requests, back-to-where-you-were + drafts.
+
+**At deploy:**
+1. `node scripts/access-2026-10-22.mjs --apply` — the agreed starting access (Manya and
+   Nandu stop being admins; admin changes apply at their next sign-in).
+2. Netlify env `DAY_REPORT_TELEGRAM_CHAT` = the Telegram group's chat id (bot must be in
+   the group). Without it, End day logs out without posting.
+
 Nothing — everything on `feat/dashboard-reskin` up to `2ef1209` is live (9th deploy of 21 Oct, `6ad8b601`: End day & log out really signs out).
 
 ---
