@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { IconVideo, IconExternalLink, IconSchool } from "@tabler/icons-react";
+import { IconVideo, IconExternalLink, IconSchool, IconPlayerPlayFilled } from "@tabler/icons-react";
 
 // A creative preview tile that never renders a broken image. Shows the real
 // uploaded image when there is one (falling back if it fails to load); otherwise
@@ -42,6 +42,21 @@ export function CreativeThumb({
   const isVideo = /reel|video/i.test(type || "") || /\.(mp4|mov|webm)(\?|$)/i.test(assetLink || "");
   const radius = rounded ? "rounded-lg" : "";
 
+  // A video creative (a reel's mp4) can't go in an <img> — that is what showed the
+  // coloured fallback tile instead of the reel in Content Review (22 Oct). Show a
+  // frame from the video itself, with a play mark so it reads as a video.
+  if (thumbnailUrl && !broken && /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(thumbnailUrl)) {
+    return (
+      <div className={`w-full h-full relative bg-[#0b1020] ${radius}`}>
+        <video src={`${thumbnailUrl.split("#")[0]}#t=0.5`} muted playsInline preload="metadata"
+          className={`w-full h-full ${fit === "contain" ? "object-contain" : "object-cover"} ${radius}`}
+          onError={() => setBroken(true)} />
+        <span className="absolute inset-0 grid place-items-center pointer-events-none">
+          <span className="w-9 h-9 rounded-full bg-black/55 grid place-items-center text-white"><IconPlayerPlayFilled size={16} /></span>
+        </span>
+      </div>
+    );
+  }
   if (thumbnailUrl && !broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element

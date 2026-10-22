@@ -6,6 +6,7 @@ import { activeTeamIds } from "@/lib/team-db";
 import { getSessionUserId, getSessionIsAdmin } from "@/lib/auth";
 import { asKind, mimeAllowed, mimeRefusal } from "@/lib/attach-rules";
 import { sendBackForReview } from "@/lib/re-review";
+import { trashFile } from "@/lib/file-trash";
 
 
 // Allowed types live in lib/attach-rules.ts (shared with attach/sign + attach/complete,
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
 }
 
 // DELETE /api/marketing-hub/attach?id=<uuid>
-// Removes the storage object AND the mh_attachments row.
+// Moves the file to the recycle bin (lib/file-trash.ts).
 export async function DELETE(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
@@ -122,22 +123,13 @@ export async function DELETE(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const row = await sb.from("mh_attachments").select("storage_path, post_id, filename, kind").eq("id", id).maybeSingle();
-    if (row.error) throw new Error(row.error.message);
+    // Moved to the recycle bin, not erased: the row is kept in mh_attachments_trash
+    // and the file stays in storage, so it can be restored (22 Oct).
+    const gone = await trashFile(sb, id, getSessionUserId() || null);
     // Already removed (a double click, or a tile that hadn't refreshed yet) — that's
     // the outcome asked for, not an error (22 Oct: "Cannot coerce the result…").
-    if (!row.data) return NextResponse.json({ ok: true, alreadyGone: true });
-
-    const publicUrl: string = row.data.storage_path;
-    const marker = "/scheduler-media/";
-    const idx = publicUrl.indexOf(marker);
-    if (idx >= 0) {
-      const objectPath = publicUrl.slice(idx + marker.length);
-      await sb.storage.from("scheduler-media").remove([objectPath]);
-    }
-
-    const { error } = await sb.from("mh_attachments").delete().eq("id", id);
-    if (error) throw new Error(error.message);
+    if (!gone) return NextResponse.json({ ok: true, alreadyGone: true });
+    const row = { data: gone };
 
     // Log the removal to the task Activity feed.
     await sb.from("mh_activity").insert({

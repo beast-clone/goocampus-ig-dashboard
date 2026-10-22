@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconTrash, IconRestore, IconArchive, IconAlertTriangle } from "@tabler/icons-react";
+import { IconTrash, IconRestore, IconArchive, IconAlertTriangle, IconPhoto } from "@tabler/icons-react";
+import { CreativeThumb } from "@/components/CreativeThumb";
 import { PreviewShell } from "../PreviewShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { confirmDialog } from "../ConfirmDialog";
@@ -19,7 +20,13 @@ const when = (iso: string | null | undefined) => {
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-type Tab = "bin" | "archive";
+type Tab = "bin" | "files" | "archive";
+
+// A task file in the bin (creative / reference / attachment) — lib/file-trash.ts.
+type FileItem = { id: string; postId: string | null; postTitle: string | null; filename: string | null; kind: string | null; url: string | null; deletedAt: string; deletedBy: string | null };
+const KIND_LABEL: Record<string, string> = { creative: "Creative", reference: "Reference", attachment: "Attachment" };
+// Kept 30 days, then the team decides — nothing is removed automatically (22 Oct).
+const daysAgo = (iso: string | null | undefined) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : 0);
 
 type DeletedReport = {
   id: string; title: string; type: string | null; sbu: string | null; status: string | null;
@@ -108,6 +115,7 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
   const [tab, setTab] = useState<Tab>("bin");
   const [bin, setBin] = useState<TrashItem[] | undefined>();
   const [archive, setArchive] = useState<TrashItem[] | undefined>();
+  const [files, setFiles] = useState<FileItem[] | undefined>();
   const [notice, setNotice] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -132,6 +140,11 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
       setBin(j.items || []);
       if (j.notReady) setNotice(j.error || null);
     } catch { setBin([]); }
+    try {
+      const r = await fetch("/api/marketing-hub/trash/files", { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      setFiles(r.ok ? (j.items || []) : []);
+    } catch { setFiles([]); }
     if (!isAdmin) return;
     try {
       const r = await fetch("/api/marketing-hub/trash/archive", { cache: "no-store" });
@@ -141,8 +154,10 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
   }, [isAdmin]);
   useEffect(() => { load(); }, [load]);
 
-  const list = (tab === "bin" ? bin : archive) || [];
+  const list = (tab === "bin" ? bin : tab === "archive" ? archive : []) || [];
+  const fileList = files || [];
   const chosen = list.filter((t) => picked.has(t.id));
+  const chosenFiles = fileList.filter((f) => picked.has(f.id));
   const allOn = list.length > 0 && chosen.length === list.length;
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const switchTab = (t: Tab) => { setTab(t); setPicked(new Set()); };
@@ -171,8 +186,23 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
     act("/api/marketing-hub/trash/purge", "Delete");
   };
 
+  const actFiles = async (action: "restore" | "purge") => {
+    const n = chosenFiles.length;
+    if (!(await confirmDialog(action === "restore"
+      ? { title: `Restore ${n} file${n === 1 ? "" : "s"}?`, body: "They go back on their task. A creative put back on an approved post sends it to Content Review again.", action: "Restore" }
+      : { title: `Delete ${n} from the bin?`, body: "They leave the recycle bin, but the files are NOT destroyed.", action: "Delete from bin", danger: true }))) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/marketing-hub/trash/files", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ids: chosenFiles.map((f) => f.id) }) });
+      const j = await res.json().catch(() => ({}));
+      setNotice(!res.ok ? (j.error || "That didn't work.") : j.failed?.length ? `${j.failed.length} couldn't be restored: ${j.failed[0].error}` : null);
+      setPicked(new Set());
+      await load();
+    } finally { setBusy(false); }
+  };
+
   return (
-    <PreviewShell active="marketing-hub" title="Recycle bin" subtitle="Deleted tasks for the whole dashboard — nothing here is gone for good">
+    <PreviewShell active="marketing-hub" title="Recycle bin" subtitle="Deleted tasks and files for the whole dashboard — nothing here is gone for good">
       <div className="hpage">
         {notice && (
           <div className="flex items-start gap-2 mb-3 px-3 py-2.5 rounded-lg border border-[#F3DCB4] bg-[#FEF6F0] text-[13px] text-[#7A4E0B]">
@@ -183,8 +213,13 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button onClick={() => switchTab("bin")}
             className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13.5px] font-medium border transition ${tab === "bin" ? "bg-brand-light border-brand text-brand-dark" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
-            <IconTrash size={16} stroke={1.8} />Recycle bin
+            <IconTrash size={16} stroke={1.8} />Tasks
             <span className="text-[11px] opacity-70">{bin?.length ?? ""}</span>
+          </button>
+          <button onClick={() => switchTab("files")}
+            className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13.5px] font-medium border transition ${tab === "files" ? "bg-brand-light border-brand text-brand-dark" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+            <IconPhoto size={16} stroke={1.8} />Creatives &amp; files
+            <span className="text-[11px] opacity-70">{files?.length ?? ""}</span>
           </button>
           {isAdmin && (
             <button onClick={() => switchTab("archive")}
@@ -196,6 +231,16 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
           {/* Bulk actions belong to the bin only. The archive has no toolbar action:
               putting a task back there is a decision you make AFTER reading the report,
               so the only route to it is through the report itself. */}
+          {tab === "files" && chosenFiles.length > 0 && (
+            <div className="ml-auto flex items-center gap-2">
+              <button disabled={busy} onClick={() => actFiles("restore")} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-50">
+                <IconRestore size={16} stroke={1.8} />Restore {chosenFiles.length}
+              </button>
+              <button disabled={busy} onClick={() => actFiles("purge")} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-[#C0392B] border border-[#F3C6CE] bg-white hover:bg-[#FDECEA] disabled:opacity-50">
+                <IconTrash size={16} stroke={1.8} />Delete from bin
+              </button>
+            </div>
+          )}
           {tab === "bin" && chosen.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
               <button disabled={busy} onClick={restore} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-50">
@@ -208,10 +253,59 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
           )}
         </div>
 
+        {tab === "files" && (
+          <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 text-[12.5px] text-gray-500">
+              Creatives, references and attachments removed from tasks. Restore puts one back on its task. Everything stays here at least 30 days — after that you decide; nothing is removed on its own.
+            </div>
+            {files === undefined ? <LoadingBlock /> : fileList.length === 0 ? (
+              <div className="px-5 py-10 text-center text-[14px] text-[#8A92A6]">No deleted files.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
+                  <thead className="border-b border-gray-100 bg-gray-50">
+                    <tr className="text-gray-500 text-left">
+                      <th className="pl-4 pr-0 py-2.5 w-9 font-normal">
+                        <input type="checkbox" checked={fileList.length > 0 && chosenFiles.length === fileList.length} onChange={() => setPicked(chosenFiles.length === fileList.length ? new Set() : new Set(fileList.map((f) => f.id)))} aria-label="Select all" />
+                      </th>
+                      <th className="px-4 py-2.5 font-normal">File</th>
+                      <th className="px-4 py-2.5 font-normal">Kind</th>
+                      <th className="px-4 py-2.5 font-normal">Task</th>
+                      <th className="px-4 py-2.5 font-normal">Deleted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fileList.map((f) => (
+                      <tr key={f.id} onClick={() => toggle(f.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
+                        <td className="pl-4 pr-0 py-2.5 w-9">
+                          <input type="checkbox" checked={picked.has(f.id)} onChange={() => toggle(f.id)} onClick={(e) => e.stopPropagation()} aria-label={`Select ${f.filename || "file"}`} />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="flex items-center gap-2.5">
+                            <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0"><CreativeThumb thumbnailUrl={f.url && /\.(png|jpe?g|webp|gif|mp4|mov|webm)(\?|$)/i.test(f.url) ? f.url : null} title={f.filename} seed={f.id} /></span>
+                            {f.url ? <a href={f.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-800 max-w-[300px] truncate hover:text-brand">{f.filename || "(file)"}</a>
+                              : <span className="text-gray-800 max-w-[300px] truncate">{f.filename || "(file)"}</span>}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-gray-600">{KIND_LABEL[f.kind || ""] || f.kind || "—"}</td>
+                        <td className="px-4 py-2.5 text-gray-600"><span className="block max-w-[260px] truncate">{f.postTitle || "—"}</span></td>
+                        <td className="px-4 py-2.5 text-gray-500">
+                          {when(f.deletedAt)}<span className="text-gray-400"> · {who(f.deletedBy)}</span>
+                          {daysAgo(f.deletedAt) >= 30 && <span className="ml-2 text-[11px] rounded-full px-2 py-0.5 bg-amber-50 text-amber-700">30+ days</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {tab !== "files" && (
         <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 text-[12.5px] text-gray-500">
             {tab === "bin"
-              ? "Deleted tasks. Restore puts one back with its comments, attachments and history. Deleting from here does not destroy it."
+              ? "Deleted tasks. Restore puts one back with its comments, attachments and history. Everything stays here at least 30 days — after that you decide; deleting from here does not destroy it."
               : "Emptied from the recycle bin and kept anyway — only admins can see this. Open any row for a report of what the task was, who deleted it and when. Nothing goes back on the board unless you put it there."}
           </div>
           {list === undefined || (tab === "bin" ? bin : archive) === undefined ? (
@@ -252,7 +346,8 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
                       <td className="px-4 py-2.5 text-gray-600">{t.type || "—"}</td>
                       <td className="px-4 py-2.5 text-gray-600">{t.status || "—"}</td>
                       <td className="px-4 py-2.5 text-gray-600">{who(t.owner)}</td>
-                      <td className="px-4 py-2.5 text-gray-500">{when(t.deletedAt)}<span className="text-gray-400"> · {who(t.deletedBy)}</span></td>
+                      <td className="px-4 py-2.5 text-gray-500">{when(t.deletedAt)}<span className="text-gray-400"> · {who(t.deletedBy)}</span>
+                        {tab === "bin" && daysAgo(t.deletedAt) >= 30 && <span className="ml-2 text-[11px] rounded-full px-2 py-0.5 bg-amber-50 text-amber-700">30+ days</span>}</td>
                       {tab === "archive" && <td className="px-4 py-2.5 text-gray-500">{when(t.purgedAt)}<span className="text-gray-400"> · {who(t.purgedBy)}</span></td>}
                     </tr>
                   ))}
@@ -261,6 +356,7 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* The report. Everything is read from the snapshot, so it still works long after

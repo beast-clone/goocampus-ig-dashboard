@@ -7,7 +7,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { AutoTextarea } from "@/components/AutoTextarea";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook, IconTrash } from "@tabler/icons-react";
 import { LinkedInQueue } from "./LinkedInScheduler";
 import { PdfThumb, pdfPageCount } from "@/components/PdfThumb";
 import { ReelThumbnail } from "./ReelThumbnail";
@@ -305,6 +305,20 @@ function Scheduler() {
     if (allowedPages && composePages.some((p) => !allowedPages.includes(p))) setComposePages(allowedPages.slice(0, 1));
   }, [allowedPages]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadToSchedule(); }, []);
+  // Delete a post that isn't wanted at all (Praveen, 22 Oct) — it goes to the recycle
+  // bin with its creatives and history, and can be restored from there.
+  const deleteToSchedule = async (t: ToScheduleItem) => {
+    const ok = await confirmDialog({
+      title: "Delete this post?",
+      body: <>“{t.title}” goes to the recycle bin, with its creatives and history. You can restore it from there.</>,
+      action: "Delete", danger: true,
+    });
+    if (!ok) return;
+    const res = await fetch("/api/marketing-hub/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alertDialog("Couldn't delete it", (d as { error?: string }).error || `HTTP ${res.status}`); return; }
+    if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; }
+    loadToSchedule();
+  };
   // Take a post out of the Scheduler without deleting it: back to "Output - Ready",
   // which is where Content Review picks it up again (for fixes, not removal).
   const sendBackToReview = async (t: ToScheduleItem) => {
@@ -1088,6 +1102,10 @@ function Scheduler() {
                           <button onClick={() => sendBackToReview(t)} title="Take it out of the Scheduler and send it back to Content Review"
                             className="mr-2.5 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-gray-500 hover:text-brand hover:bg-white border border-transparent hover:border-gray-200 flex-shrink-0">
                             <IconArrowBackUp size={14} stroke={1.8} />Send back
+                          </button>
+                          <button onClick={() => deleteToSchedule(t)} title="Delete it — it goes to the recycle bin"
+                            className="mr-2.5 -ml-1.5 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-gray-500 hover:text-rose-600 hover:bg-white border border-transparent hover:border-gray-200 flex-shrink-0">
+                            <IconTrash size={14} stroke={1.8} />Delete
                           </button>
                           </div>
 
