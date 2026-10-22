@@ -945,6 +945,9 @@ function PersonTimelineRow({ card }: {
     if (r.status === "Output - In Progress" || r.status === "Content - In Progress") return { t: "In progress", c: "bg-blue-50 text-blue-700" };
     if (r.status === "Incorporating Feedback") return { t: "Fixing feedback", c: "bg-amber-50 text-amber-700" };
     if (r.status === "Content - Needs Approval") return { t: "Waiting for approval", c: "bg-amber-50 text-amber-700" };
+    // Their part is done and the task has moved on to someone else's stage (e.g. a
+    // writer's script approved and waiting for an editor) — not theirs to do.
+    if (!presentsOn(r, member) && !onDayPlan(r.status, member.role === "writer")) return { t: "With the team", c: "bg-brand-light text-[#2138B0]" };
     return { t: "Pending", c: "bg-gray-100 text-gray-600" };
   };
   const TaskTable = ({ title, rows: list, tone, overdueRows, more }: { title: string; rows: Row[]; tone?: string; overdueRows?: boolean; more?: number }) => (
@@ -1045,6 +1048,8 @@ function PersonTimelineRow({ card }: {
           ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle mr-1.5" />{currentBlk ? "Now" : "Next up"}: <b className="text-gray-900">{focus.label}</b></>
           : allDoneToday
           ? <span className="text-emerald-700">Everything due today is done.</span>
+          : groups.todayOpen.length
+          ? <span className="text-gray-500">Nothing left for {member.label} today — the rest is with the team.</span>
           : <span className="text-gray-400">Nothing due today.</span>}
       </div>
 
