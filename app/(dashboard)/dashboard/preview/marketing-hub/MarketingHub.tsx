@@ -398,17 +398,15 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
 
   const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null }): Promise<ApprovalOutcome> => {
     if (dayOf(a.from) === dayOf(a.to)) return "applied"; // no-op: same day
-    // Admin edits apply immediately — no approval, no popup. So does a dateless
-    // task getting its first date: that isn't a move (the server agrees).
-    if (!viewer.needsApproval || !a.from) {
+    // A dateless task getting its first date isn't a move — no popup (the server agrees).
+    if (!a.from) {
       const r = await saveField(a.id, { publishing_date: a.to });
       if (!r.ok) return "error";
-      // The server holds any change not made by Maheen while the rule is on — admins
-      // included — so say "pending" when it did, rather than claim it moved.
       if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
       return "applied";
     }
-    // Non-admin → collect a reason, then send for approval.
+    // Every date MOVE asks why, approval or not — the reason lands in the task's
+    // history (Praveen, 22 Oct). With approval on it also goes to the admin.
     const reasonText = await new Promise<string | null>((resolve) => { setReason(""); setAsk({ ...a, resolve }); });
     if (reasonText === null) return "cancelled";
     const r = await saveField(a.id, { publishing_date: a.to }, { reason: reasonText });
@@ -422,7 +420,7 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
     setBusy(true);
     const resolve = ask.resolve;
     setAsk(null); setBusy(false);
-    resolve(reason.trim()); // empty string is allowed — reason is encouraged, not required
+    resolve(reason.trim()); // required — the button stays off until there's a reason
   };
   const cancel = () => { if (!ask) return; const resolve = ask.resolve; setAsk(null); resolve(null); };
 
@@ -435,8 +433,8 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconCalendarEvent size={18} stroke={1.8} /></div>
               <div className="min-w-0">
-                <div className="text-[15px] font-semibold text-[#232D42]">Change needs admin approval</div>
-                <div className="text-[13px] text-[#8A92A6] mt-0.5">You’re moving the publish date. An admin approves it before it goes live.</div>
+                <div className="text-[15px] font-medium text-[#232D42]">{viewer.needsApproval ? "Change needs admin approval" : "Why is the date changing?"}</div>
+                <div className="text-[13px] text-[#8A92A6] mt-0.5">{viewer.needsApproval ? "You’re moving the publish date. An admin approves it before it goes live." : "Add a short reason — it’s saved in the task’s history."}</div>
               </div>
             </div>
             <div className="mt-4 rounded-xl bg-[#F6F7FB] border border-gray-100 px-3 py-2.5">
@@ -449,7 +447,7 @@ function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none focus:border-brand" />
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={cancel} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-[#232D42] border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={submit} disabled={busy} className="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-60">Send for approval</button>
+              <button onClick={submit} disabled={busy || !reason.trim()} className="px-3.5 py-2 rounded-lg text-[13px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-60">{viewer.needsApproval ? "Send for approval" : "Change date"}</button>
             </div>
           </div>
         </div>
@@ -3423,7 +3421,7 @@ export function properName(n: string): string {
 const DIFF_FIELDS = new Set(["content_edited", "caption_edited", "notes_edited"]);
 const PILL_FIELDS = new Set(["status_changed"]);
 type FeedItem =
-  | { id: string; kind: "activity"; at: string; name: string; key: string | null; action: string; from: string | null; to: string | null }
+  | { id: string; kind: "activity"; at: string; name: string; key: string | null; action: string; from: string | null; to: string | null; note?: string | null }
   | { id: string; kind: "comment"; at: string; name: string; key: string | null; body: string; resolved: boolean };
 
 // A shareable link to one task, the way Airtable gives you a record link.
@@ -3488,7 +3486,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
   const [feedLimit, setFeedLimit] = useState(25);
   // Merge activity + comments into one chronological feed, honouring the filter.
   const feed = useMemo<FeedItem[]>(() => {
-    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value }));
+    const acts: FeedItem[] = (detail?.activity || []).map((a) => ({ id: a.id, kind: "activity", at: a.created_at, name: a.actorName, key: a.actor_key, action: a.action, from: a.from_value, to: a.to_value, note: (a as { detail?: string | null }).detail || null }));
     const coms: FeedItem[] = (detail?.comments || []).filter((c) => showResolved || !c.resolved).map((c) => ({ id: `c${c.id}`, kind: "comment", at: c.created_at, name: c.authorName, key: c.author_key, body: c.body, resolved: c.resolved }));
     let items: FeedItem[] = [...acts, ...coms];
     if (feedFilter === "revisions") items = items.filter((i) => i.kind === "activity");
@@ -3599,6 +3597,8 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                         {it.to && <span className="text-emerald-700">{it.to}</span>}
                       </div>
                     ) : null}
+                    {/* Why a date moved / why a request was declined (22 Oct). */}
+                    {it.kind === "activity" && it.note && <div className="text-[12px] text-[#4A5468] mt-1 bg-[#F6F7FB] rounded-md px-2 py-1">Reason: {it.note}</div>}
                   </div>
                 </div>
               );

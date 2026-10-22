@@ -862,9 +862,20 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       // task now; sending only changes is the second guard.
       const fields: Record<string, unknown> = {};
       if (prio !== task.detail.priority) fields.priority = prio;
-      if ((due || "") !== (task.due || "")) fields.publishing_date = due || null;
+      // Moving a date asks why — every time, approval or not — and the reason goes in
+      // the task's history (Praveen, 22 Oct). A first date isn't a move.
+      let reason = "";
+      if ((due || "") !== (task.due || "")) {
+        if (task.due) {
+          const why = await promptDialog({ title: "Why is the date changing?", body: "Add a short reason — it's saved in the task's history.", placeholder: "e.g. Waiting for the speaker's photos", action: "Change date" });
+          if (why === null) return;
+          if (!why.trim()) { showToast({ who: "Reason needed", body: "Add a short reason to change the date.", color: "#C03221", av: "!" }); return; }
+          reason = why.trim();
+        }
+        fields.publishing_date = due || null;
+      }
       if (!Object.keys(fields).length) { setEditing(false); return; }
-      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields }) });
+      const res = await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id, actor, fields, ...(reason ? { reason } : {}) }) });
       const saved = await res.json().catch(() => null);
       if (!res.ok) { showToast({ who: "Couldn't save", body: (saved as { error?: string } | null)?.error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); return; }
       if (saved?.updatedAt) setModifiedAt(saved.updatedAt);
@@ -3635,6 +3646,18 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // The reminder group starts collapsed — the count is the headline, the list is
   // one click away.
   const [remOpenGroup, setRemOpenGroup] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const dueTodayN = workingTasks.filter((t) => t.due === todayStr).length;
+  // Today / Tomorrow / Later group headings in the list (prototype D) — only when the
+  // list is in date order, where the groups follow each other.
+  const tomorrowKey = (() => { if (!todayStr) return ""; const d = new Date(todayStr + "T00:00:00"); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const groupOf = (t: Task) => { if (!t.due) return "later"; const di = dueInfo(t.due, todayStr); return di.overdue ? "overdue" : di.today ? "today" : t.due === tomorrowKey ? "tomorrow" : "later"; };
+  const GROUP_LABEL: Record<string, string> = { overdue: "Overdue", today: "Today", tomorrow: "Tomorrow", later: "Later" };
+  const groupHead = (t: Task, prev: Task | null) => {
+    if (sortBy !== "date") return [];
+    const g = groupOf(t);
+    return prev && groupOf(prev) === g ? [] : [<div key={`grp-${g}`} className="tgrp">{GROUP_LABEL[g]}</div>];
+  };
   const send = () => {
     const t = msg.trim(); if (!t || !activeChat) return;
     const convo = activeChat === "team" ? "team" : dmConvo(person, activeChat);
@@ -3683,7 +3706,39 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
 
         {/* TOP BAR — icon triggers (page title lives in the greeting below) */}
         <div className="topbar">
-          <div className="topspacer" />
+          <div className="dayctl topctl">
+              {/* Approvals — admin/Maheen only. Always here (not tied to the person
+                  being viewed) so publish-date sign-offs have one steady home. */}
+              {viewerIsAdmin && (
+                <button className={`teamcapbtn ${approvalsOpen ? "on" : ""}`} onClick={() => { loadApprovals(); setApprovalsOpen(true); }} title="Publish-date changes waiting for your approval">
+                  <IconCalendarEvent size={15} stroke={1.8} /> Approvals{approvals.length > 0 && <span className="teamcap-n">{approvals.length}</span>}
+                </button>
+              )}
+              {/* Role button lives here now (the day control moved up to the top bar):
+                  Manya → Team capacity; editors → Claim pool. */}
+              {person === "manya" && (
+                <button className="teamcapbtn" onClick={() => setScreen("team")}>
+                  <IconUsers size={15} stroke={1.8} /> Team capacity
+                </button>
+              )}
+              {isEditor && (
+                <button className={`teamcapbtn ${showClaimPool ? "on" : ""}`} onClick={() => setShowClaimPool(true)}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M16.5 10l5-2.5v9L16.5 14" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
+                  Claim pool{claimPool.length > 0 && <span className="teamcap-n">{claimPool.length}</span>}
+                </button>
+              )}
+              {person === "manya" ? (
+                /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
+                   any change a producer makes (dates moved, etc.) pops up here. */
+                <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Changes the team asked for — date moves, task changes">
+                  {BELL} Requests{notifs.length > 0 && <span className="teamcap-n">{notifs.length}</span>}
+                </button>
+              ) : (
+                <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Tasks queued for you — accept when you have room">
+                  {IHOURGLASS} Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
+                </button>
+              )}
+            </div>
           <div className="icons">
             {/* Undo / redo are keyboard-only now (Ctrl+Z / Ctrl+Shift+Z, ⌘Z / ⌘⇧Z) —
                 the arrow buttons were removed per user request; the shortcuts still work. */}
@@ -3774,61 +3829,28 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           <TeamCapacityPage onBack={() => setScreen("myday")} tasks={tasks} nowMin={nowMin} logins={teamLogins} />
         ) : (
         <>
-        {/* 1 · HEADER BAND */}
-        <div className="card pad headband">
+        {/* 1 · HEADER BAND — prototype D (22 Oct): a big greeting with one quiet line
+            under it, three numbers and My report. The role buttons (Approvals, Team
+            capacity, Claim pool, Pipeline / Requests) moved up into the top bar. */}
+        <div className="card pad headband hb-d">
           <div className="who">
             <div className="hi">{clock ? `${clock.greet.word}, ${me.name}` : `Hello, ${me.name}`}</div>
-            <div className="sub">{me.role} · {clock ? `${clock.date} · ${clock.time}` : "—"} · Bengaluru 23° · <span style={{ color: "#1AA053" }}>● live</span></div>
+            <div className="sub">
+              {clock ? clock.date : "—"}
+              {dueTodayN > 0 && <> · <b className="hb-due">{dueTodayN} due today</b></>}
+              {reminderCount > 0 && <> · <button type="button" className="hb-link" onClick={() => setRemOpenGroup((v) => !v)}>{reminderCount} reminder{reminderCount > 1 ? "s" : ""}</button></>}
+            </div>
+            {viewerIsAdmin && viewerId && person !== viewerId && (
+              <a className="hb-viewing" href="/dashboard/preview/my-day" title="Back to your own day">Viewing {me.name}&apos;s day · Back to mine</a>
+            )}
           </div>
-          {/* No person switcher — everyone sees their own day; admins look at others
-              through Team Command / Workload (Praveen, 22 Oct). Opening a teammate's
-              day from Team Command still works, and says so with a way back. */}
-          {viewerIsAdmin && viewerId && person !== viewerId && (
-            <a className="teamcapbtn" href="/dashboard/preview/my-day" title="Back to your own day">Viewing {me.name}&apos;s day · Back to mine</a>
-          )}
-          <div className="stats-wrap">
-            {/* Day control + Pipeline live HERE, aligned with the stats (user order
-                2026-07-19) — the bell/reminders/chat icons stay up top. */}
-            <div className="dayctl">
-              {/* Approvals — admin/Maheen only. Always here (not tied to the person
-                  being viewed) so publish-date sign-offs have one steady home. */}
-              {viewerIsAdmin && (
-                <button className={`teamcapbtn ${approvalsOpen ? "on" : ""}`} onClick={() => { loadApprovals(); setApprovalsOpen(true); }} title="Publish-date changes waiting for your approval">
-                  <IconCalendarEvent size={15} stroke={1.8} /> Approvals{approvals.length > 0 && <span className="teamcap-n">{approvals.length}</span>}
-                </button>
-              )}
-              {/* Role button lives here now (the day control moved up to the top bar):
-                  Manya → Team capacity; editors → Claim pool. */}
-              {person === "manya" && (
-                <button className="teamcapbtn" onClick={() => setScreen("team")}>
-                  <IconUsers size={15} stroke={1.8} /> Team capacity
-                </button>
-              )}
-              {isEditor && (
-                <button className={`teamcapbtn ${showClaimPool ? "on" : ""}`} onClick={() => setShowClaimPool(true)}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M16.5 10l5-2.5v9L16.5 14" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
-                  Claim pool{claimPool.length > 0 && <span className="teamcap-n">{claimPool.length}</span>}
-                </button>
-              )}
-              {person === "manya" ? (
-                /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
-                   any change a producer makes (dates moved, etc.) pops up here. */
-                <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Changes the team asked for — date moves, task changes">
-                  {BELL} Requests{notifs.length > 0 && <span className="teamcap-n">{notifs.length}</span>}
-                </button>
-              ) : (
-                <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Tasks queued for you — accept when you have room">
-                  {IHOURGLASS} Pipeline{pipelineTasks.length > 0 && <span className="teamcap-n">{pipelineTasks.length}</span>}
-                </button>
-              )}
-            </div>
-            <div className="stats">
-              <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending</div></div>
-              <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>
-              <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
-              <div className="stat"><div className="n">{stats.toPublish}</div><div className="k">To publish</div></div>
-              <div className="stat"><div className="n g">{stats.done}</div><div className="k">Done · 7d</div></div>
-            </div>
+          <div className="hb-nums">
+            {person === "manya"
+              ? <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending</div></div>
+              : <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>}
+            <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
+            <div className="stat"><div className="n g">{stats.done}</div><div className="k">Done · 7 days</div></div>
+            <button type="button" className="btn hb-report" onClick={() => setReportOpen(true)}>My report</button>
           </div>
         </div>
 
@@ -3855,7 +3877,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             name, so a collapsed group still says what's waiting.
             Yesterday's Radar misses are a row here too (they used to be a strip of their
             own right above this one). Dismissing a row files it in Notifications. */}
-        {reminderCount > 0 && (
+        {reminderCount > 0 && remOpenGroup && (
           <div className="card rem-group" style={{ marginTop: "1rem" }}>
             <button type="button" className="rem-head" aria-expanded={remOpenGroup} onClick={() => setRemOpenGroup((v) => !v)}>
               <span className={`rem-caret ${remOpenGroup ? "on" : ""}`} aria-hidden="true">›</span>
@@ -4014,7 +4036,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               {/* One list, one order: my tasks and claimable videos sorted together. */}
               {[...shownTasks.map((t) => ({ t, claim: false })), ...claimableHere.map((t) => ({ t, claim: true }))]
                 .sort((x, y) => cmpTasks(x.t, y.t))
-                .map(({ t: rowTask, claim }) => !claim ? ((t: Task, i: number) => {
+                .flatMap((x, idx, arr) => [...groupHead(x.t, idx ? arr[idx - 1].t : null), (({ t: rowTask, claim }: { t: Task; claim: boolean }) => !claim ? ((t: Task, i: number) => {
                 const claimed = claimedTasks.some((c) => c.id === t.id);
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
@@ -4027,11 +4049,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     <div className="task-row">
                       <div className="task-main">
                         <div className="tt">{t.title}</div>
-                        <div className="mm">{t.meta}</div>
+                        <div className="mm">{t.detail.typeLine || t.meta}</div>
                       </div>
                       <div className="task-side">
                         <DueChip due={t.due} today={todayStr} />
-                        <span className="pill xs" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>
+                        {/* The View picker already says the status; only "In progress" earns a pill. */}
+                        {t.status === "Output - In Progress" && <span className="pill xs" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>}
                         {isHot(t.detail.priority) && <span className="pill xs" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg, display: "inline-flex", alignItems: "center", gap: 3 }}><IconBolt size={11} stroke={1.9} /> {t.detail.priority}</span>}
                         {claimed && <span className="pill xs" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                       </div>
@@ -4074,7 +4097,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     </div>
                   </div>
                 );
-              })(rowTask))}
+              })(rowTask))(x)])}
             </div>
           </div>
 

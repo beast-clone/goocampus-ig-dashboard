@@ -902,4 +902,35 @@ html[data-theme="dark"] .hmd{
 .hmd .hist-side textarea{font-size:12px}
 .hmd .hist-side [class*="text-[14px]"],.hmd .hist-side [class*="text-[13px]"],.hmd .hist-side [class*="text-sm"]{font-size:12px!important;line-height:17px!important}
 .hmd .hist-side [class*="text-[12px]"],.hmd .hist-side [class*="text-[11px]"],.hmd .hist-side [class*="text-xs"]{font-size:11px!important}
+
+/* Header — prototype D (22 Oct) */
+.hmd .topctl{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.hmd .headband.hb-d{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;padding:1.4rem 1.6rem}
+.hmd .hb-d .who .hi{font-size:24px;letter-spacing:-.01em}
+.hmd .hb-d .who .sub{font-size:13px;margin-top:.35rem}
+.hmd .hb-due{font-weight:500;color:#B7791F}
+.hmd .hb-link{border:none;background:none;padding:0;font:inherit;color:var(--brand-ink);cursor:pointer}
+.hmd .hb-link:hover{text-decoration:underline}
+.hmd .hb-viewing{display:inline-block;margin-top:.5rem;font-size:12px;color:var(--brand-ink);background:var(--brand-soft);border-radius:8px;padding:.25rem .6rem;text-decoration:none}
+.hmd .hb-nums{display:flex;align-items:flex-end;gap:2rem;flex-wrap:wrap}
+.hmd .hb-nums .stat .n{font-size:24px;font-weight:500;line-height:1.1}
+.hmd .hb-nums .stat .k{font-size:12px;color:var(--muted);margin-top:.2rem;text-transform:none;letter-spacing:0}
+.hmd .hb-report{align-self:center}
+
+/* Task list — prototype D: wider column, quiet rows, day groups */
+.hmd .work{grid-template-columns:minmax(330px,.8fr) 2fr;gap:1.25rem;margin-top:1rem}
+.hmd .tasklist{gap:.15rem}
+.hmd .tgrp{font-size:11.5px;font-weight:500;color:var(--muted);padding:.8rem .7rem .3rem}
+.hmd .tgrp:first-child{padding-top:.2rem}
+.hmd .task,.hmd .task.duetoday,.hmd .task.overdue{border:1px solid transparent;background:transparent;border-radius:10px;padding:.65rem .75rem}
+.hmd .task:hover,.hmd .task.duetoday:hover,.hmd .task.overdue:hover{background:var(--panel-2);border-color:transparent}
+.hmd .task.sel,.hmd .task.duetoday.sel,.hmd .task.overdue.sel{background:var(--brand-soft);border-color:transparent;box-shadow:none}
+.hmd .task .tt{font-size:13.5px}
+.hmd .task .mm{margin:.15rem 0 0}
+.hmd .task.high .tt::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#E11D48;margin-right:6px;vertical-align:middle}
+
+/* Wider page (Praveen, 22 Oct): My Day sat centred at its content width with ~245px
+   empty on each side. It now fills the space, keeping about a quarter of that gap. */
+.preview-scope.hmd{flex:1;min-width:0;margin-inline:0}
+.hmd .main{padding-inline:clamp(1rem,3.2vw,3.75rem)}
 `;

@@ -328,12 +328,16 @@ export async function PATCH(req: Request) {
         ? JSON.stringify(oldV ?? []) === JSON.stringify(newV ?? [])
         : (oldV ?? null) === (newV ?? null);
       if (same) return [];
+      // The reason asked for on every date move (22 Oct) rides on the rescheduled
+      // entry, so the task's history says why.
+      const why = field === "publishing_date" && typeof (body as { reason?: string }).reason === "string" ? (body as { reason?: string }).reason!.trim() : "";
       return [{
         post_id: body.id,
         actor_key: actor,
         action: ACTION[field] || "edited",
         from_value: asText(field, oldV),
         to_value: asText(field, newV),
+        ...(why ? { detail: why } : {}),
       }];
     });
     if (activityRows.length) await sb.from("mh_activity").insert(activityRows);
