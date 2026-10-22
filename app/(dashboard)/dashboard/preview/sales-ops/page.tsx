@@ -1215,15 +1215,28 @@ const LEADS_FOCUS = "gc-leads-focus";
 const TALKING = new Set(["Initial discussions", "Hot lead", "Interested", "Bookings", "Re-Enquiry", "Future prospect", "Qualified", "Negotiation", "Payment pending", "Closed won"]);
 function AssignedFollowUp({ range }: { range: { from: string; to: string } }) {
   const [leads, setLeads] = useState<FCLead[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    setLeads(null);
-    fetch(`/api/leads-crm/counsellor?${new URLSearchParams({ name: "all", from: range.from, to: range.to })}`)
-      .then((r) => r.json())
-      .then((j) => { if (!cancelled) setLeads((j.leads || []) as FCLead[]); })
-      .catch(() => { if (!cancelled) setLeads([]); });
+    setLeads(null); setFailed(false);
+    // A failed read is not "no leads" — the page fires several CRM reads at once and
+    // one can fail; try twice more before saying so (22 Oct).
+    const load = async (tries: number): Promise<void> => {
+      try {
+        const r = await fetch(`/api/leads-crm/counsellor?${new URLSearchParams({ name: "all", from: range.from, to: range.to })}`);
+        const j = await r.json();
+        if (!r.ok || !Array.isArray(j.leads)) throw new Error(j.error || `HTTP ${r.status}`);
+        if (!cancelled) setLeads(j.leads as FCLead[]);
+      } catch {
+        if (cancelled) return;
+        if (tries > 0) { await new Promise((res) => setTimeout(res, 1500)); return load(tries - 1); }
+        setFailed(true);
+      }
+    };
+    load(2);
     return () => { cancelled = true; };
-  }, [range.from, range.to]);
+  }, [range.from, range.to, attempt]);
   const rows = useMemo(() => {
     const by = new Map<string, { name: string; n: number; contacted: number; notYet: number; noAnswer: number; talking: number }>();
     for (const l of leads || []) {
@@ -1247,7 +1260,9 @@ function AssignedFollowUp({ range }: { range: { from: string; to: string } }) {
           <div className="text-sm text-gray-500">Share of assigned leads contacted · follows the selected range</div>
         </div>
       </div>
-      {leads === null ? <LoadingBlock className="!py-6" size={22} /> : rows.length === 0 ? (
+      {failed ? (
+        <div className="text-sm text-gray-500 mt-4">Couldn&apos;t load the leads just now. <button type="button" onClick={() => setAttempt((a) => a + 1)} className="text-brand font-medium">Try again</button></div>
+      ) : leads === null ? <LoadingBlock className="!py-6" size={22} /> : rows.length === 0 ? (
         <div className="text-sm text-gray-400 mt-4">No leads assigned to a counsellor in this window.</div>
       ) : (<>
         <div className="mt-2">
