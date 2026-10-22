@@ -1,7 +1,7 @@
 "use client";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
@@ -2210,8 +2210,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const tick = () => {
       const d = new Date();
       setClock({
-        time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-        date: d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+        time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }),
+        date: d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" }),
         greet: greetingFor(d.getHours()),
       });
     };
@@ -3788,6 +3788,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // one click away.
   const [remOpenGroup, setRemOpenGroup] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  useEffect(() => { try { setPlanOpen(localStorage.getItem("gc-plan-open") === "1"); } catch { /* */ } }, []);
+  const togglePlan = (v: boolean) => { setPlanOpen(v); try { localStorage.setItem("gc-plan-open", v ? "1" : "0"); } catch { /* */ } };
   // Back to the task you had open (22 Oct): remembered per person in this browser,
   // reopened once when My Day loads.
   const OPEN_KEY = `gc-myday-open:${person}`;
@@ -3988,22 +3991,21 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         <div className="card pad headband hb-d">
           <div className="who">
             <div className="hi">{clock ? `${clock.greet.word}, ${me.name}` : `Hello, ${me.name}`}</div>
-            <div className="sub">
-              {clock ? clock.date : "—"}
-              {dueTodayN > 0 && <> · <b className="hb-due">{dueTodayN} due today</b></>}
-              {reminderCount > 0 && <> · <button type="button" className="hb-link" onClick={() => setRemOpenGroup((v) => !v)}>{reminderCount} reminder{reminderCount > 1 ? "s" : ""}</button></>}
-            </div>
-            {viewerIsAdmin && viewerId && person !== viewerId && (
-              <a className="hb-viewing" href="/dashboard/preview/my-day" title="Back to your own day">Viewing {me.name}&apos;s day · Back to mine</a>
-            )}
+            <div className="sub">{clock ? clock.date : "—"}</div>
+            <div className="sub">{clock ? `${clock.time} IST` : ""}{startedAt ? ` · Started ${startedAt}` : ""}</div>
           </div>
           <div className="hb-nums">
+            {/* Due today and reminders sit with the other numbers (Praveen, 22 Oct). */}
+            <div className="stat"><div className={`n ${dueTodayN ? "w" : ""}`}>{dueTodayN}</div><div className="k">Due today</div></div>
+            <button type="button" className={`stat stat-btn ${remOpenGroup ? "on" : ""}`} onClick={() => setRemOpenGroup((v) => !v)} disabled={!reminderCount} title={reminderCount ? "Show the reminders" : "No reminders"}>
+              <div className="n">{reminderCount}</div><div className="k">Reminder{reminderCount === 1 ? "" : "s"}</div>
+            </button>
             {person === "manya"
               ? <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending</div></div>
               : <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>}
             <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
             <div className="stat"><div className="n g">{stats.done}</div><div className="k">Done · 7 days</div></div>
-            <button type="button" className="btn hb-report" onClick={() => setReportOpen(true)}>My report</button>
+            <button type="button" className="btn hb-report" onClick={() => setReportOpen(true)}><IconReport size={16} stroke={1.8} />My report</button>
           </div>
         </div>
 
@@ -4067,11 +4069,37 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           </div>
         )}
 
-        {/* 2 · HERO — today's plan */}
+        {/* 2 · HERO — today's plan. Folded to a progress bar by default to save space;
+            click it to open the full timeline (Praveen, 22 Oct). Remembered. */}
+        {!planOpen ? (() => {
+          const nowBlk = nowMin == null ? null : planBlocks.find((b) => b.kind === "reel" && b.start <= nowMin && nowMin < b.start + b.dur);
+          const nextBlk = planBlocks.find((b) => b.kind === "reel" && (nowMin == null || b.start > nowMin) && b.taskId !== nowBlk?.taskId);
+          return (
+            <button type="button" className="card pad hero plan-mini" onClick={() => togglePlan(true)} title="Open the full timeline">
+              <div className="plan-mini-h">
+                <span className="plan-mini-car" aria-hidden="true">›</span>
+                <b>Today’s plan</b>
+                <span className="prog">
+                  {nowBlk ? <>Now: <b style={{ color: "#232D42" }}>{nowBlk.label}</b></> : "Nothing running"}
+                  {nextBlk && <> · next: {nextBlk.label} at {clockOf(nextBlk.start)}</>}
+                  {" · "}{fmtDur(plannedMin)} planned · {fmtDur(Math.max(0, availMin - BUFFER_MIN - plannedMin))} free
+                  {atRisk.length > 0 && <span style={{ marginLeft: 6, color: "#C0201F", fontWeight: 500 }}>· {atRisk.length} due by tomorrow won&apos;t fit</span>}
+                </span>
+                <span className="plan-mini-open">Open plan</span>
+              </div>
+              <div className="plan-bar">
+                {doneBlocks.map((b) => <i key={`d${b.id}${b.start}`} className="pb-done" style={{ left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }} />)}
+                {planBlocks.map((b, i) => <i key={i} className={`pb-${b.kind}${b.high ? " high" : ""}`} style={{ left: `${(b.start / DAY_MINS) * 100}%`, width: `${(b.dur / DAY_MINS) * 100}%` }} />)}
+                {showNow && <i className="pb-now" style={{ left: `${(nowMin! / DAY_MINS) * 100}%` }} />}
+              </div>
+              <div className="plan-mini-ticks"><span>9 AM</span><span>1 PM</span><span>6 PM</span></div>
+            </button>
+          );
+        })() : (
         <div className="card pad hero">
           <div className="hero-head">
             <div style={{ display: "flex", alignItems: "baseline", gap: ".7rem", flexWrap: "wrap" }}>
-              <h2>Today’s plan</h2>
+              <button type="button" className="plan-fold" onClick={() => togglePlan(false)} title="Fold back to the progress bar"><span className="plan-mini-car open" aria-hidden="true">›</span><h2>Today’s plan</h2></button>
               <span className="prog">{planStart > shiftStart && <>Started {clockOf(planStart)} · </>}<b style={{ color: "#232D42" }}>{fmtDur(plannedMin)}</b> planned · 1h lunch · 1h buffer for urgent work · {fmtDur(Math.max(0, availMin - BUFFER_MIN - plannedMin))} free
                 {atRisk.length > 0
                   ? <span style={{ marginLeft: 8, color: "#C0201F", fontWeight: 500, whiteSpace: "nowrap" }}>· {IWARN} {atRisk.length} due by tomorrow won&apos;t fit</span>
@@ -4156,6 +4184,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             </div>
           </div>
         </div>
+        )}
 
         {/* 3 · WORK ROW — My tasks | Up next detail (wider now) */}
         <div className="work">

@@ -1066,4 +1066,34 @@ html[data-theme="dark"] .hmd{
    that appears when opened, instead of a drawer over the whole screen. */
 .hmd .tb-d.hopen{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:1.2rem;align-items:start}
 .hmd .tb-d .hist-drawer{position:sticky;top:0;bottom:auto;right:auto;width:auto;max-height:calc(100vh - 4rem);z-index:auto;border:1px solid var(--line);border-radius:12px;animation:none}
+
+.hmd .hb-nums .stat .n.w{color:#B7791F}
+.hmd .stat-btn{border:none;background:none;font:inherit;text-align:left;cursor:pointer;padding:0;border-radius:8px}
+.hmd .stat-btn:disabled{cursor:default}
+.hmd .stat-btn:not(:disabled):hover .k,.hmd .stat-btn.on .k{color:var(--brand-ink);text-decoration:underline}
+
+/* Today's plan folded to a progress bar (Praveen, 22 Oct) */
+.hmd .plan-mini{display:block;width:100%;text-align:left;font:inherit;cursor:pointer;border:1px solid var(--line)}
+.hmd .plan-mini:hover{border-color:#C9CEDA}
+.hmd .plan-mini-h{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;font-size:13px;color:var(--ink)}
+.hmd .plan-mini-h b{font-weight:500}
+.hmd .plan-mini-car{display:inline-block;color:var(--muted);transition:transform .15s;font-size:15px;line-height:1}
+.hmd .plan-mini-car.open{transform:rotate(90deg);margin-right:.35rem}
+.hmd .plan-mini-open{margin-left:auto;font-size:12px;font-weight:500;color:var(--brand-ink)}
+.hmd .plan-bar{position:relative;height:8px;border-radius:99px;background:#EEF0F4;overflow:hidden;margin-top:.7rem}
+.hmd .plan-bar i{position:absolute;top:0;bottom:0;display:block}
+.hmd .plan-bar .pb-reel{background:var(--brand)}
+.hmd .plan-bar .pb-reel.high{background:#E11D48}
+.hmd .plan-bar .pb-done{background:#C9CEDA}
+.hmd .plan-bar .pb-lunch{background:repeating-linear-gradient(45deg,#E3E6EE,#E3E6EE 4px,#D5DAE5 4px,#D5DAE5 8px)}
+.hmd .plan-bar .pb-buffer{background:#E9ECF2}
+.hmd .plan-bar .pb-now{width:2px;background:#E11D48}
+.hmd .plan-mini-ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);margin-top:.3rem}
+.hmd .plan-fold{display:inline-flex;align-items:center;border:none;background:none;padding:0;font:inherit;cursor:pointer;color:inherit}
+
+/* Header: big greeting, date + IST time lines, report button with icon (22 Oct) */
+.hmd .hb-d .who .hi{font-size:26px}
+.hmd .hb-d .who .sub{font-size:13px;margin-top:.25rem}
+.hmd .hb-d{align-items:center}
+.hmd .hb-report{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;align-self:center}
 `;
