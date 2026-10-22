@@ -70,7 +70,7 @@ export function FilesCard({
         {drop && picker("gcf-drop", <>
           <span className="gcf-ci"><IconUpload size={17} stroke={1.7} /></span>
           <span><span className="gcf-dt">{busyText || <>Drop files here or <span className="gcf-browse">browse</span></>}</span>
-            <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 300 MB each · or paste an image"}</span></span>
+            <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 2 GB each (Instagram posts reels up to 300 MB) · or paste an image"}</span></span>
         </>)}
         {showTiles && (
           <div className="gcf-tiles">

@@ -29,7 +29,10 @@ export const ATTACHMENT_LABEL = "an image, video, pdf, Word, Excel, PowerPoint o
 // limit on a request body (~6 MB on Netlify) no longer applies; this is our own cap.
 // 300 MB since the project moved to the Pro plan and the Supabase global limit and
 // the scheduler-media bucket were raised to match (21 Oct).
-export const MAX_MB = 300;
+// 2 GB from 22 Oct (Praveen): the Supabase global limit and the scheduler-media bucket
+// were raised to 2 GB to hold big reel masters. Instagram still only PUBLISHES reels up
+// to 300 MB through the API, so a bigger file can be stored and shared, not posted.
+export const MAX_MB = 2048;
 
 export const asKind = (v: unknown): AttachKind => (v === "reference" || v === "attachment" ? v : "creative");
 
