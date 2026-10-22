@@ -1993,10 +1993,10 @@ function EndTodayModal({ tasks, isWriter, today, onEnd, onClose }: { tasks: EodT
           </div>
         )}
         <div className="eod-foot">
-          <span className="m-note">{doneN} done · {rollN} roll to tomorrow</span>
+          <span className="m-note">{doneN} done · {rollN} roll to tomorrow · Your day report is shared with the team when you log out.</span>
           <div style={{ display: "flex", gap: ".5rem" }}>
-            <button className="btn" onClick={onClose}>Cancel</button>
-            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, rolling.map((t) => ({ id: t.id, title: t.title, reason: (reasons[t.id] || "").trim() })))}>End day &amp; log out</button>
+            <button className="btn" onClick={onClose}>Back to My Day</button>
+            <button className="btn rose" disabled={missing} title={missing ? "Add a reason for each rolled-over task" : undefined} onClick={() => onEnd(doneN, rollN, rolling.map((t) => ({ id: t.id, title: t.title, reason: (reasons[t.id] || "").trim() })))}>Log out</button>
           </div>
         </div>
       </div>

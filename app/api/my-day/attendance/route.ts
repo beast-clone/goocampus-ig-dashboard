@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { postDayReport } from "@/lib/day-report";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionIsAdmin, getSessionUserId } from "@/lib/auth";
@@ -92,6 +93,9 @@ export async function POST(req: Request) {
       { person_key: person, date, login_min: row.login_min, login_at: row.login_at, logout_min: row.logout_min, logout_at: row.logout_at, rolled: row.rolled, updated_at: new Date().toISOString() },
       { onConflict: "person_key,date" },
     );
+    // Ending the day posts the day's report to the team's Telegram group, in the
+    // background — never blocks or fails the logout (22 Oct).
+    if (b.action === "logout") await postDayReport(person, row.login_at, row.logout_at, row.rolled).catch((e) => console.error("[day-report]", e));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "attendance write failed"), { status: 502 });
