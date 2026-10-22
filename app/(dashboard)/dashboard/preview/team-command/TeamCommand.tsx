@@ -112,7 +112,9 @@ function buildPlan(tasks: MyDayTask[]): { blocks: Blk[]; overflow: number; freeM
   return { blocks, overflow, freeMin };
 }
 
-export function TeamCommand() {
+// One component, two tabs (22 Oct): Team Command (the team view) and Approvals
+// (publish-date changes) are separate sidebar tabs in My Workspace.
+export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } = {}) {
   const rosterTeam = useTeam();
   const [, bumpTeam] = useState(0);
   useEffect(() => {
@@ -125,7 +127,7 @@ export function TeamCommand() {
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState("manya");
   const [dateStr, setDateStr] = useState("");
-  const [view, setView] = useState<"team" | "approvals">("team");
+  const view = mode;
   const [approvals, setApprovals] = useState<DateReq[]>([]);
   const [apprBusy, setApprBusy] = useState<string | null>(null);
   const [apprNotes, setApprNotes] = useState<Record<string, string>>({}); // approver's note per request
@@ -208,9 +210,15 @@ export function TeamCommand() {
       {/* HERO */}
       <div className="tc-hero">
         <div>
-          <div className="tc-h1"><IconUsersGroup size={22} stroke={1.7} /> Team Command</div>
+          <div className="tc-h1">{view === "approvals" ? <><IconCalendarDue size={22} stroke={1.7} /> Approvals</> : <><IconUsersGroup size={22} stroke={1.7} /> Team Command</>}</div>
           <div className="tc-sub">{dateStr}{dateStr ? " · " : ""}<span className="tc-live">● live</span>{fetchedAt ? ` · updated ${fetchedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}</div>
         </div>
+        {view === "approvals" ? (
+          <div className="tc-hstats">
+            <div className="tc-stat"><div className="n">{approvals.length}</div><div className="k">Waiting</div></div>
+            <button className="tc-refresh" onClick={load} title="Refresh"><IconRefresh size={16} stroke={1.8} className={loading ? "spin" : ""} /></button>
+          </div>
+        ) : (
         <div className="tc-hstats">
           <div className="tc-stat"><div className="n">{team.present}<span className="of">/{ROSTER.length}</span></div><div className="k">In now</div></div>
           <div className="tc-stat"><div className="n">{team.pending}</div><div className="k">Pending</div></div>
@@ -218,14 +226,7 @@ export function TeamCommand() {
           <div className={`tc-stat ${team.longs ? "danger" : ""}`}><div className="n">{team.longs}</div><div className="k">Running long</div></div>
           <button className="tc-refresh" onClick={load} title="Refresh"><IconRefresh size={16} stroke={1.8} className={loading ? "spin" : ""} /></button>
         </div>
-      </div>
-
-      {/* In-page tabs: the team cockpit, and the approvals queue (with a badge). */}
-      <div className="tc-tabs">
-        <button className={`tc-tab ${view === "team" ? "on" : ""}`} onClick={() => setView("team")}>Team</button>
-        <button className={`tc-tab ${view === "approvals" ? "on" : ""}`} onClick={() => setView("approvals")}>
-          Approvals{approvals.length > 0 && <span className="tc-tab-n">{approvals.length}</span>}
-        </button>
+        )}
       </div>
 
       {view === "approvals" ? (

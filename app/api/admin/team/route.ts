@@ -3,7 +3,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { fetchRoster, rosterById, invalidateRosterCache, syncHubMember } from "@/lib/team-db";
 import { getSupabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/passwords";
-import { cleanPermissions, cleanSections } from "@/lib/permissions";
+import { cleanPermissions, cleanSections, canManageAccess } from "@/lib/permissions";
 import { sendMail, hasEmail, maskEmail } from "@/lib/email";
 import { INVITE_TTL_MS, inviteKey } from "@/lib/invites";
 
@@ -19,11 +19,16 @@ import { INVITE_TTL_MS, inviteKey } from "@/lib/invites";
 
 const MIN_PASSWORD_LEN = 8;
 
+// Only people with the "Can change access" switch may read or change the team
+// (Praveen, 22 Oct). Safety net: if nobody active has that switch, admins may — so a
+// slip can never lock everyone out of this page.
 async function requireAdmin(): Promise<{ ok: true; adminId: string } | { ok: false; res: NextResponse }> {
   const uid = getSessionUserId();
   const me = await rosterById(uid);
-  if (!me || !me.isAdmin) {
-    return { ok: false, res: NextResponse.json({ error: "Admins only" }, { status: 403 }) };
+  const roster = await fetchRoster(true);
+  const anyManager = roster.some((u) => u.active && canManageAccess(u));
+  if (!me || !(canManageAccess(me) || (!anyManager && me.isAdmin))) {
+    return { ok: false, res: NextResponse.json({ error: "Only the people who manage access can change it", locked: true }, { status: 403 }) };
   }
   return { ok: true, adminId: me.id };
 }
@@ -44,6 +49,7 @@ export async function GET() {
   if (!gate.ok) return gate.res;
   const roster = await fetchRoster(true);
   return NextResponse.json({
+    me: gate.adminId,
     team: roster.map((u) => ({
       id: u.id,
       email: u.email,
@@ -86,6 +92,17 @@ export async function PATCH(req: Request) {
       { error: "You can't remove your own admin access or deactivate yourself." },
       { status: 400 },
     );
+  }
+  // Nor take away their own "Can change access", or the last one anyone has.
+  const target = await rosterById(id);
+  if ("permissions" in updates && canManageAccess(target) && (updates.permissions as { manage_access?: boolean }).manage_access !== true) {
+    if (id === gate.adminId) {
+      return NextResponse.json({ error: "You can't take away your own Can change access." }, { status: 400 });
+    }
+    const others = (await fetchRoster(true)).filter((u) => u.id !== id && u.active && canManageAccess(u));
+    if (!others.length) {
+      return NextResponse.json({ error: "Someone has to keep Can change access." }, { status: 400 });
+    }
   }
   if ("email" in updates && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(updates.email))) {
     return NextResponse.json({ error: "That doesn't look like an email." }, { status: 400 });

@@ -1,13 +1,16 @@
 import { redirect } from "next/navigation";
-import { getSessionIsAdmin } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/auth";
+import { rosterById } from "@/lib/team-db";
+import { canSeeTab } from "@/lib/permissions";
 import { TeamCommand } from "./TeamCommand";
 
-// Team Command — the admin's cockpit for the whole team (attendance, workload,
-// tasks + day plan, running-long flags). Admin-only: a non-admin who reaches the
-// URL is bounced to the Overview. Data is composed from existing endpoints.
+// Team Command — the team view: who's in, workload, what each person is on, their plan and tasks.
+// Who sees it is the "Team Command" switch on Team & access; anyone without it is sent to
+// the Overview.
 export const dynamic = "force-dynamic";
 
-export default function TeamCommandPage() {
-  if (!getSessionIsAdmin()) redirect("/dashboard/preview");
+export default async function TeamCommandPage() {
+  const me = await rosterById(getSessionUserId());
+  if (!me || !canSeeTab(me, "team-command")) redirect("/dashboard/preview");
   return <TeamCommand />;
 }

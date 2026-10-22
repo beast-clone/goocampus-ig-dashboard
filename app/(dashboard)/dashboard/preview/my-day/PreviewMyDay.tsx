@@ -3866,9 +3866,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               {/* Approvals — admin/Maheen only. Always here (not tied to the person
                   being viewed) so publish-date sign-offs have one steady home. */}
               {viewerIsAdmin && (
-                <button className={`teamcapbtn ${approvalsOpen ? "on" : ""}`} onClick={() => { loadApprovals(); setApprovalsOpen(true); }} title="Publish-date changes waiting for your approval">
+                // Opens the Approvals tab (22 Oct) — one place for sign-offs, not a copy here.
+                <a className="teamcapbtn" href="/dashboard/preview/approvals" title="Publish-date changes waiting for your approval" style={{ textDecoration: "none" }}>
                   <IconCalendarEvent size={15} stroke={1.8} /> Approvals{approvals.length > 0 && <span className="teamcap-n">{approvals.length}</span>}
-                </button>
+                </a>
               )}
               {/* Role button lives here now (the day control moved up to the top bar):
                   Manya → Team capacity; editors → Claim pool. */}
@@ -4011,13 +4012,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         {/* APPROVALS STRIP — admin only, appears under the welcome only when a
             publish-date change is waiting. One line; opens Maheen's Approvals portal. */}
         {viewerIsAdmin && approvals.length > 0 && (
-          <button className="apprstrip" onClick={() => setApprovalsOpen(true)}>
+          <a className="apprstrip" href="/dashboard/preview/approvals" style={{ textDecoration: "none" }}>
             <span className="apprstrip-l">
               <IconCalendarEvent size={16} stroke={1.8} />
               <span><b>{approvals.length} publish-date change{approvals.length > 1 ? "s" : ""}</b> waiting for your approval</span>
             </span>
             <span className="apprstrip-cta">Review <IconArrowsExchange size={14} stroke={1.8} /></span>
-          </button>
+          </a>
         )}
 
         {/* MANYA — reschedule request when an editor is packed (team capacity moved to its own page) */}

@@ -43,7 +43,15 @@ export type Permissions = Partial<Record<Capability, boolean>> & {
   scheduler_pages?: string[];
   /** Drag tasks / change dates inside the Content and Mentorship calendars. */
   calendar_edit?: boolean;
+  /** May change anyone's access on Team & access. Everyone else sees that page
+   *  locked and can only send a request (Praveen, 22 Oct). */
+  manage_access?: boolean;
 };
+
+/** Can they change access on Team & access? The switch only — admin alone isn't enough. */
+export function canManageAccess(user: { permissions?: Permissions } | null | undefined): boolean {
+  return user?.permissions?.manage_access === true;
+}
 
 /** The task actions "Full access" covers — the ones Partial lets you tick. */
 export const TASK_ACTIONS: Capability[] = ["create_tasks", "edit_tasks", "delete_tasks", "assign_tasks", "approve_content", "reschedule"];
@@ -97,6 +105,7 @@ export function cleanPermissions(raw: unknown): Permissions {
     if (typeof d === "boolean") out.date_needs_approval = d;
     if (r.task_access === "full" || r.task_access === "partial") out.task_access = r.task_access;
     if (typeof r.calendar_edit === "boolean") out.calendar_edit = r.calendar_edit;
+    if (typeof r.manage_access === "boolean") out.manage_access = r.manage_access;
     if (Array.isArray(r.scheduler_pages)) out.scheduler_pages = r.scheduler_pages.filter((x): x is string => typeof x === "string");
     if (r.tabs && typeof r.tabs === "object") {
       const t: Record<string, boolean> = {};
@@ -168,13 +177,14 @@ export const ROLE_PRESETS: { key: string; label: string; desc: string; sections:
 export type TabDef = { key: string; label: string; group: string; sec: Section; adminDefault?: boolean; paths: string[]; tab?: string[]; channel?: string };
 const P = "/dashboard/preview";
 export const TABS: TabDef[] = [
-  { key: "my-day", label: "My Day", group: "My Workspace", sec: "content", paths: [`${P}/my-day`] },
   { key: "briefing", label: "Briefing", group: "My Workspace", sec: "content", paths: [`${P}/briefing`] },
+  { key: "my-day", label: "My Day", group: "My Workspace", sec: "content", paths: [`${P}/my-day`] },
+  { key: "team-command", label: "Team Command", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/team-command`] },
+  { key: "approvals", label: "Approvals", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/approvals`] },
   { key: "workload", label: "Workload", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["team", ""] },
   { key: "attendance", label: "Attendance", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/attendance`] },
   { key: "master-sheet", label: "Master sheet", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["master"] },
   { key: "pipeline", label: "Pipeline", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["pipeline"] },
-  { key: "team-command", label: "Team Command", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/team-command`] },
   { key: "content-calendar", label: "Content calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"] },
   { key: "mentorship-calendar", label: "Mentorship calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"], channel: "goocampusworld" },
   { key: "radar", label: "Content Radar", group: "Content", sec: "content", paths: [`${P}/radar`] },
@@ -204,10 +214,12 @@ export const TABS: TabDef[] = [
   { key: "reports", label: "Reports", group: "AI", sec: "ai", paths: [`${P}/ai-reports`, `${P}/reports`] },
 ];
 
-/** Can they open this tab? Admins: always. Others: the section, then the tab's switch. */
+/** Can they open this tab? Admins: unless switched off. Others: the section, then the tab's switch. */
 export function canSeeTab(user: { isAdmin?: boolean; sections?: Sections; permissions?: Permissions } | null | undefined, key: string): boolean {
   if (!user) return false;
-  if (user.isAdmin) return true;
+  // Admins see every tab unless it's switched off for them by name — so My Day can
+  // be hidden for an admin who has no tasks of their own (Praveen, 22 Oct).
+  if (user.isAdmin) return user.permissions?.tabs?.[key] !== false;
   const tab = TABS.find((t) => t.key === key);
   if (!tab) return true;
   if (!canAccessSection(user, tab.sec)) return false;

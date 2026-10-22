@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   IconUsersGroup, IconKey, IconMail, IconCheck, IconUserPlus, IconAlertTriangle,
-  IconLayoutGrid, IconClockHour4, IconChecklist, IconCalendarEvent, IconIdBadge2,
+  IconLayoutGrid, IconClockHour4, IconChecklist, IconCalendarEvent, IconIdBadge2, IconLock, IconSend,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { CAPABILITIES, DATE_APPROVAL_RULE, TABS, TASK_ACTIONS, needsDateApproval, canEditCalendar, type Capability } from "@/lib/permissions";
@@ -21,7 +21,8 @@ type Member = {
   sections: Record<string, boolean>;
   photoUrl?: string | null;
 };
-type Perm = Record<string, unknown> & { tabs?: Record<string, boolean>; scheduler_pages?: string[]; task_access?: "full" | "partial"; calendar_edit?: boolean; date_needs_approval?: boolean };
+type Perm = Record<string, unknown> & { tabs?: Record<string, boolean>; scheduler_pages?: string[]; task_access?: "full" | "partial"; calendar_edit?: boolean; date_needs_approval?: boolean; manage_access?: boolean };
+type AccessReq = { id: string; from: string; fromName: string; text: string; at: string };
 
 export default function TeamPage() {
   return (
@@ -113,9 +114,9 @@ const byOrder = (a: Member, b: Member) => {
 };
 const SENSITIVE: Record<string, string> = { Sales: "customer names and phone numbers", Ads: "ad spend and budgets" };
 
-/** Is this tab on in the draft? Admin = every tab. */
+/** Is this tab on in the draft? Admin = every tab unless switched off by name. */
 function tabOn(d: Draft, key: string): boolean {
-  if (d.isAdmin) return true;
+  if (d.isAdmin) return d.permissions.tabs?.[key] !== false;
   const t = TABS.find((x) => x.key === key)!;
   if (d.sections[t.sec] !== true) return false;
   const v = d.permissions.tabs?.[key];
@@ -124,6 +125,8 @@ function tabOn(d: Draft, key: string): boolean {
 /** Flip one tab and write every tab explicitly, so turning a section on through one
  *  tab doesn't quietly switch on its neighbours. Sections follow their tabs. */
 function setTab(d: Draft, key: string, v: boolean): Draft {
+  // An admin keeps every page; only the one switched off is written down.
+  if (d.isAdmin) return { ...d, permissions: { ...d.permissions, tabs: { ...(d.permissions.tabs || {}), [key]: v } } };
   const tabs: Record<string, boolean> = {};
   for (const t of TABS) tabs[t.key] = t.key === key ? v : tabOn({ ...d, isAdmin: false }, t.key);
   const sections: Record<string, boolean> = { overview: true };
@@ -141,16 +144,25 @@ function TeamManager() {
   const [busy, setBusy] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [add, setAdd] = useState({ id: "", name: "", email: "", role: "" });
+  const [locked, setLocked] = useState(false);
+  const [meId, setMeId] = useState("");
+  const [reqs, setReqs] = useState<AccessReq[]>([]);
+  const loadReqs = () => fetch("/api/access-requests", { cache: "no-store" }).then((r) => r.json()).then((d) => setReqs(d.isManager ? d.requests || [] : [])).catch(() => {});
 
   async function load() {
     setError("");
     try {
       const r = await fetch("/api/admin/team");
       const d = await r.json();
+      if (r.status === 403 && d?.locked) { setLocked(true); setTeam([]); return; }
       if (!r.ok) throw new Error(d?.error || "Failed to load the team");
       const sorted = [...(d.team as Member[])].sort(byOrder);
       setTeam(sorted);
-      setSelId((cur) => cur || sorted[0]?.id || null);
+      setMeId(d.me || "");
+      // A request notification links here with ?person= — open that person.
+      const want = new URLSearchParams(window.location.search).get("person");
+      setSelId((cur) => cur || (want && sorted.some((m) => m.id === want) ? want : null) || sorted[0]?.id || null);
+      loadReqs();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load the team");
       setTeam([]);
@@ -175,12 +187,35 @@ function TeamManager() {
   }
 
   if (team === null) return <div className="bg-white rounded-2xl border border-gray-100 px-5 py-8 text-[13px] text-[#8A92A6]">Loading the team…</div>;
+  if (locked) return <LockedAccess />;
   const sel = team.find((m) => m.id === selId) || null;
 
   return (
     <div className="space-y-4">
       {error && <div className="rounded-xl bg-[#FDECEA] border border-[#F5C6C0] px-4 py-2.5 text-[12.5px] text-[#C0392B]">{error}</div>}
       {notice && <div className="flex items-center gap-2 rounded-xl bg-[#E8F6F0] border border-[#CDEBDF] px-4 py-2.5 text-[12.5px] text-[#2F9E6F]"><IconCheck size={15} stroke={2} className="shrink-0" />{notice}</div>}
+      {reqs.length > 0 && (
+        <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <header className="flex items-center gap-2 px-4 py-3.5 border-b border-gray-100 bg-brand-light">
+            <IconKey size={17} stroke={1.8} className="text-brand" />
+            <h2 className="text-[14px] font-medium text-[#232D42]">Access requests</h2>
+            <span className="text-[12px] text-[#8A92A6]">{reqs.length} waiting</span>
+          </header>
+          <div className="divide-y divide-gray-100">
+            {reqs.map((q) => (
+              <div key={q.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] text-[#232D42]"><span className="font-medium">{q.fromName}</span> · {q.text}</div>
+                  <div className="text-[11.5px] text-[#8A92A6] mt-0.5">{new Date(q.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}</div>
+                </div>
+                {team.some((m) => m.id === q.from) && <button onClick={() => setSelId(q.from)} className="text-[12.5px] font-medium text-brand hover:text-brand-dark">Open {q.fromName.split(" ")[0]}</button>}
+                <button onClick={async () => { await fetch("/api/access-requests", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: q.id }) }); loadReqs(); flash("Marked done."); }}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#232D42] hover:border-brand">Mark done</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-[290px_1fr] gap-5 items-start">
         <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <header className="flex items-center gap-2 px-4 py-3.5 border-b border-gray-100">
@@ -219,7 +254,7 @@ function TeamManager() {
           </div>
         </section>
         {sel ? (
-          <PersonEditor key={sel.id} m={sel} busy={busy}
+          <PersonEditor key={sel.id} m={sel} busy={busy} viewerId={meId}
             onSave={async (d) => {
               const updates: Record<string, unknown> = { is_admin: d.isAdmin, sections: d.sections, permissions: d.permissions, active: d.active };
               if (d.name.trim() && d.name.trim() !== sel.name) updates.name = d.name.trim();
@@ -261,7 +296,7 @@ function Tick({ checked, label, onChange, disabled }: { checked: boolean; label:
   );
 }
 
-function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean; onSave: (d: Draft) => void; onAction: (body: unknown, msg: string) => void }) {
+function PersonEditor({ m, busy, viewerId, onSave, onAction }: { m: Member; busy: boolean; viewerId: string; onSave: (d: Draft) => void; onAction: (body: unknown, msg: string) => void }) {
   const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, name: m.name, email: m.email, role: m.role, active: m.active });
   const [d, setD] = useState<Draft>(fresh);
   const [pw, setPw] = useState<string | null>(null);
@@ -280,7 +315,15 @@ function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean;
         <span className="text-[13px] font-medium text-[#232D42]">Admin</span>
         <Toggle checked={d.isAdmin} disabled={busy} label="Admin" onChange={(v) => setD((x) => ({ ...x, isAdmin: v }))} />
       </div>
-      <p className="px-6 -mt-2 pb-4 text-[12px] text-[#8A92A6]">Admin opens every page and can manage the team. Task actions below still follow their own switches.</p>
+      <p className="px-6 -mt-2 pb-4 text-[12px] text-[#8A92A6]">Admin opens every page (except any switched off below). Task actions below still follow their own switches.</p>
+      <div className="mx-6 mb-4 flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2.5">
+        <IconKey size={16} stroke={1.8} className="text-brand shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium text-[#232D42]">Can change access</div>
+          <div className="text-[12px] text-[#8A92A6]">{m.id === viewerId && d.permissions.manage_access === true ? "You can't turn this off for yourself." : "Only people with this on can change anyone's access. Everyone else sees this page locked and sends a request."}</div>
+        </div>
+        <Toggle checked={d.permissions.manage_access === true} disabled={busy || (m.id === viewerId && m.permissions?.manage_access === true)} label="Can change access" onChange={(v) => setPerm({ manage_access: v })} />
+      </div>
       {m.isAdmin && !d.isAdmin && (
         <div className="mx-6 mb-4 flex gap-2 rounded-lg bg-[#FDF6E7] px-3 py-2 text-[12px] leading-relaxed text-[#8A5A00]">
           <IconAlertTriangle size={15} stroke={1.8} className="shrink-0 mt-[2px]" />
@@ -289,7 +332,7 @@ function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean;
       )}
 
       <Section icon={<IconLayoutGrid size={16} stroke={1.8} />} title="Pages" hint="One switch per tab. Off = hidden from their sidebar, and the page won't open.">
-        {d.isAdmin && <div className="mb-3 rounded-lg bg-brand-light text-[#2138B0] px-3 py-2 text-[12.5px]">Admin is on, so every page is open. Turn Admin off to choose pages one by one.</div>}
+        {d.isAdmin && <div className="mb-3 rounded-lg bg-brand-light text-[#2138B0] px-3 py-2 text-[12.5px]">Admin is on, so every page is open. Switch a page off here to hide it for them (for example My Day for someone with no tasks of their own).</div>}
         <div className="space-y-4">
           {GROUPS.map((g) => (
             <div key={g}>
@@ -298,7 +341,7 @@ function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean;
                 {TABS.filter((t) => t.group === g).map((t) => (
                   <div key={t.key} className="flex items-center justify-between gap-3 py-2">
                     <span className="text-[13px] text-[#232D42]">{t.label}</span>
-                    <Toggle checked={tabOn(d, t.key)} disabled={d.isAdmin || busy} label={t.label} onChange={(v) => setD((x) => setTab(x, t.key, v))} />
+                    <Toggle checked={tabOn(d, t.key)} disabled={busy} label={t.label} onChange={(v) => setD((x) => setTab(x, t.key, v))} />
                   </div>
                 ))}
               </div>
@@ -380,6 +423,45 @@ function PersonEditor({ m, busy, onSave, onAction }: { m: Member; busy: boolean;
           <button disabled={!dirty || busy} onClick={() => onSave(d)} className="h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-brand-dark disabled:opacity-40">{busy ? "Saving…" : "Save changes"}</button>
         </div>
       </div>
+    </section>
+  );
+}
+
+/** What everyone without "Can change access" sees: the page locked, and a way to ask. */
+function LockedAccess() {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [mine, setMine] = useState<AccessReq[]>([]);
+  const loadMine = () => fetch("/api/access-requests", { cache: "no-store" }).then((r) => r.json()).then((d) => setMine(d.requests || [])).catch(() => {});
+  useEffect(() => { loadMine(); }, []);
+  const send = async () => {
+    setBusy(true); setMsg("");
+    try {
+      const r = await fetch("/api/access-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.error || "That didn't send");
+      setText(""); setMsg(`Sent to ${(d.sentTo || []).join(" and ")}.`); loadMine();
+    } catch (e) { setMsg(e instanceof Error ? e.message : "That didn't send"); } finally { setBusy(false); }
+  };
+  return (
+    <section className="max-w-[560px] mx-auto bg-white rounded-2xl border border-gray-100 px-7 py-7">
+      <div className="w-11 h-11 rounded-xl bg-brand-light text-brand flex items-center justify-center mb-3"><IconLock size={20} stroke={1.8} /></div>
+      <h2 className="text-[16px] font-medium text-[#232D42]">Access is locked</h2>
+      <p className="text-[13px] text-[#8A92A6] mt-1 leading-relaxed">Only the people who manage access can change who sees which page or does which action. If you need something changed, ask here — they&apos;ll get a notification.</p>
+      <label className="block mt-5"><span className="block text-[11px] font-medium text-[#8A92A6] mb-1">What do you need?</span>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="e.g. I need the Scheduler for GooCampus World"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-brand focus:outline-none text-[13px] text-[#232D42] placeholder:text-[#C9CDD8] bg-white resize-y" /></label>
+      <div className="flex items-center justify-end gap-3 mt-3">
+        {msg && <span className="text-[12.5px] text-[#8A92A6] mr-auto">{msg}</span>}
+        <button disabled={busy || !text.trim()} onClick={send} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-brand text-white text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-50"><IconSend size={14} stroke={1.8} />{busy ? "Sending…" : "Request a change"}</button>
+      </div>
+      {mine.length > 0 && (
+        <div className="mt-5 pt-4 border-t border-gray-100">
+          <div className="text-[11px] font-medium text-[#8A92A6] mb-2">Waiting</div>
+          {mine.map((q) => <div key={q.id} className="text-[12.5px] text-[#232D42] py-1">{q.text}</div>)}
+        </div>
+      )}
     </section>
   );
 }

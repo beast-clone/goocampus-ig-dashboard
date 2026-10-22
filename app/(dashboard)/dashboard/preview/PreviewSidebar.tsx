@@ -1,6 +1,6 @@
 "use client";
 import { ThemeToggle } from "@/components/Theme";
-import { canAccessSection, canSeeTab, TABS, type Permissions, type Section, type Sections } from "@/lib/permissions";
+import { canAccessSection, canSeeTab, canManageAccess, TABS, type Permissions, type Section, type Sections } from "@/lib/permissions";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -16,6 +16,7 @@ import {
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft, IconEye,
+  IconLock, IconCalendarDue,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
@@ -41,9 +42,12 @@ const isFolder = (x: Leaf | Folder): x is Folder => "children" in x;
 
 const HUB = "/dashboard/preview";
 const OVERVIEW: Leaf = { label: "Overview", href: HUB, icon: IconLayoutGrid };
-// Admin-only cockpit — rendered right under Overview when the viewer is an admin.
-// Carries the approvals notification badge (approvals live inside this page).
-const TEAM_COMMAND: Leaf = { label: "Team Command", href: `${HUB}/team-command`, icon: IconUsersGroup };
+// Approvals carries the badge of publish-date changes waiting (22 Oct: its own tab
+// in My Workspace, under Team Command).
+const APPROVALS_HREF = `${HUB}/approvals`;
+// Team & access for people outside the System group: shown locked, so they can
+// still open it and send a request (22 Oct).
+const TEAM_LOCKED: Leaf = { label: "Team & access", href: `${HUB}/team`, icon: IconLock };
 // Everyone's notifications (docs/NOTIFICATIONS_SPEC.md). Deliberately outside the
 // section-gated groups: every member gets notifications, whatever pages they can see.
 const NOTIFICATIONS: Leaf = { label: "Notifications", href: `${HUB}/notifications`, icon: IconBell };
@@ -53,6 +57,8 @@ const GROUPS: Group[] = [
     { key: "my-workspace", label: "My Workspace", icon: IconSunHigh, href: `${HUB}/briefing`, children: [
       { label: "Briefing",         href: `${HUB}/briefing`,                   icon: IconChartBar },
       { label: "My Day",           href: `${HUB}/my-day`,                     icon: IconSunHigh },
+      { label: "Team Command",     href: `${HUB}/team-command`,               icon: IconUsersGroup },
+      { label: "Approvals",        href: APPROVALS_HREF,                      icon: IconCalendarDue },
       { label: "Workload",         href: `${HUB}/marketing-hub?tab=team`,     icon: IconUsers },
       { label: "Attendance",       href: `${HUB}/attendance`,                 icon: IconUserCheck },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
@@ -163,7 +169,7 @@ const GROUPS: Group[] = [
 // these under each "Pages they can open" switch, so a new tab shows up there by
 // itself instead of drifting from a hand-written list.
 export const SECTION_TABS: Record<Section, string[]> = (() => {
-  const out = { overview: ["Overview"], content: [], analytics: [], ads: [], sales: [], ai: [], system: ["Team Command"] } as Record<Section, string[]>;
+  const out = { overview: ["Overview"], content: [], analytics: [], ads: [], sales: [], ai: [], system: [] } as Record<Section, string[]>;
   for (const g of GROUPS) for (const it of g.items) out[g.sec].push(it.label);
   return out;
 })();
@@ -271,8 +277,9 @@ export function PreviewSidebar() {
     window.addEventListener(NOTIF_COUNT, on);
     return () => window.removeEventListener(NOTIF_COUNT, on);
   }, []);
+  const seesApprovals = !!me && canSeeTab(me, "approvals");
   useEffect(() => {
-    if (!me?.isAdmin) return;
+    if (!seesApprovals) return;
     let alive = true;
     const tick = () => fetch("/api/marketing-hub/date-change", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { requests: [] }))
@@ -283,7 +290,7 @@ export function PreviewSidebar() {
     // tab all night, costing function calls for a badge nobody was looking at.
     const id = setInterval(() => { if (shouldPoll()) tick(); }, 60000);
     return () => { alive = false; clearInterval(id); };
-  }, [me?.isAdmin]);
+  }, [seesApprovals]);
 
   // The sidebar lives in the route layout, so it stays mounted across navigation
   // and its scroll position simply never changes — nothing to save or restore.
@@ -373,7 +380,7 @@ export function PreviewSidebar() {
             <IconChevronRight size={14} stroke={2} className={open ? "rot" : ""} />
           </button>
         </div>
-        {open && <div className="hnavchildren">{f.children.map((c) => <LeafRow key={c.href} leaf={c} indent />)}</div>}
+        {open && <div className="hnavchildren">{f.children.map((c) => <LeafRow key={c.href} leaf={c} indent badge={c.href === APPROVALS_HREF ? apprCount : undefined} />)}</div>}
       </div>
     );
   };
@@ -412,12 +419,12 @@ export function PreviewSidebar() {
           on every page of the dashboard. */}
       <Shortcuts />
       {canOverview && <LeafRow leaf={OVERVIEW} />}
-      {me && canSeeTab(me, "team-command") && <LeafRow leaf={TEAM_COMMAND} badge={apprCount} />}
       {me && <LeafRow leaf={NOTIFICATIONS} badge={notifUnread} shake={ringing} />}
+      {me && "sections" in me && !canAccessSection(me, "system") && <LeafRow leaf={TEAM_LOCKED} />}
       {groups.map((g) => (
         <div key={g.label}>
           {g.label && <div className="hnavgroup">{g.label}</div>}
-          {g.items.map((it) => (isFolder(it) ? <FolderRow key={it.key} f={it} /> : <LeafRow key={it.href} leaf={it} />))}
+          {g.items.map((it) => (isFolder(it) ? <FolderRow key={it.key} f={it} /> : <LeafRow key={it.href} leaf={it.href === TEAM_LOCKED.href && me && !canManageAccess(me) ? { ...it, icon: IconLock } : it} />))}
         </div>
       ))}
       {/* Light / Dark / System (also on the Account page). */}

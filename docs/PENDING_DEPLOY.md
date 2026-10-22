@@ -162,3 +162,11 @@ npx netlify deploy --build --prod
 
 Production publishes from `main`, so merge `feat/dashboard-reskin` into `main`
 first (it fast-forwards) to keep git and production in step.
+
+## 22 Oct — access lock + Team Command / Approvals tabs
+- Team & access is editable only by people with the new "Can change access" switch
+  (set ON for Maheen + Praveen in the data on 22 Oct). Everyone else sees it locked and
+  sends a request → action notification to the access managers (`/api/access-requests`).
+- Page switches now apply to admins too (a tab switched off by name hides it). My Day is
+  switched off for Maheen; she starts on Team Command.
+- Team Command and Approvals are their own tabs in My Workspace (Approvals carries the badge).
