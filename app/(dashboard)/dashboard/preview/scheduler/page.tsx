@@ -147,7 +147,7 @@ const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = 
 
 export default function SchedulerPage() {
   return (
-    <PreviewDashboardShell active="scheduler" title="Scheduler" subtitle="Publish or schedule to Instagram, Facebook & LinkedIn — all from here." hideAccountPicker>
+    <PreviewDashboardShell active="scheduler" title="Scheduler" subtitle="Publish or schedule to Instagram, Facebook & LinkedIn — all from here." hideAccountPicker hideRange>
       {() => <SchedulerTabs />}
     </PreviewDashboardShell>
   );
