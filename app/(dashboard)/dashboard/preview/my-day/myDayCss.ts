@@ -1135,4 +1135,26 @@ html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 
 /* The status button now sits at the left edge, so its menu opens to the right. */
 .hmd .d-bar .status-dd-menu{left:0;right:auto}
+
+/* Completed by me as a table (22 Oct) */
+.hmd .done-tbl{margin-top:.6rem;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.hmd .done-tr{display:grid;grid-template-columns:minmax(0,2.6fr) minmax(0,1fr) minmax(0,1.3fr) 96px 84px 96px;gap:1rem;align-items:center;padding:.6rem 1rem;font-size:13px;color:var(--ink-soft)}
+.hmd .done-tr>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmd .done-th{background:var(--panel-2);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:.5rem;padding-bottom:.5rem}
+.hmd .done-row{border-top:1px solid var(--line)}
+.hmd .done-row>.done-tr{cursor:pointer}
+.hmd .done-row>.done-tr:hover{background:var(--panel-2)}
+.hmd .done-row.on>.done-tr{background:var(--brand-soft)}
+.hmd .done-title{display:flex;flex-direction:column;gap:1px}
+.hmd .done-title b{font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.hmd .done-title i{font-style:normal;font-size:11.5px;color:var(--muted)}
+.hmd .done-st{font-style:normal;font-size:11.5px;font-weight:500;border-radius:99px;padding:.15rem .55rem}
+.hmd .done-st.pub{background:var(--tone-good-bg,#E3F5EA);color:var(--tone-good-fg,#157F3C)}
+.hmd .done-st.ready{background:var(--brand-soft);color:var(--brand-ink)}
+.hmd .done-date{font-variant-numeric:tabular-nums;color:var(--muted)}
+.hmd .done-tr a{color:var(--brand-ink);text-decoration:none;font-weight:500}
+.hmd .done-tr a:hover{text-decoration:underline}
+.hmd .done-none{color:var(--faint)}
+.hmd .done-open{padding:.8rem 1rem 1rem;border-top:1px solid var(--line)}
+@media(max-width:900px){.hmd .done-tr{grid-template-columns:minmax(0,1fr) 90px}.hmd .done-tr>span:not(:first-child):not(:nth-child(4)){display:none}}
 `;

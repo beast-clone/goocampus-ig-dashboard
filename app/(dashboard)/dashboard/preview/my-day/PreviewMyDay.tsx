@@ -4380,18 +4380,26 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 : list.length === 0 ? <div className="empty">{narrowed
                     ? "Nothing matches these filters — try widening the type, SBU or range."
                     : <>Nothing finished {CREATED_RANGE_OPTIONS.find((o) => o.value === createdRange)?.empty || "in this period"}.</>}</div> : (
-                <div className="tasklist">
+                // A table (Praveen, 22 Oct): one column each, so status and the post link
+                // line up instead of trailing the title. Click a row to open it below.
+                <div className="done-tbl">
+                  <div className="done-tr done-th">
+                    <span>Task</span><span>Type</span><span>SBU</span><span>Status</span><span>Finished</span><span>Post</span>
+                  </div>
                   {list.map((t) => {
+                    const role = t.detail.ownerKey && t.detail.ownerKey !== person ? `${t.detail.presenter === person ? "On camera" : "Collaborator"} · owner ${t.detail.owner}` : "";
                     return (
-                      <div key={t.id} className={`task${openCreatedId === t.id ? " sel" : ""}`} style={{ cursor: "pointer" }} onClick={() => setOpenCreatedId(openCreatedId === t.id ? null : t.id)}>
-                        <div className="task-top"><div className="tt">{t.title}</div><span className="lbl">{finishedOn(t)}</span></div>
-                        <div className="mm" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          <span>{t.detail.typeLine} · {t.detail.brand}{t.detail.ownerKey && t.detail.ownerKey !== person ? ` · ${t.detail.presenter === person ? "on camera" : "collaborator"}, owner ${t.detail.owner}` : ""}</span>
-                          <span style={{ fontSize: 11.5, fontWeight: 500, color: isPub(t) ? "#2F9E6F" : "#3A57E8" }}>{isPub(t) ? "Published" : "Ready"}</span>
-                          {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
+                      <div key={t.id} className={`done-row${openCreatedId === t.id ? " on" : ""}`}>
+                        <div className="done-tr" onClick={() => setOpenCreatedId(openCreatedId === t.id ? null : t.id)}>
+                          <span className="done-title"><b>{t.title}</b>{role && <i>{role}</i>}</span>
+                          <span>{t.detail.typeLine}</span>
+                          <span>{t.detail.brand}</span>
+                          <span><em className={`done-st ${isPub(t) ? "pub" : "ready"}`}>{isPub(t) ? "Published" : "Ready"}</em></span>
+                          <span className="done-date">{finishedOn(t)}</span>
+                          <span>{t.detail.liveUrl ? <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>View post ↗</a> : <span className="done-none">—</span>}</span>
                         </div>
                         {openCreatedId === t.id && (
-                          <div style={{ marginTop: ".8rem", borderTop: "1px solid var(--line, #EEF0F4)", paddingTop: ".8rem" }} onClick={(e) => e.stopPropagation()}>
+                          <div className="done-open" onClick={(e) => e.stopPropagation()}>
                             <TaskBody key={`trk-${t.id}`} task={t} label="Completed · read-only" uploadedBy={person} />
                           </div>
                         )}
