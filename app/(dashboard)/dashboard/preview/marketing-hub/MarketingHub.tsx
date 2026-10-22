@@ -877,10 +877,42 @@ function PersonTimelineRow({ card }: {
 }) {
   const { member, mine, today, week, overdue, done, roleHighlight } = card;
 
-  // Lay all pending work into today's plan, from when they logged in (never before
-  // their shift), around the pinned 1–2 PM lunch.
+  // Today's card shows TODAY (Praveen, 22 Oct): what is due today or was worked on
+  // today — finished ones stay, marked Completed — then what's overdue, then what's
+  // coming up. It used to lay every open task, whatever its date, into today's plan,
+  // so a Saturday carousel read as today's work and finished work vanished.
+  const todayKey = ymd(new Date());
+  const groups = useMemo(() => {
+    const dayOf = (r: Row) => (r.publishingDate || r.dueDate || "").slice(0, 10);
+    const finishedAt = (r: Row) => (r.endAt || r.completionTime || "").slice(0, 10);
+    const finishedToday: Row[] = [], todayOpen: Row[] = [], overdueL: Row[] = [], upcoming: Row[] = [];
+    for (const r of mine) {
+      if (r.status === "Rejected/Not Published") continue;
+      const done = r.status === "Output - Ready" || DONE_STATUSES.includes(r.status);
+      const d = dayOf(r);
+      if (done) { if (finishedAt(r) === todayKey || (d === todayKey && r.status === "Output - Ready")) finishedToday.push(r); continue; }
+      if (d === todayKey || startedTodayMin(r) != null) todayOpen.push(r);
+      else if (d && d < todayKey) overdueL.push(r);
+      else upcoming.push(r);
+    }
+    upcoming.sort((a, b) => (dayOf(a) || "9999").localeCompare(dayOf(b) || "9999"));
+    overdueL.sort((a, b) => dayOf(a).localeCompare(dayOf(b)));
+    return { finishedToday, todayOpen, overdueL, upcoming };
+  }, [mine, todayKey]);
+
+  // Finished work sits on the bar at the time it was finished; the plan for what's
+  // left starts after it (and never before they logged in).
+  const doneBlocks = groups.finishedToday.flatMap((r) => {
+    const t = new Date(r.endAt || r.completionTime || "");
+    if (Number.isNaN(t.getTime()) || ymd(t) !== todayKey) return [];
+    const end = Math.min(SPAN_MIN, Math.max(0, (t.getHours() - WORK_START_H) * 60 + t.getMinutes()));
+    const dur = Math.min(rowDurMin(r), end);
+    return dur > 0 ? [{ start: end - dur, dur, row: r }] : [];
+  });
+  const lastDone = doneBlocks.reduce((m, b) => Math.max(m, b.start + b.dur), 0);
   const logins = useTodayLogins();
-  const { blocks, taskBlocks, free, overflow } = buildDayPlan(mine, member, logins[member.key]);
+  const planFrom = Math.max(logins[member.key] ?? 0, lastDone) || undefined;
+  const { blocks, taskBlocks, free, overflow } = buildDayPlan(groups.todayOpen, member, planFrom);
 
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
@@ -890,15 +922,69 @@ function PersonTimelineRow({ card }: {
   const focus = currentBlk || nextBlk;
 
   const freeH = Math.floor(free / 60);
-  const SLOT_MIN = 60;                                  // rough size of "one more task"
-  const roomForMore = Math.floor(free / SLOT_MIN);      // how many extra tasks would still fit today
-  // Badge: overbooked (tasks spilling to later this week) → red; fully booked → red;
-  // otherwise how much of the 9h day is still open.
-  const badge = overflow > 0
+  const allDoneToday = groups.todayOpen.length === 0 && groups.finishedToday.length > 0;
+  const badge = allDoneToday
+    ? { text: "Today's work done", cls: "bg-emerald-50 text-emerald-700" }
+    : overflow > 0
     ? { text: `Overbooked · ${overflow} spill over`, cls: "bg-rose-50 text-rose-700" }
     : free <= 0
     ? { text: "Fully booked", cls: "bg-rose-50 text-rose-700" }
     : { text: `${fmtDur(free)} free`, cls: freeH >= 2 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700" };
+
+  const dueLabel = (r: Row) => {
+    const d = (r.publishingDate || r.dueDate || "").slice(0, 10);
+    if (!d) return "No date";
+    if (d === todayKey) return "Today";
+    const dt = new Date(`${d}T00:00:00`);
+    return `${WEEKDAY_SHORT[dt.getDay()]} ${dt.getDate()} ${MONTH_SHORT[dt.getMonth()]}`;
+  };
+  const statusOf = (r: Row, overdueRow: boolean): { t: string; c: string } => {
+    if (DONE_STATUSES.includes(r.status)) return { t: "Completed", c: "bg-emerald-50 text-emerald-700" };
+    if (r.status === "Output - Ready") return { t: "Completed · in review", c: "bg-emerald-50 text-emerald-700" };
+    if (overdueRow) return { t: "Overdue", c: "bg-rose-50 text-rose-600" };
+    if (r.status === "Output - In Progress" || r.status === "Content - In Progress") return { t: "In progress", c: "bg-blue-50 text-blue-700" };
+    if (r.status === "Incorporating Feedback") return { t: "Fixing feedback", c: "bg-amber-50 text-amber-700" };
+    if (r.status === "Content - Needs Approval") return { t: "Waiting for approval", c: "bg-amber-50 text-amber-700" };
+    return { t: "Pending", c: "bg-gray-100 text-gray-600" };
+  };
+  const TaskTable = ({ title, rows: list, tone, overdueRows, more }: { title: string; rows: Row[]; tone?: string; overdueRows?: boolean; more?: number }) => (
+    <div className="mt-3 border-t border-gray-100 pt-3">
+      <div className={`text-[12px] uppercase tracking-wide font-semibold mb-1.5 ${tone || "text-gray-400"}`}>{title} <span className="normal-case tracking-normal font-normal text-gray-400">· {list.length + (more || 0)}</span></div>
+      <table className="w-full text-[13.5px] table-fixed">
+        <thead>
+          <tr className="text-left text-[11px] text-gray-400">
+            <th className="font-normal pb-1">Task</th>
+            <th className="font-normal pb-1 w-[24%]">Brand</th>
+            <th className="font-normal pb-1 w-[14%]">Due</th>
+            <th className="font-normal pb-1 w-[20%] text-right">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((r) => {
+            const st = statusOf(r, !!overdueRows);
+            const shoot = presentsOn(r, member);
+            return (
+              <tr key={r.id} className="border-t border-gray-50">
+                <td className="py-1.5 pr-2">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(r.type) }} />
+                    <span className={`truncate ${st.t.startsWith("Completed") ? "text-gray-500" : "text-gray-800 font-medium"}`} title={r.particulars}>{shoot ? "On camera · " : ""}{r.particulars || r.type || "Task"}</span>
+                  </span>
+                </td>
+                <td className="py-1.5 pr-2 text-gray-500 truncate">{r.sbu || "—"}</td>
+                <td className={`py-1.5 pr-2 tabular-nums whitespace-nowrap ${overdueRows ? "text-rose-600" : "text-gray-500"}`}>{dueLabel(r)}</td>
+                <td className="py-1.5 text-right"><span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${st.c}`}>{st.t}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {!!more && <div className="text-[12px] text-gray-400 mt-1">+{more} more later</div>}
+    </div>
+  );
+
+  const todayRows = [...groups.finishedToday, ...groups.todayOpen];
+  const UPCOMING_MAX = 6;
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4">
@@ -911,8 +997,8 @@ function PersonTimelineRow({ card }: {
         <span className={`ml-auto text-[11px] font-medium px-2.5 py-1 rounded-full ${badge.cls}`}>{badge.text}</span>
       </div>
 
-      {/* Timeline bar — matches My Day "Today's plan": tall 116px track, gradient
-          blocks with a name + "Type · duration" meta line, hatched lunch/free. */}
+      {/* Today's bar: finished work at the time it was finished (grey, ticked), then
+          the plan for what's left of today, around the 1–2 PM lunch. */}
       <div className="flex font-mono text-[11px] text-gray-400 mb-1.5 select-none px-px">
         {HOUR_TICKS.map((h, i) => <div key={i} className="flex-1 text-left">{h}</div>)}
       </div>
@@ -940,6 +1026,13 @@ function PersonTimelineRow({ card }: {
             </div>
           );
         })}
+        {doneBlocks.map((b) => (
+          <div key={`done-${b.row.id}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(b.start / SPAN_MIN) * 100}%`, width: `${(b.dur / SPAN_MIN) * 100}%` }}
+            className="min-w-0 flex flex-col justify-center px-3 bg-[#E4E8F0] text-[#6B7489] border-r border-white z-[1]" title={`${b.row.particulars} · completed`}>
+            <span className="text-[13px] font-medium leading-tight truncate flex items-center gap-1"><IconCheck size={13} stroke={2.2} className="text-emerald-600 flex-shrink-0" />{b.row.particulars || "Task"}</span>
+            <span className="text-[11px] mt-0.5 truncate">Completed</span>
+          </div>
+        ))}
         {nowPct != null && (
           <div className="absolute top-0 bottom-0 w-0.5 bg-[#DC2E2E] z-10" style={{ left: `${nowPct}%` }}>
             <span className="absolute -top-[3px] -left-[3px] w-2 h-2 rounded-full bg-[#DC2E2E]" />
@@ -947,65 +1040,19 @@ function PersonTimelineRow({ card }: {
         )}
       </div>
 
-      {/* Currently on / next */}
       <div className="mt-2 text-[13px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5">
         {focus
           ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle mr-1.5" />{currentBlk ? "Now" : "Next up"}: <b className="text-gray-900">{focus.label}</b></>
-          : <span className="text-gray-400">Nothing pending — all clear.</span>}
+          : allDoneToday
+          ? <span className="text-emerald-700">Everything due today is done.</span>
+          : <span className="text-gray-400">Nothing due today.</span>}
       </div>
 
-      {/* Task list — always visible: name · primary interest · time */}
-      {taskBlocks.length > 0 && (
-        <div className="mt-3 border-t border-gray-100 pt-3">
-          <div className="text-[12px] uppercase tracking-wide text-gray-400 font-semibold mb-2">
-            Today&apos;s tasks{overflow > 0 && <span className="normal-case tracking-normal text-rose-500"> · {overflow} more queued this week</span>}
-          </div>
-          <div className="space-y-2">
-            {taskBlocks.map((b, i) => (
-              <div key={i} className="flex items-center gap-2.5 text-[14px]">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundImage: blockGradient(b.row?.type || "") }} />
-                <span className="text-gray-800 font-medium truncate flex-1 min-w-0" title={b.label}>{i + 1}. {b.label}</span>
-                <span className="text-gray-500 flex-shrink-0 whitespace-nowrap">{b.row?.sbu || "—"}</span>
-                <span className="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{fmtDur(b.row && presentsOn(b.row, member) ? SHOOT_MIN : b.row ? rowDurMin(b.row) : 30)}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Capacity / free-time line — can this person take on more today? */}
-          <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200 flex items-center gap-2 text-[14px]">
-            {overflow > 0 ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-rose-500" />
-                <span className="text-rose-700 font-medium">Fully booked</span>
-                <span className="text-gray-500">— {overflow} task{overflow > 1 ? "s" : ""} pushed to later this week</span>
-              </>
-            ) : free > 0 ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-emerald-500" />
-                <span className="text-emerald-700 font-medium">Free time · {fmtDur(free)} open</span>
-                <span className="text-gray-500">
-                  — room for {roomForMore >= 1 ? `~${roomForMore} more task${roomForMore > 1 ? "s" : ""}` : "a short task"}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-amber-500" />
-                <span className="text-amber-700 font-medium">Fully booked for today</span>
-                <span className="text-gray-500">— no free slots left</span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* No tasks today — still surface that they're free to take work on */}
-      {taskBlocks.length === 0 && (
-        <div className="mt-3 border-t border-gray-100 pt-3 flex items-center gap-2 text-[14px]">
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-emerald-500" />
-          <span className="text-emerald-700 font-medium">Fully free today</span>
-          <span className="text-gray-500">— available for a full day of work</span>
-        </div>
-      )}
+      {todayRows.length > 0
+        ? <TaskTable title="Today" rows={todayRows} />
+        : <div className="mt-3 border-t border-gray-100 pt-3 text-[13.5px] text-gray-500">Nothing due today{taskBlocks.length === 0 && free > 0 ? ` — ${fmtDur(free)} free for new work` : ""}.</div>}
+      {groups.overdueL.length > 0 && <TaskTable title="Overdue" rows={groups.overdueL} tone="text-rose-500" overdueRows />}
+      {groups.upcoming.length > 0 && <TaskTable title="Coming up" rows={groups.upcoming.slice(0, UPCOMING_MAX)} more={Math.max(0, groups.upcoming.length - UPCOMING_MAX)} />}
 
       <div className="flex items-center justify-end gap-3 mt-2.5 pt-2.5 border-t border-gray-100 text-[11px] text-gray-500 tabular-nums">
         <span>Today <b className="text-gray-900">{today}</b></span>
