@@ -4309,7 +4309,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         </div>
 
         {/* Completed by me (22 Oct) — replaced "Tasks I created". Only this person's own
-            finished work (they are the owner), so Praveen sees his designs and Nandu his
+            finished work (owner, collaborator or on camera), so Praveen sees his designs and Nandu his
             videos — never each other's. Open one to see it read-only. */}
         {(() => {
           // `createdRows` comes from /api/my-day/created, which is already scoped to this
@@ -4384,7 +4384,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                       <div key={t.id} className={`task${openCreatedId === t.id ? " sel" : ""}`} style={{ cursor: "pointer" }} onClick={() => setOpenCreatedId(openCreatedId === t.id ? null : t.id)}>
                         <div className="task-top"><div className="tt">{t.title}</div><span className="lbl">{finishedOn(t)}</span></div>
                         <div className="mm" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          <span>{t.detail.typeLine} · {t.detail.brand}</span>
+                          <span>{t.detail.typeLine} · {t.detail.brand}{t.detail.ownerKey && t.detail.ownerKey !== person ? ` · ${t.detail.presenter === person ? "on camera" : "collaborator"}, owner ${t.detail.owner}` : ""}</span>
                           <span style={{ fontSize: 11.5, fontWeight: 500, color: isPub(t) ? "#2F9E6F" : "#3A57E8" }}>{isPub(t) ? "Published" : "Ready"}</span>
                           {t.detail.liveUrl && <a href={t.detail.liveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, color: "#3A57E8" }}>View post ↗</a>}
                         </div>

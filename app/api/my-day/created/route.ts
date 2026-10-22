@@ -91,7 +91,11 @@ export async function GET(req: Request) {
     const done = url.searchParams.get("mode") === "done";
     let q = sb.from("mh_posts").select(COLS);
     if (done) {
-      q = q.eq("owner_key", person).in("status", ["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
+      // Theirs = they own it, OR they worked on it as a collaborator or on camera.
+      const { data: collab } = await sb.from("mh_post_collaborators").select("post_id").eq("member_key", person).order("added_at", { ascending: false }).limit(400);   // newest 400 keeps the query short
+      const ids = [...new Set((collab || []).map((c) => c.post_id as string))];
+      const who = [`owner_key.eq.${person}`, `custom->>presenter_key.eq.${person}`, ...(ids.length ? [`id.in.(${ids.join(",")})`] : [])];
+      q = q.or(who.join(",")).in("status", ["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
       if (from) q = q.or(`end_at.gte.${from},and(end_at.is.null,publishing_date.gte.${from.slice(0, 10)})`);
       if (to) q = q.or(`end_at.lt.${to},and(end_at.is.null,publishing_date.lt.${to.slice(0, 10)})`);
     } else {
