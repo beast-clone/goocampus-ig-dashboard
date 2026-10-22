@@ -6,7 +6,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
-import { requestDateChange } from "@/lib/date-approvals";
+import { requestDateChange, supersedeDateChange } from "@/lib/date-approvals";
 import { needsDateApproval } from "@/lib/permissions";
 import { rosterById } from "@/lib/team-db";
 import { siblingOf } from "@/lib/notifications";
@@ -276,6 +276,8 @@ export async function PATCH(req: Request) {
         delete clean.due_date;
       }
     }
+    // Applied straight away → any older request for this post is out of date.
+    if ("publishing_date" in clean && !pendingApproval) await supersedeDateChange(sb, body.id, me || gateActor || "someone");
     // Date-only change with nothing else to save → stop here; the date is pending.
     if (pendingApproval && Object.keys(clean).length === 0) {
       return NextResponse.json({ id: body.id, pendingApproval, message: "Publish-date change sent to Maheen for approval." });

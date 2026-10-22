@@ -29,7 +29,7 @@ export type DateChangeRequest = {
   reason?: string;        // why they want it moved (from the requester)
   requestedBy: string;    // who is asking for the change
   requestedAt: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "superseded";
   resolvedBy?: string;
   resolvedAt?: string;
   resolvedNote?: string;   // the approver's note/reason on approve or reject
@@ -101,6 +101,20 @@ export async function requestDateChange(sb: SB, r: { postId: string; title: stri
     } catch { /* email is best-effort */ }
   }
   return payload;
+}
+
+// The date was changed directly after a request was parked (the person's approval
+// switch was turned off, or an admin moved it). The old request would otherwise sit
+// as "waiting for admin approval" under the real date — and approving it later would
+// move the date BACK (Karnataka NEET PG Cut Off, 22 Oct). Close it quietly.
+export async function supersedeDateChange(sb: SB, postId: string, by: string): Promise<void> {
+  const req = await getDateChange(sb, postId);
+  if (!req || req.status !== "pending") return;
+  const closed: DateChangeRequest = { ...req, status: "superseded", resolvedBy: by, resolvedAt: new Date().toISOString(), resolvedNote: "The date was changed directly." };
+  await sb.from("discover_cache").upsert(
+    { cache_key: KEY(postId), source: "mh_date_change_request", last_fetched: new Date().toISOString(), payload: closed },
+    { onConflict: "cache_key" },
+  );
 }
 
 export async function listPendingDateChanges(sb: SB): Promise<DateChangeRequest[]> {
