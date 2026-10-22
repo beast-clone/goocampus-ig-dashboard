@@ -146,7 +146,7 @@ function matchesTab(t: { status: string; detail: { typeLine: string } }, tab: Ta
 // `today` is its own state, not a flavour of overdue: work due today is still savable,
 // work that is late already isn't. They were rendered identically, so a task you could
 // still finish looked exactly like one you had already missed.
-function dueInfo(due: string, today: string): { label: string; overdue: boolean; today: boolean } {
+function dueInfo(due: string, today: string): { label: string; overdue: boolean; today: boolean; tomorrow?: boolean } {
   if (!due) return { label: "", overdue: false, today: false };
   const d = Math.round((new Date(due + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86_400_000);
   // The date itself leads, the relative part follows in brackets — "Due today" alone
@@ -154,7 +154,7 @@ function dueInfo(due: string, today: string): { label: string; overdue: boolean;
   const date = new Date(due + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
   if (d < 0) return { label: `${date} (${d === -1 ? "overdue · yesterday" : `overdue · ${-d} days`})`, overdue: true, today: false };
   if (d === 0) return { label: `${date} (due today)`, overdue: false, today: true };
-  if (d === 1) return { label: `${date} (due tomorrow)`, overdue: false, today: false };
+  if (d === 1) return { label: `${date} (due tomorrow)`, overdue: false, today: false, tomorrow: true };
   return { label: `${date} (in ${d} days)`, overdue: false, today: false };
 }
 // A reference the team drops on a task — either a URL (mood board, doc, tweet…) or
@@ -1107,92 +1107,89 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
     // only when asked for, so the brief and files get the whole width.
     <div className={`tb-d ${histOpen ? "hopen" : ""}`}>
     <div style={{ minWidth: 0 }}>
-      {/* Header — title + sub on the left, History button on the right; the status /
-          duration / start bar sits under the title. */}
-      <div className="d-head">
-        <div className="d-head-main">
-          {label && <div className="lbl" style={{ marginBottom: ".45rem" }}>{label}</div>}
-          <div className="d-sub">{task.detail.typeLine} · {task.detail.brand}</div>
-          <div className="d-title">{task.title}</div>
+      {/* One line on top (Praveen, 22 Oct): status, duration, Start, then Edit /
+          Reassign / Delete, with History & comments at the far right — every control the
+          same size as that button. The title sits under it as the real heading. */}
+      <div className="d-bar">
+          <div className="status-row">
+          {onStatusChange ? (
+            <StatusDropdown value={task.status} onChange={onStatusChange} />
+          ) : (
+            <span className="pill cap" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
+          )}
+          {onSetDuration && (
+            // Set duration is the PLAN — what the task should take. It is free to set
+            // BEFORE work starts, and locked once the clock is running: an accidental
+            // click on it must not be able to move the target. From then on the only
+            // way to add time is "+ Extend", which always asks why.
+            timing ? (
+              <span className="cap dur-locked" title={`Locked while the clock runs — use + Extend to add time (with a reason)`}>
+                {ICLOCK} {fmtMins(timing.planned)} {ILOCK}
+              </span>
+            ) : (
+              <DurationPicker value={task.detail.duration} open={durOpen} onOpenChange={(o) => { setDurOpen(o); if (!o) setStartAfterPick(false); }}
+                title={startAfterPick ? "How long will this take? The timer starts when you pick." : undefined}
+                onChange={(m) => {
+                  onSetDuration(m);
+                  if (startAfterPick) { setStartAfterPick(false); onStatusChange?.("Output - In Progress"); }
+                }} />
+            )
+          )}
+          {/* Stopwatch: Content-Approved → Start (begins the clock); running → Stop
+              (marks Output-Ready). Sits right after Set duration, per the agreed order. */}
+          {onStatusChange && task.status === "Content - Approved" && (
+            <button className="cap sw-btn start" title={task.detail.duration ? "Start working — starts the timer" : "Pick how long it will take, then the timer starts"}
+              onClick={() => {
+                // No time picked yet → ask for it first; the pick then starts the clock.
+                if (!task.detail.duration && onSetDuration) { setStartAfterPick(true); setDurOpen(true); return; }
+                onStatusChange("Output - In Progress");
+              }}>{IPLAY} Start</button>
+          )}
+          {/* "Stop" said one thing and did another — it marked the task finished. Next
+              to a running clock that reads as "stop the timer", which is how a task
+              nobody had finished got marked Output-Ready. It says Done now. */}
+          {onStatusChange && timing && (
+            <button className="cap sw-btn stop" title="Finished — marks it Output Ready and stops the clock" onClick={() => onStatusChange("Output - Ready")}>{ISTOP} Done</button>
+          )}
+          {/* The way out of an accidental start. Opening a task starts it, so there has
+              to be one obvious button that says "I'm not working on this" — putting it
+              back where it was and wiping the clock, in a single click. */}
+          {onStatusChange && timing && (
+            <button className="cap sw-btn cancel" title="Not working on this — put it back and clear the clock"
+              onClick={async () => {
+                if (!(await confirmDialog({
+                  title: "Not working on this?",
+                  body: `The clock will be cleared (${fmtMins(timing.elapsed)} so far) and the task goes back to ${STATUS["Content - Approved"].label}. Nothing else changes.`,
+                  action: "Put it back",
+                }))) return;
+                onStatusChange("Content - Approved");
+              }}>{<IconX size={12} stroke={2.4} />} Cancel</button>
+          )}
+          {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
+          {timing && (
+            <span className={`cap cap-timer ${timing.elapsed >= timing.planned ? "over" : ""}`} title="Time left vs the planned duration">
+              {ICLOCK} {timing.elapsed >= timing.planned ? `+${fmtMins(timing.elapsed - timing.planned)} over` : `${fmtMins(timing.planned - timing.elapsed)} left`}
+            </span>
+          )}
         </div>
+        <div className="d-tools">
+              {canEdit && !editing && <button className="btn sm" onClick={() => { setEditing(true); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
+              {canEdit && editing && <>
+                <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
+                <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); }}>Cancel</button>
+              </>}
+              {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
+              {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
+            </div>
         <button type="button" className={`btn sm hist-btn ${histOpen ? "on" : ""}`} onClick={() => setHistOpen((v) => !v)}><IconHistory size={14} stroke={1.8} /> History &amp; comments</button>
       </div>
-      <div className="d-actions">
-        <div className="status-box">
-          <div className="status-row">
-            {onStatusChange ? (
-              <StatusDropdown value={task.status} onChange={onStatusChange} />
-            ) : (
-              <span className="pill cap" style={{ background: tone.bg, color: tone.fg }}>{STATUS[task.status].label}</span>
-            )}
-            {onSetDuration && (
-              // Set duration is the PLAN — what the task should take. It is free to set
-              // BEFORE work starts, and locked once the clock is running: an accidental
-              // click on it must not be able to move the target. From then on the only
-              // way to add time is "+ Extend", which always asks why.
-              timing ? (
-                <span className="cap dur-locked" title={`Locked while the clock runs — use + Extend to add time (with a reason)`}>
-                  {ICLOCK} {fmtMins(timing.planned)} {ILOCK}
-                </span>
-              ) : (
-                <DurationPicker value={task.detail.duration} open={durOpen} onOpenChange={(o) => { setDurOpen(o); if (!o) setStartAfterPick(false); }}
-                  title={startAfterPick ? "How long will this take? The timer starts when you pick." : undefined}
-                  onChange={(m) => {
-                    onSetDuration(m);
-                    if (startAfterPick) { setStartAfterPick(false); onStatusChange?.("Output - In Progress"); }
-                  }} />
-              )
-            )}
-            {/* Stopwatch: Content-Approved → Start (begins the clock); running → Stop
-                (marks Output-Ready). Sits right after Set duration, per the agreed order. */}
-            {onStatusChange && task.status === "Content - Approved" && (
-              <button className="cap sw-btn start" title={task.detail.duration ? "Start working — starts the timer" : "Pick how long it will take, then the timer starts"}
-                onClick={() => {
-                  // No time picked yet → ask for it first; the pick then starts the clock.
-                  if (!task.detail.duration && onSetDuration) { setStartAfterPick(true); setDurOpen(true); return; }
-                  onStatusChange("Output - In Progress");
-                }}>{IPLAY} Start</button>
-            )}
-            {/* "Stop" said one thing and did another — it marked the task finished. Next
-                to a running clock that reads as "stop the timer", which is how a task
-                nobody had finished got marked Output-Ready. It says Done now. */}
-            {onStatusChange && timing && (
-              <button className="cap sw-btn stop" title="Finished — marks it Output Ready and stops the clock" onClick={() => onStatusChange("Output - Ready")}>{ISTOP} Done</button>
-            )}
-            {/* The way out of an accidental start. Opening a task starts it, so there has
-                to be one obvious button that says "I'm not working on this" — putting it
-                back where it was and wiping the clock, in a single click. */}
-            {onStatusChange && timing && (
-              <button className="cap sw-btn cancel" title="Not working on this — put it back and clear the clock"
-                onClick={async () => {
-                  if (!(await confirmDialog({
-                    title: "Not working on this?",
-                    body: `The clock will be cleared (${fmtMins(timing.elapsed)} so far) and the task goes back to ${STATUS["Content - Approved"].label}. Nothing else changes.`,
-                    action: "Put it back",
-                  }))) return;
-                  onStatusChange("Content - Approved");
-                }}>{<IconX size={12} stroke={2.4} />} Cancel</button>
-            )}
-            {/* LIVE COUNTDOWN capsule — same height as the others; only while running */}
-            {timing && (
-              <span className={`cap cap-timer ${timing.elapsed >= timing.planned ? "over" : ""}`} title="Time left vs the planned duration">
-                {ICLOCK} {timing.elapsed >= timing.planned ? `+${fmtMins(timing.elapsed - timing.planned)} over` : `${fmtMins(timing.planned - timing.elapsed)} left`}
-              </span>
-            )}
-          </div>
-        </div>
+      <div className="d-head-main">
+        {label && <div className="lbl" style={{ marginBottom: ".35rem" }}>{label}</div>}
+        <div className="d-sub">{task.detail.typeLine} · {task.detail.brand}</div>
+        <div className="d-title">{task.title}</div>
       </div>
 
       <>
-          <div className="d-tools">
-            {canEdit && !editing && <button className="btn sm" onClick={() => { setEditing(true); setAssigning(false); setConfirmDel(false); setEditField(null); }}><IconPencil size={14} stroke={1.8} /> Edit</button>}
-            {canEdit && editing && <>
-              <button className="btn sm primary" disabled={busy} onClick={saveEdit}>{busy ? "Saving…" : "Save changes"}</button>
-              <button className="btn sm" onClick={() => { setEditing(false); setEditField(null); setPrio(task.detail.priority); setDue(task.due || ""); }}>Cancel</button>
-            </>}
-            {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
-            {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
-          </div>
 
 
 
@@ -1527,7 +1524,7 @@ function DurationPicker({ value, onChange, open: openProp, onOpenChange, title }
   };
   const chipStyle = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 500, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: on ? "1px solid #3A57E8" : "1px solid #E6E8EE", background: on ? "#3A57E8" : "#fff", color: on ? "#fff" : "#232D42" });
   const S: Record<string, React.CSSProperties> = {
-    trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: value ? "#232D42" : "#8A92A6", background: "#fff", border: "1px solid #E6E8EE", borderRadius: 8, padding: "0 10px", height: 36, boxSizing: "border-box", cursor: "pointer", whiteSpace: "nowrap" },
+    trigger: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, color: value ? "#232D42" : "#8A92A6", background: "#fff", border: "1px solid #E6E8EE", borderRadius: 9, padding: "0 12px", height: 36, boxSizing: "border-box", cursor: "pointer", whiteSpace: "nowrap" },
     pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 60, background: "#fff", border: "1px solid #E6E8EE", borderRadius: 12, padding: 12, width: 244, boxShadow: "0 8px 24px rgba(20,30,60,.10)", textAlign: "left" },
     chips: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 },
     row: { display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid #F0F1F5", paddingTop: 10 },
@@ -4223,7 +4220,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : di.today ? "duetoday" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : di.today ? "duetoday" : di.tomorrow ? "duetomorrow" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
                     {/* Two columns: the task on the left, its dates and state stacked on
                         the right. The status pill used to sit after the meta text, so it
                         landed at a different spot on every row — now due and status line

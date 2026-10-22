@@ -1097,4 +1097,26 @@ html[data-theme="dark"] .hmd{
 .hmd .headband.hb-d{align-items:center}
 .hmd .hb-nums{align-items:center}
 .hmd .hb-report{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;align-self:center}
+
+/* Task panel (Praveen, 22 Oct): one line of controls on top, all the size of the
+   History & comments button; the title under it is the heading. */
+.hmd .d-bar{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;padding-bottom:.9rem;margin-bottom:1rem;border-bottom:1px solid var(--line)}
+.hmd .d-bar .status-row{justify-content:flex-start;gap:.4rem;flex-wrap:wrap}
+.hmd .d-bar .d-tools{margin:0;gap:.4rem}
+.hmd .d-bar .hist-btn{margin-left:auto}
+.hmd .d-bar .btn.sm,.hmd .d-bar .cap,.hmd .d-bar .sw-btn,.hmd .d-bar .status-dd-btn{height:34px;font-size:13px;padding:0 .8rem;border-radius:9px;line-height:1;box-sizing:border-box}
+.hmd .d-bar .status-dd-btn,.hmd .d-bar .ui-dd-btn{padding-right:1.7rem}
+.hmd .d-bar .ui-dd-btn,.hmd .d-bar .cap *{font-size:13px}
+.hmd .d-bar .d-tools .btn.sm:not(.primary){border:1px solid var(--line) !important;background:var(--panel);color:var(--ink-soft)}
+.hmd .d-bar .d-tools .btn.sm:not(.primary):hover{background:var(--panel-2)}
+.hmd .tb-d .d-head-main .d-sub{font-size:13px;margin:0 0 .3rem}
+.hmd .tb-d .d-head-main .d-title{font-size:24px;font-weight:500;line-height:1.25;letter-spacing:-.01em}
+
+/* Due-date tint on the task list — a soft wash from the left, not a red row:
+   overdue and due today in red, due tomorrow in amber (22 Oct). */
+.hmd .task.overdue{background:linear-gradient(90deg,rgba(225,29,72,.13),rgba(225,29,72,0) 60%)}
+.hmd .task.duetoday{background:linear-gradient(90deg,rgba(225,29,72,.08),rgba(225,29,72,0) 55%)}
+.hmd .task.duetomorrow{background:linear-gradient(90deg,rgba(183,121,31,.10),rgba(183,121,31,0) 55%)}
+.hmd .task.overdue:hover,.hmd .task.duetoday:hover,.hmd .task.duetomorrow:hover{background-color:var(--panel-2)}
+.hmd .task.sel.overdue,.hmd .task.sel.duetoday,.hmd .task.sel.duetomorrow{background:var(--brand-soft)}
 `;
