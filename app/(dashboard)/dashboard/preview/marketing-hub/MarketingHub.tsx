@@ -664,7 +664,11 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
     for (const r of mine) {
       const pd = r.publishingDate?.slice(0, 10) || "";
       const dd = r.dueDate?.slice(0, 10) || "";
-      const isDone = DONE_STATUSES.includes(r.status);
+      // Output - Ready is finished as far as the person who made it is concerned — it is
+      // waiting on Content Review, not on them — so it no longer counts as their
+      // today / this week / overdue work (Praveen, 22 Oct). A rejected task is not work
+      // anyone owes either — it was counting as overdue.
+      const isDone = DONE_STATUSES.includes(r.status) || r.status === "Output - Ready" || r.status === "Rejected/Not Published";
       if (pd === today && !isDone) today_ += 1;
       // "This week" = Monday through Friday of the current work-week.
       if (pd && pd >= weekStart && pd <= weekEnd && !isDone) week += 1;
