@@ -20,7 +20,13 @@ export const dynamic = "force-dynamic";
 const COLS =
   "id, particulars, type, status, sbu, owner_key, priority, content, caption, media_urls, publishing_date, due_date, updated_at, reference_links, output_link, created_at, start_at, end_at, duration_min, custom, created_by, instagram_url, facebook_url";
 
-const CREATED_RANGES = ["this-month", "last-month", "3m", "6m", "year", "all", "custom"] as const;
+const CREATED_RANGES = ["today", "yesterday", "2d", "7d", "30d", "this-month", "last-month", "3m", "6m", "year", "all", "custom", "dates"] as const;
+
+// Day-based windows are IST days (22 Oct) — the server clock is UTC, the team's day isn't.
+const istDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(d);
+const istStart = (ymd: string) => new Date(`${ymd}T00:00:00+05:30`).toISOString();
+const istDaysAgo = (n: number, now: Date) => istStart(istDay(new Date(now.getTime() - n * 86_400_000)));
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
 type CreatedRange = (typeof CREATED_RANGES)[number];
 
 // "custom" = the last N hours or days, counted back from right now. Bounded so a typo
@@ -39,6 +45,11 @@ function windowFor(range: string, now = new Date(), custom?: { amount: number; u
   const startOfMonth = (y: number, m: number) => new Date(y, m, 1, 0, 0, 0, 0).toISOString();
   const y = now.getFullYear(), m = now.getMonth();
   switch (range) {
+    case "today": return { from: istDaysAgo(0, now), to: null };
+    case "yesterday": return { from: istDaysAgo(1, now), to: istDaysAgo(0, now) };
+    case "2d": return { from: istDaysAgo(1, now), to: null };     // today + yesterday
+    case "7d": return { from: istDaysAgo(6, now), to: null };
+    case "30d": return { from: istDaysAgo(29, now), to: null };
     case "this-month": return { from: startOfMonth(y, m), to: null };
     case "last-month": return { from: startOfMonth(y, m - 1), to: startOfMonth(y, m) };
     case "3m": return { from: startOfMonth(y, m - 2), to: null };   // this month + the 2 before it
@@ -84,7 +95,15 @@ export async function GET(req: Request) {
     const range: CreatedRange = (CREATED_RANGES as readonly string[]).includes(raw) ? (raw as CreatedRange) : "3m";
 
     const custom = range === "custom" ? customFrom(url) : undefined;
-    const { from, to } = windowFor(range, new Date(), custom);
+    let { from, to } = windowFor(range, new Date(), custom);
+    // "Pick dates…": a From–To range of IST days, both ends included.
+    if (range === "dates") {
+      const f = url.searchParams.get("from") || "", t = url.searchParams.get("to") || f;
+      if (YMD.test(f)) {
+        from = istStart(f);
+        to = YMD.test(t) ? new Date(new Date(istStart(t)).getTime() + 86_400_000).toISOString() : null;
+      }
+    }
     // mode=done (22 Oct): "Completed by me" replaced "Tasks I created" on My Day —
     // the person's OWN finished work (owner = them), dated by when it was finished
     // (end_at; older rows without one fall back to their publishing date).
@@ -96,8 +115,8 @@ export async function GET(req: Request) {
       const ids = [...new Set((collab || []).map((c) => c.post_id as string))];
       const who = [`owner_key.eq.${person}`, `custom->>presenter_key.eq.${person}`, ...(ids.length ? [`id.in.(${ids.join(",")})`] : [])];
       q = q.or(who.join(",")).in("status", ["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
-      if (from) q = q.or(`end_at.gte.${from},and(end_at.is.null,publishing_date.gte.${from.slice(0, 10)})`);
-      if (to) q = q.or(`end_at.lt.${to},and(end_at.is.null,publishing_date.lt.${to.slice(0, 10)})`);
+      if (from) q = q.or(`end_at.gte.${from},and(end_at.is.null,publishing_date.gte.${istDay(new Date(from))})`);
+      if (to) q = q.or(`end_at.lt.${to},and(end_at.is.null,publishing_date.lt.${istDay(new Date(to))})`);
     } else {
       q = q.eq("created_by", person);
       if (from) q = q.gte("created_at", from);

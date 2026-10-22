@@ -1,5 +1,6 @@
 "use client";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
@@ -1468,15 +1469,21 @@ function SwapCandidateRow({ c, defaultDate, onMove }: { c: SwapCand; defaultDate
 // "Tasks I created" — the window the card measures over. The keys are the ones
 // /api/my-day/created's windowFor() understands; `empty` finishes the sentence
 // "You haven't created anything …" when a window comes back with nothing.
-type CreatedRange = "this-month" | "last-month" | "3m" | "6m" | "year" | "all" | "custom";
+type CreatedRange = "today" | "yesterday" | "2d" | "7d" | "30d" | "this-month" | "last-month" | "3m" | "6m" | "year" | "all" | "custom" | "dates";
 const CREATED_RANGE_OPTIONS: { value: CreatedRange; label: string; empty: string }[] = [
+  { value: "today", label: "Today", empty: "today" },
+  { value: "yesterday", label: "Yesterday", empty: "yesterday" },
+  { value: "2d", label: "Last 2 days", empty: "in the last 2 days" },
+  { value: "7d", label: "Last 7 days", empty: "in the last 7 days" },
+  { value: "30d", label: "Last 30 days", empty: "in the last 30 days" },
   { value: "this-month", label: "This month", empty: "this month" },
   { value: "last-month", label: "Last month", empty: "last month" },
   { value: "3m", label: "Last 3 months", empty: "in the last 3 months" },
   { value: "6m", label: "Last 6 months", empty: "in the last 6 months" },
   { value: "year", label: "This year", empty: "this year" },
   { value: "all", label: "All time", empty: "yet" },
-  { value: "custom", label: "Custom…", empty: "in that window" },
+  { value: "custom", label: "Last … hours / days", empty: "in that window" },
+  { value: "dates", label: "Pick dates…", empty: "between those dates" },
 ];
 // The custom window is a ROLLING one — "last 6 hours" means the last 6 hours, not
 // since 6 AM. Capped server-side at 2 years either way; these are the same caps so the
@@ -1961,6 +1968,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [createdAmtText, setCreatedAmtText] = useState("7");
   const [createdAmt, setCreatedAmt] = useState(7);
   const [createdUnit, setCreatedUnit] = useState<"hours" | "days">("days");
+  // "Pick dates…" — a From–To range of days (IST), both included.
+  const istToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  const [createdFrom, setCreatedFrom] = useState(istToday);
+  const [createdTo, setCreatedTo] = useState(istToday);
   // Type / SBU narrowing. Applied in the browser over the rows already fetched for the
   // window — instant, and the tab counts follow them.
   const [createdType, setCreatedType] = useState<string>("all");
@@ -2236,13 +2247,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       // mode=done: the person's own finished work, not what they created (22 Oct).
       const qs = new URLSearchParams({ person, range: createdRange, mode: "done" });
       if (createdRange === "custom") { qs.set("amount", String(createdAmt)); qs.set("unit", createdUnit); }
+      if (createdRange === "dates") { qs.set("from", createdFrom); qs.set("to", createdTo || createdFrom); }
       const r = await fetch(`/api/my-day/created?${qs}`, { cache: "no-store" });
       if (!r.ok) return; // keep the last good list rather than blanking the card
       const d = await r.json();
       setCreatedRows((d.created as Task[]) || []);
       setCreatedCapped(d.capped === true);
     } catch { /* keep whatever we last had */ } finally { setCreatedBusy(false); }
-  }, [person, createdRange, createdAmt, createdUnit]);
+  }, [person, createdRange, createdAmt, createdUnit, createdFrom, createdTo]);
   useEffect(() => { loadCreated(); }, [loadCreated]);
   // Typing "30" shouldn't fire a query for "3" on the way. Settle for a beat, then
   // commit the number (blank or junk falls back to 1, the smallest real window).
@@ -4240,6 +4252,17 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                       options={[{ value: "hours", label: "hours" }, { value: "days", label: "days" }]} />
                   </label>
                 )}
+                {createdRange === "dates" && (<>
+                  <label className="created-f">
+                    <span className="created-f-lbl">From</span>
+                    <PreviewDatePicker value={createdFrom} max={createdTo || undefined} allowClear={false}
+                      onChange={(v) => { setCreatedFrom(v); if (createdTo && v > createdTo) setCreatedTo(v); }} />
+                  </label>
+                  <label className="created-f">
+                    <span className="created-f-lbl">To</span>
+                    <PreviewDatePicker value={createdTo} min={createdFrom || undefined} allowClear={false} onChange={setCreatedTo} />
+                  </label>
+                </>)}
                 <label className="created-f">
                   <span className="created-f-lbl">Type</span>
                   <PreviewSelect className="created-type" value={createdType} onChange={setCreatedType}
