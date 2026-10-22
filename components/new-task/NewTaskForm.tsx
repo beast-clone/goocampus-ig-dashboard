@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AutoTextarea } from "@/components/AutoTextarea";
+import { useDraft } from "@/lib/use-draft";
 import { IconX } from "@tabler/icons-react";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
@@ -145,6 +146,9 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   const [priority, setPriority] = useState<"Urgent" | "High" | "Medium" | "Low">("Medium");
   const [status, setStatus] = useState<NewTaskStatus>("Content - Pending");
   const [content, setContent] = useState("");
+  // A half-written task survives a closed tab (22 Oct).
+  const titleDraft = useDraft(`newtask-title:${writer}`, title, setTitle);
+  const contentDraft = useDraft(`newtask-content:${writer}`, content, setContent);
   // Pre-filled when the host already knows the date — the Content Calendar's "+" on
   // a day means the writer has picked it by clicking there. Everywhere else it starts
   // empty: the writer sets it, there is no auto-date.
@@ -203,6 +207,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
     // "Content - Pending" on the writer, and the host moves it on afterwards through
     // the same status route the board uses — so the Content-Approved handoff fires
     // exactly as this form's routing preview promised, and only once.
+    titleDraft.clear(); contentDraft.clear();
     onCreate({
       title: title.trim(),
       type, sbu, priority, status,
@@ -230,7 +235,8 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         </div>
         <button className="nt-x" onClick={onClose} title="Close without creating"><IconX size={14} stroke={2} /></button>
       </div>
-      <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" /></div>
+      <div className="nt-field"><label className="nt-label">Particulars <span className="nt-req">required</span></label><input className="nt-input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AMC Exam Guide — Thumbnail" />
+        {(titleDraft.restored || contentDraft.restored) && <div className="nt-hint" style={{ display: "block", marginTop: 4 }}>Restored your unsaved draft · <button type="button" style={{ border: "none", background: "none", color: "#3A57E8", cursor: "pointer", padding: 0, font: "inherit" }} onClick={() => { titleDraft.discard(); contentDraft.discard(); }}>Discard</button></div>}</div>
       <div className="nt-row">
         <div className="nt-field"><label className="nt-label">Type</label><MenuDropdown wide align="left" value={type} onChange={setType} options={CC_TYPES.map((t) => ({ value: t, label: t }))} /></div>
         <div className="nt-field"><label className="nt-label">Priority</label><MenuDropdown wide align="left" value={priority} onChange={(v) => setPriority(v as "Urgent" | "High" | "Medium" | "Low")} options={["Urgent", "High", "Medium", "Low"].map((p) => ({ value: p, label: p }))} /></div>

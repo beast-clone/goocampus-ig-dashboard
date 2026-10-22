@@ -12,6 +12,7 @@ import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
 import { uploadTaskFile } from "@/lib/upload-task-file";
+import { useDraft } from "@/lib/use-draft";
 import { PdfThumb, isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
 import { ClampBox } from "@/components/ClampBox";
@@ -481,6 +482,7 @@ const refHref = (s?: string | null): string | undefined =>
 function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: RefItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
   const [refs, setRefs] = useState<RefItem[]>(initial);
   const [url, setUrl] = useState("");
+  const urlDraft = useDraft(`reflink:${postId}`, url, setUrl);
   const [busy, setBusy] = useState(false);
   const currentLinks = () => refs.filter((r) => r.kind === "link" && r.url).map((r) => r.url!) as string[];
   const saveLinks = (links: string[]) =>
@@ -488,7 +490,7 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
   const addUrl = async () => {
     const raw = url.trim(); if (!raw) return;
     const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-    setUrl("");
+    setUrl(""); urlDraft.clear();
     setRefs((r) => [...r, { kind: "link", label: raw.replace(/^https?:\/\//i, ""), url: href }]);
     await saveLinks([...currentLinks(), href]); onSaved();
   };
@@ -566,6 +568,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   const [preview, setPreview] = useState<number | null>(null);
   const [link, setLink] = useState(outputLink || "");   // the output link (Drive/Canva) — output_link
   const [linkInput, setLinkInput] = useState("");
+  const linkDraft = useDraft(`outlink:${postId}`, linkInput, setLinkInput);
   const viewable = creatives.filter((c) => c.url && c.type !== "doc");
   const saveLink = async (url: string) => {
     setLink(url);
@@ -574,7 +577,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   };
   const addLink = () => {
     const raw = linkInput.trim(); if (!raw) return;
-    setLinkInput("");
+    setLinkInput(""); linkDraft.clear();
     saveLink(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
   };
   const addFiles = async (files: FileList | null) => {
@@ -3784,6 +3787,16 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // one click away.
   const [remOpenGroup, setRemOpenGroup] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  // Back to the task you had open (22 Oct): remembered per person in this browser,
+  // reopened once when My Day loads.
+  const OPEN_KEY = `gc-myday-open:${person}`;
+  const reopened = useRef(false);
+  useEffect(() => {
+    if (reopened.current || sel !== null || !shownTasks.length) return;
+    reopened.current = true;
+    try { const id = localStorage.getItem(OPEN_KEY); const i = id ? shownTasks.findIndex((t) => t.id === id) : -1; if (i >= 0) setSel(i); } catch { /* */ }
+  }, [shownTasks]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!task) return; try { localStorage.setItem(OPEN_KEY, task.id); } catch { /* */ } }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const dueTodayN = workingTasks.filter((t) => t.due === todayStr).length;
   // Today / Tomorrow / Later group headings in the list (prototype D) — only when the
   // list is in date order, where the groups follow each other.

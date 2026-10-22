@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { IconLock } from "@tabler/icons-react";
 import { canSeeTab, tabForUrl, type Permissions, type Sections } from "@/lib/permissions";
@@ -12,6 +12,20 @@ export function TabGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
   const search = useSearchParams()?.toString() || "";
   const [me, setMe] = useState<{ isAdmin?: boolean; sections?: Sections; permissions?: Permissions } | null>(null);
+  const router = useRouter();
+  // Back to where you were (22 Oct): remember the page you're on; the first time the
+  // dashboard opens in a browser session on the plain home page — which is where
+  // signing in lands — go straight back to it, the way Chrome restores tabs.
+  useEffect(() => {
+    const here = pathname + (search ? `?${search}` : "");
+    try {
+      const first = !sessionStorage.getItem("gc-session-started");
+      sessionStorage.setItem("gc-session-started", "1");
+      const last = localStorage.getItem("gc-last-page");
+      if (first && pathname === "/dashboard/preview" && last && last !== here && last.startsWith("/dashboard/preview")) { router.replace(last); return; }
+      localStorage.setItem("gc-last-page", here);
+    } catch { /* private mode */ }
+  }, [pathname, search]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let alive = true;
     fetch("/api/me", { cache: "no-store" }).then((r) => r.json())

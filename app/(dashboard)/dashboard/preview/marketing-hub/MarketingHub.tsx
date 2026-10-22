@@ -1,5 +1,6 @@
 "use client";
 import { onDayPlan } from "@/lib/my-day-task";
+import { useDraft } from "@/lib/use-draft";
 import { Fragment, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SyncFromAirtable } from "./SyncFromAirtable";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -3504,6 +3505,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
 
   // Post a comment as the selected author (the "acting as" picker).
   const [commentText, setCommentText] = useState("");
+  const commentDraft = useDraft(`comment:${postId}`, commentText, setCommentText);
   const [posting, setPosting] = useState(false);
   const postComment = async () => {
     const text = commentText.trim();
@@ -3515,7 +3517,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
         body: JSON.stringify({ postId, authorKey: author, body: text }),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); onError((j as { error?: string }).error || "couldn't post that comment"); return; }
-      setCommentText("");
+      setCommentText(""); commentDraft.clear();
       await reload();
     } finally { setPosting(false); }
   };
@@ -3624,6 +3626,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); postComment(); } }}
               placeholder="Leave a comment…  (⌘/Ctrl + Enter to post)"
               className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-[14.5px] resize-none outline-none focus:border-brand" />
+            {commentDraft.restored && <div className="text-[11.5px] text-[#8A92A6] mt-1">Restored your unsaved draft · <button type="button" className="text-brand hover:underline" onClick={commentDraft.discard}>Discard</button></div>}
             <div className="flex justify-end mt-2">
               <button onClick={postComment} disabled={posting || !commentText.trim()}
                 className="bg-brand text-white text-[12px] font-medium rounded-lg px-4 py-1.5 hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed">
