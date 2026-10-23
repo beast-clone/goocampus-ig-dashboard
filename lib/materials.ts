@@ -1,5 +1,7 @@
-// Marketing Materials (Praveen, 23 Oct 2026): six tabs copied from the Airtable
+// Sidebar "Marketing Hub" (Praveen, 23 Oct 2026): tabs copied from the Airtable
 // Marketing Hub base (scripts/import-marketing-materials.mjs) and edited here only.
+// Meetings was copied too (mm_meetings, 607 rows kept) but taken off the sidebar the
+// same day at Praveen's request.
 // One description per tab drives both the API (which columns may be written) and the
 // page (table columns, the edit window, totals). Tables: sql/marketing_materials.sql.
 
@@ -11,7 +13,7 @@ export type MField = {
   /** Choices to offer; values already used on the tab are offered too. */
   options?: string[];
 };
-export type MTabKey = "expenses" | "photos" | "materials" | "promotions" | "subscriptions" | "meetings";
+export type MTabKey = "expenses" | "photos" | "materials" | "promotions" | "subscriptions";
 export type MTab = {
   key: MTabKey; label: string; table: string; intro: string;
   /** Item word for buttons and counts ("Add expense", "26 expenses"). */
@@ -82,16 +84,6 @@ export const MTABS: MTab[] = [
       { key: "amount", label: "Amount", type: "money", col: true },
       { key: "billing", label: "Paid by", type: "select", col: true },
       { key: "status", label: "Status", type: "select", col: true, options: ["Still in use", "Discontinued"] },
-    ] },
-  { key: "meetings", label: "Meetings", table: "mm_meetings", noun: "meeting", nounPlural: "meetings",
-    intro: "Minutes of every team meeting — who was in it and what was decided.",
-    sort: { col: "meeting_date", asc: false }, date: "meeting_date",
-    fields: [
-      { key: "title", label: "Meeting", type: "text" },
-      { key: "meeting_date", label: "Date", type: "date", col: true },
-      { key: "attendees", label: "Attendees", type: "multi", col: true },
-      { key: "cross_functional", label: "Cross-team", type: "bool", col: true },
-      { key: "minutes", label: "Minutes", type: "longtext" },
     ] },
 ];
 

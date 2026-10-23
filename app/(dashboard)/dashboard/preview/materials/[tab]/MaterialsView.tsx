@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   IconPlus, IconSearch, IconX, IconPaperclip, IconCheck, IconTrash, IconFileText, IconReceipt, IconPhoto,
-  IconFileDescription, IconSpeakerphone, IconRepeat, IconNotes, IconCalendar, IconCurrencyRupee, IconListNumbers,
+  IconFileDescription, IconSpeakerphone, IconRepeat, IconCalendar, IconCurrencyRupee, IconListNumbers,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -23,12 +23,15 @@ import { type MTab, type MField } from "@/lib/materials";
 type MFile = { url: string; name: string; mime?: string; size?: number };
 type Row = Record<string, unknown> & { id: string };
 
-const ICONS = { expenses: IconReceipt, photos: IconPhoto, materials: IconFileDescription, promotions: IconSpeakerphone, subscriptions: IconRepeat, meetings: IconNotes };
+const ICONS = { expenses: IconReceipt, photos: IconPhoto, materials: IconFileDescription, promotions: IconSpeakerphone, subscriptions: IconRepeat };
 const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const fmtDate = (d: unknown) => (typeof d === "string" && d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const thisMonth = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date()).slice(0, 7);
 const filesOf = (r: Row | Record<string, unknown>): MFile[] => (Array.isArray(r.files) ? (r.files as MFile[]) : []);
 const isImage = (f: MFile) => (f.mime || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(f.name);
+// A small copy of a stored image for tiles (the photos are ~7 MB each); anything not
+// in our storage is shown as is.
+const thumbUrl = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=400&quality=70` : u);
 const fileKind = (f: MFile): FileTile["kind"] => (isImage(f) ? "image" : isPdf(f.url, f.mime) ? "pdf" : (f.mime || "").startsWith("video/") ? "video" : "file");
 
 export function MaterialsView({ tab }: { tab: MTab }) {
@@ -37,7 +40,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<Row | "new" | null>(null);
-  const [shown, setShown] = useState(100);
+  const page = tab.grid ? 48 : 100;   // picture tiles are heavier than table rows
+  const [shown, setShown] = useState(page);
 
   const load = async () => {
     const r = await fetch(`/api/materials/${tab.key}`).catch(() => null);
@@ -72,7 +76,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
       });
     });
   }, [rows, q, filters, tab]);
-  useEffect(() => { setShown(100); }, [q, filters]);
+  useEffect(() => { setShown(page); }, [q, filters, page]);
 
   const Icon = ICONS[tab.key];
   return (
@@ -111,7 +115,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
               )}
               {list.length > shown && (
                 <div className="px-4 py-3 border-t border-gray-100 text-center">
-                  <button onClick={() => setShown((n) => n + 100)} className="text-[13px] text-brand font-medium hover:underline">Show more ({list.length - shown} left)</button>
+                  <button onClick={() => setShown((n) => n + page)} className="text-[13px] text-brand font-medium hover:underline">Show more ({list.length - shown} left)</button>
                 </div>
               )}
             </div>
@@ -228,7 +232,8 @@ function Table({ tab, rows, all, onOpen }: { tab: MTab; rows: Row[]; all: Row[];
 
 function Thumb({ file }: { file?: MFile }) {
   if (!file) return <div className="h-full grid place-items-center text-[#C2C8D6]"><IconPhoto size={26} stroke={1.5} /></div>;
-  if (isImage(file)) return <div className="h-full bg-cover bg-center" style={{ backgroundImage: `url(${file.url})` }} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  if (isImage(file)) return <img src={thumbUrl(file.url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />;
   if (isPdf(file.url, file.mime)) return <PdfThumb url={file.url} width={240} fallback={<div className="h-full grid place-items-center text-[#8A92A6]"><IconFileText size={26} stroke={1.5} /></div>} />;
   return <div className="h-full grid place-items-center text-[#8A92A6] text-[11px] uppercase gap-1"><IconFileText size={26} stroke={1.5} />{file.name.split(".").pop()}</div>;
 }

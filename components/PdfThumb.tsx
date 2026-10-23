@@ -20,6 +20,15 @@ function loadPdfjs(): Promise<PdfjsModule> {
 export const isPdf = (urlOrName: string, mime?: string | null) =>
   (mime || "").toLowerCase() === "application/pdf" || /\.pdf($|[?#])/i.test(urlOrName || "");
 
+// A page full of PDF tiles (112 brochures in Marketing Hub) crashed the browser tab
+// (23 Oct): every tile downloaded and parsed its PDF at once and kept it in memory.
+// Now a tile starts only when it scrolls near the screen, at most two draw at a time,
+// and each PDF is freed once its page is drawn.
+let running = 0;
+const waiting: (() => void)[] = [];
+const takeTurn = () => new Promise<void>((go) => { if (running < 2) { running++; go(); } else waiting.push(() => { running++; go(); }); });
+const doneTurn = () => { running--; waiting.shift()?.(); };
+
 /** How many pages a PDF has (0 if it can't be read). */
 export async function pdfPageCount(url: string): Promise<number> {
   try { const pdfjs = await loadPdfjs(); return (await pdfjs.getDocument({ url, disableAutoFetch: true }).promise).numPages; }
@@ -34,12 +43,25 @@ export function PdfThumb({ url, width = 220, fallback, page: pageNo = 1, fit = "
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "err">("loading");
+  const [near, setNear] = useState(false);
   useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setNear(true); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setNear(true); io.disconnect(); } }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!near) return;
     let dead = false;
     (async () => {
+      await takeTurn();
+      let task: ReturnType<PdfjsModule["getDocument"]> | null = null;
       try {
+        if (dead) return;
         const pdfjs = await loadPdfjs();
-        const doc = await pdfjs.getDocument({ url, disableAutoFetch: true }).promise;
+        task = pdfjs.getDocument({ url, disableAutoFetch: true });
+        const doc = await task.promise;
         const page = await doc.getPage(Math.min(Math.max(1, pageNo), doc.numPages));
         const canvas = canvasRef.current;
         if (!canvas || dead) return;
@@ -51,10 +73,13 @@ export function PdfThumb({ url, width = 220, fallback, page: pageNo = 1, fit = "
         if (!dead) setState("ok");
       } catch {
         if (!dead) setState("err");
+      } finally {
+        void task?.destroy();
+        doneTurn();
       }
     })();
     return () => { dead = true; };
-  }, [url, width, pageNo]);
+  }, [near, url, width, pageNo]);
   if (state === "err") return <>{fallback}</>;
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: fit === "contain" ? "transparent" : "#F6F7FB", display: fit === "contain" ? "flex" : "block", alignItems: "center", justifyContent: "center" }}>

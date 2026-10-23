@@ -16,7 +16,7 @@ import {
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft, IconEye,
-  IconLock, IconCalendarDue, IconFolders, IconReceipt, IconFileDescription, IconRepeat, IconNotes,
+  IconLock, IconCalendarDue, IconFolders, IconReceipt, IconFileDescription, IconRepeat,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
@@ -64,14 +64,14 @@ const GROUPS: Group[] = [
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
     ] },
-    // Six Airtable Marketing Hub tables brought in (Praveen, 23 Oct) — lib/materials.ts.
-    { key: "marketing-materials", label: "Marketing Materials", icon: IconFolders, href: `${HUB}/materials/expenses`, children: [
+    // Airtable Marketing Hub tables brought in (Praveen, 23 Oct) — lib/materials.ts.
+    // Named "Marketing Hub" like the Airtable base; Meetings taken out the same day.
+    { key: "marketing-materials", label: "Marketing Hub", icon: IconFolders, href: `${HUB}/materials/expenses`, children: [
       { label: "Expenses",           href: `${HUB}/materials/expenses`,      icon: IconReceipt },
       { label: "Essential Photos",   href: `${HUB}/materials/photos`,        icon: IconPhoto },
       { label: "Marketing Material", href: `${HUB}/materials/materials`,     icon: IconFileDescription },
       { label: "Paid Promotions",    href: `${HUB}/materials/promotions`,    icon: IconSpeakerphone },
       { label: "Subscriptions",      href: `${HUB}/materials/subscriptions`, icon: IconRepeat },
-      { label: "Meetings",           href: `${HUB}/materials/meetings`,      icon: IconNotes },
     ] },
     // Its own tab rather than buried under My Workspace — "Move content calendar
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
