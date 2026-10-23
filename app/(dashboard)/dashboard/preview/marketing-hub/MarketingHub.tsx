@@ -1205,7 +1205,7 @@ export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; f
       </div>
 
       {/* Bottleneck insight — where in-production work is sitting untouched */}
-      <Panel icon={IconHistory} title="Needs chasing — oldest first">
+      <PageSection icon={IconHistory} title="Needs chasing — oldest first">
         <div className="text-sm text-[#8A92A6] mb-4 -mt-1">In-production work that has sat the longest. Click one to open it.</div>
         {attention.oldest.length === 0 ? (
           <div className="text-sm text-gray-400 py-2">Nothing in production right now. Team is clear.</div>
@@ -1230,10 +1230,10 @@ export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; f
             })}
           </div>
         )}
-      </Panel>
+      </PageSection>
 
       {/* Stage cards — one card per pipeline stage; click to drill in (table below). */}
-      <Panel icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
+      <PageSection icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
         <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Content flows left → right. Click a stage to see its tasks.</div>
         <div className="flex items-stretch gap-1.5">
           {pipeline.map((s, i) => {
@@ -1258,7 +1258,7 @@ export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; f
             );
           })}
         </div>
-      </Panel>
+      </PageSection>
 
       {/* Drill-down table — tasks at the selected stage, all SBUs */}
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
@@ -3463,6 +3463,24 @@ function CreativeViewer({ creatives, index, setIndex, onClose }: {
       </div>
       {many && <button onClick={(e) => { e.stopPropagation(); go(1); }} className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 text-white rounded-full p-2.5"><IconChevronRight size={24} /></button>}
     </div>
+  );
+}
+
+// A page section (Pipeline): the heading on its own line above the content. Panel is a
+// task-window field row — its 174px label column cut "Needs chasing — oldest first"
+// short and sat the heading beside its own description (23 Oct).
+function PageSection({ icon: Ic, title, right, children }: {
+  icon?: typeof IconPhoto; title: string; right?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <section className="bg-white border border-gray-100 rounded-2xl px-5 py-4">
+      <div className="flex items-center gap-2 mb-2">
+        {Ic && <Ic size={16} stroke={1.7} className="text-[#3A57E8] flex-shrink-0" />}
+        <h3 className="text-[15px] font-medium text-[#232D42]">{title}</h3>
+        {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+      </div>
+      {children}
+    </section>
   );
 }
 
