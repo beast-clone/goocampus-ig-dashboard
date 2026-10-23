@@ -96,6 +96,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
     if (at >= shown) setShown(at + 1);
   };
   const stepRef = useRef(step); stepRef.current = step;
+  // A search or filter that hides the open material moves the viewer to the first match.
+  useEffect(() => { if (viewRow && !list.some((r) => r.id === viewRow.id)) setViewId(list[0]?.id ?? null); }, [list, viewRow]);
   useEffect(() => {
     if (!viewRow) return;
     const onKey = (e: KeyboardEvent) => {
@@ -130,7 +132,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                   <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${tab.nounPlural}…`} className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-[#232D42] placeholder:text-[#8A92A6]" />
                   {q && <button onClick={() => setQ("")} aria-label="Clear search" className="text-[#8A92A6] hover:text-[#232D42]"><IconX size={14} /></button>}
                 </label>
-                {!viewRow && filterFields.map((f) => (
+                {filterFields.map((f) => (
                   <PreviewSelect key={f.key} value={filters[f.key] || ""} onChange={(v) => setFilters((s) => ({ ...s, [f.key]: v }))}
                     options={[{ value: "", label: `All ${f.label.toLowerCase()}` }, ...optionsFor(f).map((o) => ({ value: o, label: o }))]} ariaLabel={f.label} />
                 ))}
