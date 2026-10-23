@@ -396,7 +396,7 @@ type PublishApprovalCtx = {
 const PublishApprovalContext = createContext<PublishApprovalCtx | null>(null);
 const dayOf = (d: string | null) => (d ? String(d).slice(0, 10) : null);
 
-function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
+export function PublishApprovalProvider({ children }: { children: React.ReactNode }) {
   const [viewer, setViewer] = useState<{ ready: boolean; isAdmin: boolean; needsApproval: boolean; needsReason: boolean }>({ ready: false, isAdmin: false, needsApproval: true, needsReason: true });
   // The open reason-modal, with the promise resolver that changePublishDate awaits.
   const [ask, setAsk] = useState<null | { id: string; title: string; from: string | null; to: string | null; resolve: (reason: string | null) => void }>(null);
@@ -511,9 +511,11 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
   const fetchRange = tab === "calendar"
     ? { from: ymd(new Date(Date.now() - 180 * 86_400_000)), to: ymd(new Date(Date.now() + 365 * 86_400_000)) }
     : tab === "team"
-    // Workload's Week view looks forward to Friday, so extend the window past today
-    // (the retrospective `from` still feeds the overdue/done counts).
-    ? { from: range.from, to: ymd(new Date(Date.now() + 7 * 86_400_000)) }
+    // Workload plans each person's day from ALL their open work, as My Day does — a
+    // task publishing in three weeks or overdue by two months is still on their plan.
+    // (It used to read only ~30 days back and 7 ahead, so the bar showed free time
+    // the person didn't have.)
+    ? { from: ymd(new Date(Date.now() - 120 * 86_400_000)), to: ymd(new Date(Date.now() + 120 * 86_400_000)) }
     // Master sheet / Pipeline: the range picks how far BACK to look; everything
     // planned ahead is always included (imported Airtable tasks are mostly future).
     : { from: range.from, to: ymd(new Date(Date.now() + 365 * 86_400_000)) };
@@ -659,7 +661,9 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
   const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
 
   const teamCards = useMemo(() => TEAM.map((m) => {
-    const mine = rows.filter((r) => ownerMatches(r.owner, m) || presentsOn(r, m));
+    // Everyone's own work regardless of the page's SBU/owner/search filters (it's their
+    // day), and Samvaya work only on Nandu's — the same set My Day plans from.
+    const mine = allRows.filter((r) => (ownerMatches(r.owner, m) || presentsOn(r, m)) && (m.label === "Nandu" || !/samvaya|matrimony/i.test(r.sbu || "")));
     let today_ = 0, week = 0, overdue_ = 0, done_ = 0, roleHighlight = 0;
     for (const r of mine) {
       const pd = r.publishingDate?.slice(0, 10) || "";
@@ -672,8 +676,11 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
       if (pd === today && !isDone) today_ += 1;
       // "This week" = Monday through Friday of the current work-week.
       if (pd && pd >= weekStart && pd <= weekEnd && !isDone) week += 1;
-      // Overdue = past its due date OR its publishing date, and not yet done.
-      if (!isDone && ((dd && dd < today) || (pd && pd < today))) overdue_ += 1;
+      // Overdue = its date (publishing, else due) has passed, it isn't done, and it's at
+      // this person's stage — work waiting on someone else isn't their overdue. Same
+      // rule as the Overdue table below the bar.
+      const onMyStage = presentsOn(r, m) || onDayPlan(r.status, m.role === "writer");
+      if (!isDone && onMyStage && (pd || dd) && (pd || dd) < today) overdue_ += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) done_ += 1;
     }
     if (m.role === "writer") {
@@ -688,7 +695,7 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
     return { member: m, mine, today: today_, week, overdue: overdue_, done: done_, roleHighlight };
     // TEAM.length: a Team-page newcomer is appended to TEAM after load (useHubTeam).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [rows, today, weekAgo, weekStart, weekEnd, TEAM.length]);
+  }), [allRows, rows, today, weekAgo, weekStart, weekEnd, TEAM.length]);
 
   if (loading && rows.length === 0) {
     return <div className="bg-white border border-gray-100 rounded-lg"><LoadingBlock label="Loading team…" /></div>;
@@ -900,14 +907,15 @@ function PersonTimelineRow({ card }: {
       const done = r.status === "Output - Ready" || DONE_STATUSES.includes(r.status);
       const d = dayOf(r);
       if (done) { if (finishedAt(r) === todayKey || (d === todayKey && r.status === "Output - Ready")) finishedToday.push(r); continue; }
+      const onMyStage = presentsOn(r, member) || onDayPlan(r.status, member.role === "writer");
       if (d === todayKey || startedTodayMin(r) != null) todayOpen.push(r);
-      else if (d && d < todayKey) overdueL.push(r);
+      else if (d && d < todayKey && onMyStage) overdueL.push(r);
       else upcoming.push(r);
     }
     upcoming.sort((a, b) => (dayOf(a) || "9999").localeCompare(dayOf(b) || "9999"));
     overdueL.sort((a, b) => dayOf(a).localeCompare(dayOf(b)));
     return { finishedToday, todayOpen, overdueL, upcoming };
-  }, [mine, todayKey]);
+  }, [mine, todayKey, member]);
 
   // Same rule as My Day's Today's plan (23 Oct): the day is laid out from login and
   // doesn't slide with the clock. Finished work comes first, greyed, each shrunk to
@@ -923,7 +931,9 @@ function PersonTimelineRow({ card }: {
       if (Number.isNaN(t.getTime()) || ymd(t) !== todayKey) continue;
       if (cur >= LUNCH_AT_MIN && cur < LUNCH_AT_MIN + LUNCH_MIN) cur = LUNCH_AT_MIN + LUNCH_MIN;
       const to = (t.getHours() - WORK_START_H) * 60 + t.getMinutes();
-      let dur = Math.min(rowDurMin(r), Math.max(10, to - cur));
+      // Working minutes from its slot to when it was finished — lunch isn't work.
+      const worked = to - cur - Math.max(0, Math.min(to, LUNCH_AT_MIN + LUNCH_MIN) - Math.max(cur, LUNCH_AT_MIN));
+      let dur = Math.min(rowDurMin(r), Math.max(10, worked));
       if (cur < LUNCH_AT_MIN && cur + dur > LUNCH_AT_MIN) {
         doneBlocks.push({ start: cur, dur: LUNCH_AT_MIN - cur, row: r });
         dur -= LUNCH_AT_MIN - cur; cur = LUNCH_AT_MIN + LUNCH_MIN;
@@ -950,7 +960,8 @@ function PersonTimelineRow({ card }: {
       .sort((a, b) => due(a).localeCompare(due(b)) || ((PR[a.priority] ?? 4) - (PR[b.priority] ?? 4)));
     const first = restAll.filter((r) => late(r) || isHotPrio(r.priority))
       .sort((a, b) => (Number(!late(a)) - Number(!late(b))) || (Number(!isHotPrio(a.priority)) - Number(!isHotPrio(b.priority))));
-    return [...kept, ...first, ...restAll.filter((r) => !first.includes(r))];
+    // New late / High work goes AHEAD of the saved order, as My Day does.
+    return [...first, ...kept, ...restAll.filter((r) => !first.includes(r))];
   }, [mine, savedOrder, todayKey]);
   const { blocks, taskBlocks, free, overflow } = buildDayPlan(planRows, member, planFrom, true);
 
@@ -981,13 +992,11 @@ function PersonTimelineRow({ card }: {
   const statusOf = (r: Row, overdueRow: boolean): { t: string; c: string } => {
     if (DONE_STATUSES.includes(r.status)) return { t: "Completed", c: "bg-emerald-50 text-emerald-700" };
     if (r.status === "Output - Ready") return { t: "Completed · in review", c: "bg-emerald-50 text-emerald-700" };
+    if (!presentsOn(r, member) && !onDayPlan(r.status, member.role === "writer")) return { t: "With the team", c: "bg-brand-light text-[#2138B0]" };
     if (overdueRow) return { t: "Overdue", c: "bg-rose-50 text-rose-600" };
     if (r.status === "Output - In Progress" || r.status === "Content - In Progress") return { t: "In progress", c: "bg-blue-50 text-blue-700" };
     if (r.status === "Incorporating Feedback") return { t: "Fixing feedback", c: "bg-amber-50 text-amber-700" };
     if (r.status === "Content - Needs Approval") return { t: "Waiting for approval", c: "bg-amber-50 text-amber-700" };
-    // Their part is done and the task has moved on to someone else's stage (e.g. a
-    // writer's script approved and waiting for an editor) — not theirs to do.
-    if (!presentsOn(r, member) && !onDayPlan(r.status, member.role === "writer")) return { t: "With the team", c: "bg-brand-light text-[#2138B0]" };
     return { t: "Pending", c: "bg-gray-100 text-gray-600" };
   };
   const TaskTable = ({ title, rows: list, tone, overdueRows, more }: { title: string; rows: Row[]; tone?: string; overdueRows?: boolean; more?: number }) => (

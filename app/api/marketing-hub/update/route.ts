@@ -355,7 +355,9 @@ export async function PATCH(req: Request) {
     // Capture the END of the task clock the first time it reaches a done state,
     // so "Time taken" = start_at → end_at reflects how long the task took.
     const DONE_STATES = new Set(["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
-    if (typeof clean.status === "string" && DONE_STATES.has(clean.status) && !before.data.end_at) {
+    // Re-stamped whenever it comes back into a done state from a working one — a task
+    // sent back for feedback and finished again today was keeping its first finish time.
+    if (typeof clean.status === "string" && DONE_STATES.has(clean.status) && (!before.data.end_at || !DONE_STATES.has(before.data.status))) {
       await sb.from("mh_posts").update({ end_at: new Date().toISOString() }).eq("id", body.id);
     }
     // START the task clock when it moves to "Output - In Progress" — this stamp is what

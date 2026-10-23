@@ -1073,7 +1073,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       </div>
       <div className="d-head-main">
         {label && <div className="lbl" style={{ marginBottom: ".35rem" }}>{label}</div>}
-        <div className="d-sub">{task.detail.typeLine} · {task.detail.brand}</div>
+        <div className="d-sub">{task.detail.typeLine}{task.detail.brand && <span className="sbu-chip lg">{task.detail.brand}</span>}</div>
         <div className="d-title">{task.title}</div>
       </div>
 
@@ -2730,7 +2730,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       const planned = t.detail.duration || estMins(t.detail.typeLine);
       // How long it really took, counted from where it sat in the plan — never more
       // than planned (a task finished late doesn't push the rest of the day back).
-      let dur = Math.min(planned, Math.max(10, to - cur));
+      const worked = to - cur - Math.max(0, Math.min(to, LUNCH_AT + LUNCH_MIN) - Math.max(cur, LUNCH_AT));   // lunch isn't work
+      let dur = Math.min(planned, Math.max(10, worked));
       if (cur < LUNCH_AT && cur + dur > LUNCH_AT) {   // runs into lunch: split around it
         out.push({ id: t.id, title: t.title, start: cur, dur: LUNCH_AT - cur, from: cur, to });
         dur -= LUNCH_AT - cur; cur = LUNCH_AT + LUNCH_MIN;
@@ -4098,7 +4099,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     <div className="task-row">
                       <div className="task-main">
                         <div className="tt">{t.title}</div>
-                        <div className="mm">{t.detail.typeLine || t.meta}</div>
+                        {/* Type · brand — the brand (SBU) was missing from the list (Praveen, 23 Oct). */}
+                        <div className="mm">{t.detail.typeLine || t.meta}{t.detail.brand && <span className="sbu-chip">{t.detail.brand}</span>}</div>
                       </div>
                       <div className="task-side">
                         <DueChip due={t.due} today={todayStr} />

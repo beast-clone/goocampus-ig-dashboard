@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useApi } from "@/lib/use-api";
 import {
   MasterTab, TeamView, PipelineView, CalendarView, DetailModal,
-  ownerMatchesKey, ymd, type Data, useHubTeam,
+  ownerMatchesKey, ymd, type Data, useHubTeam, PublishApprovalProvider,
 } from "../marketing-hub/MarketingHub";
 
 export type MemberTab = "team" | "master" | "pipeline" | "calendar";
@@ -24,7 +24,7 @@ export function MemberHub({ person, tab }: { person: string; tab: MemberTab }) {
     tab === "calendar"
       ? { from: ymd(new Date(Date.now() - 180 * 86_400_000)), to: ymd(new Date(Date.now() + 365 * 86_400_000)) }
       : tab === "team"
-      ? { from: range.from, to: ymd(new Date(Date.now() + 7 * 86_400_000)) }
+      ? { from: ymd(new Date(Date.now() - 120 * 86_400_000)), to: ymd(new Date(Date.now() + 120 * 86_400_000)) }
       : range;
   const qs = new URLSearchParams({ from: fetchRange.from, to: fetchRange.to }).toString();
   const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
@@ -38,6 +38,9 @@ export function MemberHub({ person, tab }: { person: string; tab: MemberTab }) {
   const openRow = openId ? scoped.find((r) => r.id === openId) || null : null;
 
   return (
+    // Date moves here go through the same "Ask why" / approval flow as the Hub — without
+    // the provider they saved straight through, with no reason and no approval notice.
+    <PublishApprovalProvider>
     <div className="preview-scope space-y-6">
       {tab === "master" && (
         <MasterTab allRows={scoped} facets={data?.facets} range={range} setRange={setRange} onOpen={setOpenId} onSaved={refresh} loading={isLoading} />
@@ -53,5 +56,6 @@ export function MemberHub({ person, tab }: { person: string; tab: MemberTab }) {
       )}
       {openRow && <DetailModal key={openRow.id} row={openRow} onClose={() => setOpenId(null)} />}
     </div>
+    </PublishApprovalProvider>
   );
 }

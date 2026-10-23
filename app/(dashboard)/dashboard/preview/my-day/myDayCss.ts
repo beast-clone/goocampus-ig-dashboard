@@ -1170,4 +1170,9 @@ html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 
 /* Shared files card (components/FilesCard) sits where the up-cards were */
 .hmd .up-wrap{margin-top:1rem}
+
+/* Brand (SBU) next to the task type — list rows and the task header (23 Oct). */
+.hmd .sbu-chip{display:inline-block;margin-left:.4rem;padding:.05rem .45rem;border-radius:999px;background:var(--brand-light,#E9ECFB);color:#2138B0;font-size:11px;font-weight:500;line-height:1.5;vertical-align:1px;white-space:nowrap;max-width:60%;overflow:hidden;text-overflow:ellipsis}
+.hmd .sbu-chip.lg{font-size:12px;padding:.1rem .55rem}
+html[data-theme="dark"] .hmd .sbu-chip{background:#2C3666;color:#93A3FF}
 `;
