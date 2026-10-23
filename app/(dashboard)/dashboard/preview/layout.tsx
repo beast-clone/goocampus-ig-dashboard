@@ -6,6 +6,7 @@ import { UndoProvider } from "./Undo";
 import { NOTIF_CSS } from "./notificationStyles";
 import { TabGuard } from "./TabGuard";
 import { Suspense } from "react";
+import { RefPreviewHost } from "@/components/RefPreview";
 
 // Every Version-2 page shares this chrome — the theme root, the flex shell and the
 // sidebar. It lives in the layout so React keeps it mounted across navigation:
@@ -23,6 +24,8 @@ export default function PreviewLayout({ children }: { children: React.ReactNode 
       {/* Notification pop-ups — here, not in a page, so they show on every page
           and survive navigation (docs/NOTIFICATIONS_SPEC.md). */}
       <NotificationHost />
+      {/* Links and files in a task open in one side panel (components/RefPreview). */}
+      <RefPreviewHost />
       {/* One undo stack for the whole dashboard. In the layout so the sidebar and
           every page share it — a provider beside the content would reach neither. */}
       <UndoProvider>

@@ -89,7 +89,7 @@ const nextConfig = {
       "media-src 'self' blob: https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net https://*.supabase.co",
       "font-src 'self' data:",
       "connect-src 'self' https://graph.facebook.com https://api.apify.com https://api.hikerapi.com https://*.supabase.co https://*.googleapis.com https://oauth2.googleapis.com https://api.linkedin.com https://cdn.jsdelivr.net",
-      "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
+      "frame-src https://www.youtube-nocookie.com https://www.youtube.com https://www.instagram.com https://drive.google.com https://docs.google.com https://www.canva.com https://*.supabase.co",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

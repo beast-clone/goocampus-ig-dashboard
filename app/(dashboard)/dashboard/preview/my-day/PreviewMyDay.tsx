@@ -1336,7 +1336,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           shortcuts, pasted lists kept — saving by itself (Praveen, 21 Oct: "add the
           editor in My Day too"). Edit → Save changes no longer touches the brief, so
           it can't write an older copy over what was typed here. */}
-      <div className="brief">
+      <div className="brief" data-ref-preview data-ref-from="Brief">
         {canEdit !== false
           ? <RichTextField key={`brief-${task.id}`} maxHeight={360} value={task.detail.content || ""} placeholder="The write-up / brief — hook, body, CTA, specs…"
               onSave={async (next) => {

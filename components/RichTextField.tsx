@@ -6,6 +6,7 @@ import { TaskList, TaskItem } from "@tiptap/extension-list";
 import type { JSONContent } from "@tiptap/core";
 import { IconBold, IconItalic, IconStrikethrough, IconH3, IconList, IconListNumbers, IconListCheck, IconQuote, IconMinus, IconArrowBackUp, IconArrowForwardUp } from "@tabler/icons-react";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
+import { refPreviewAvailable } from "@/components/RefPreview";
 
 // An always-editable text box for a task's Content and Caption — the Airtable way:
 // click and type, no Edit / Save buttons, formatting shown as you write (Manya,
@@ -74,15 +75,18 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder, maxHe
     }
   };
 
+  // Where the dashboard's side panel is mounted, it opens links (components/RefPreview);
+  // the editor opening its own tab as well gave two of everything.
+  const openOnClick = !refPreviewAvailable();
   const editor = useEditor({
     immediatelyRender: false,   // Next renders on the server first; let the browser build it
     extensions: [
       StarterKit.configure(mode === "plain"
         ? { heading: false, bold: false, italic: false, strike: false, underline: false, code: false, codeBlock: false,
             blockquote: false, horizontalRule: false, bulletList: false, orderedList: false, listItem: false, listKeymap: false,
-            link: { openOnClick: true, autolink: true, linkOnPaste: true } }
+            link: { openOnClick, autolink: true, linkOnPaste: true } }
         : { heading: { levels: [1, 2, 3] }, codeBlock: false, underline: false,
-            link: { openOnClick: true, autolink: true, linkOnPaste: true } }),
+            link: { openOnClick, autolink: true, linkOnPaste: true } }),
       ...(mode === "rich" ? [TaskList, TaskItem.configure({ nested: true })] : []),
     ],
     content: toHtml(value, mode),
@@ -169,7 +173,7 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder, maxHe
   );
 
   return (
-    <div className="gc-rtf">
+    <div className="gc-rtf" data-ref-preview data-ref-from="Brief">
       <style dangerouslySetInnerHTML={{ __html: RTF_CSS }} />
       {mode === "rich" && editor && (
         <div className="gc-rtf-bar">

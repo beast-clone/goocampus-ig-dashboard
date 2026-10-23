@@ -4220,7 +4220,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
 
               {notes && (
                 <Panel icon={IconFileDescription} title="Additional info">
-                  <ClampBox maxHeight={260}><div className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} /></ClampBox>
+                  <ClampBox maxHeight={260}><div data-ref-preview data-ref-from="Additional info" className="text-[14px] prose prose-sm max-w-none [&_*]:text-[14px]" dangerouslySetInnerHTML={{ __html: sanitizeRichText(notes) }} /></ClampBox>
                 </Panel>
               )}
 
