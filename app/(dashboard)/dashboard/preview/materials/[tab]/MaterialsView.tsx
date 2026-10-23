@@ -31,7 +31,7 @@ const filesOf = (r: Row | Record<string, unknown>): MFile[] => (Array.isArray(r.
 const isImage = (f: MFile) => (f.mime || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(f.name);
 // A small copy of a stored image for tiles (the photos are ~7 MB each); anything not
 // in our storage is shown as is.
-const thumbUrl = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=400&quality=70` : u);
+const thumbUrl = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=400&resize=contain&quality=70` : u);
 const fileKind = (f: MFile): FileTile["kind"] => (isImage(f) ? "image" : isPdf(f.url, f.mime) ? "pdf" : (f.mime || "").startsWith("video/") ? "video" : "file");
 
 export function MaterialsView({ tab }: { tab: MTab }) {
