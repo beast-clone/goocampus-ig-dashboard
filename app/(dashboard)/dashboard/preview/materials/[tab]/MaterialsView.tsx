@@ -69,23 +69,26 @@ export function MaterialsView({ tab }: { tab: MTab }) {
   };
   const filterFields = tab.fields.filter((f) => (f.type === "select" || f.type === "multi") && f.col !== false && f.key !== "attendees").slice(0, 3);
 
-  const list = useMemo(() => {
+  // Search + filters; `skip` leaves one filter out (for the counts on the Level tabs).
+  const matches = (r: Row, skip?: string) => {
+    for (const [k, v] of Object.entries(filters)) {
+      if (!v || k === skip) continue;
+      const cell = r[k];
+      if (Array.isArray(cell) ? !cell.includes(v) : cell !== v) return false;
+    }
     const needle = q.trim().toLowerCase();
-    return (rows || []).filter((r) => {
-      for (const [k, v] of Object.entries(filters)) {
-        if (!v) continue;
-        const cell = r[k];
-        if (Array.isArray(cell) ? !cell.includes(v) : cell !== v) return false;
-      }
-      if (!needle) return true;
-      return tab.fields.some((f) => {
-        const v = r[f.key];
-        if (typeof v === "string") return v.toLowerCase().includes(needle);
-        if (Array.isArray(v)) return v.some((x) => typeof x === "string" ? x.toLowerCase().includes(needle) : typeof x === "object" && x && String((x as MFile).name || "").toLowerCase().includes(needle));
-        return false;
-      });
+    if (!needle) return true;
+    return tab.fields.some((f) => {
+      const v = r[f.key];
+      if (typeof v === "string") return v.toLowerCase().includes(needle);
+      if (Array.isArray(v)) return v.some((x) => typeof x === "string" ? x.toLowerCase().includes(needle) : typeof x === "object" && x && String((x as MFile).name || "").toLowerCase().includes(needle));
+      return false;
     });
-  }, [rows, q, filters, tab]);
+  };
+  const list = useMemo(() => (rows || []).filter((r) => matches(r)), [rows, q, filters, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Marketing Material (Praveen, 23 Oct, option A): Level as tabs with counts, the
+  // other filters as dropdowns beside them.
+  const levelField = tab.viewer ? tab.fields.find((f) => f.key === "education_level") : undefined;
   useEffect(() => { setShown(page); }, [q, filters, page]);
   const step = (d: number) => {
     if (!viewRow || !list.length) return;
@@ -121,6 +124,49 @@ export function MaterialsView({ tab }: { tab: MTab }) {
             {openRow ? <FolderView tab={tab} row={openRow} onBack={() => setOpenId(null)} onEdit={() => setEditing(openRow)} onSaved={upsert} /> :
             <div className={viewRow ? "flex gap-4 items-start" : ""}>
             <div className={`bg-white border border-gray-100 rounded-2xl ${viewRow ? "flex-1 min-w-0" : ""}`}>
+              {levelField ? (
+                <div className="border-b border-gray-100">
+                  <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
+                    <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0"><Icon size={16} stroke={1.8} /></span>
+                    <div className="mr-2">
+                      <div className="text-[14px] font-medium text-[#232D42]">{tab.label}</div>
+                      <div className="text-[12px] text-[#8A92A6]">{list.length === rows.length ? `${rows.length} ${tab.nounPlural}` : `${list.length} of ${rows.length}`}</div>
+                    </div>
+                    <label className="ml-auto flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 bg-white w-[240px] max-w-full">
+                      <IconSearch size={15} stroke={1.8} className="text-[#8A92A6]" />
+                      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${tab.nounPlural}…`} className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-[#232D42] placeholder:text-[#8A92A6]" />
+                      {q && <button onClick={() => setQ("")} aria-label="Clear search" className="text-[#8A92A6] hover:text-[#232D42]"><IconX size={14} /></button>}
+                    </label>
+                    <div className="inline-flex border border-gray-200 rounded-lg overflow-hidden" role="group" aria-label="View">
+                      {([["list", "List", IconList], ["grid", "Grid", IconLayoutGrid]] as const).map(([m, label, I]) => (
+                        <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m} title={label}
+                          className={`inline-flex items-center justify-center h-[34px] w-[36px] ${mode === m ? "bg-brand-light text-[#2138B0]" : "bg-white text-[#4A5468] hover:text-brand"}`}>
+                          <I size={16} stroke={1.8} />
+                        </button>
+                      ))}
+                    </div>
+                    {!viewRow && <button onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]"><IconPlus size={15} stroke={2} /> Add {tab.noun}</button>}
+                  </div>
+                  <div className="flex flex-wrap items-end gap-x-5 gap-y-2 px-4 mt-2">
+                    {[["", "All"], ...[...new Set([...(levelField.options || []), ...optionsFor(levelField)])].map((o) => [o, o])].map(([v, label]) => {
+                      const on = (filters[levelField.key] || "") === v;
+                      const n = (rows || []).filter((r) => matches(r, levelField.key) && (!v || r[levelField.key] === v)).length;
+                      return (
+                        <button key={v || "all"} type="button" onClick={() => setFilters((s) => ({ ...s, [levelField.key]: v }))}
+                          className={`inline-flex items-center gap-1.5 pb-2.5 pt-1 border-b-2 text-[13px] font-medium transition ${on ? "border-brand text-[#2138B0]" : "border-transparent text-[#4A5468] hover:text-brand"}`}>
+                          {label}<span className={`text-[11px] rounded-full px-1.5 ${on ? "bg-brand-light text-[#2138B0]" : "bg-[#F0F2F8] text-[#8A92A6]"}`}>{n}</span>
+                        </button>
+                      );
+                    })}
+                    <div className="ml-auto flex items-center gap-2 pb-2">
+                      {filterFields.filter((f) => f.key !== levelField.key).map((f) => (
+                        <PreviewSelect key={f.key} size="sm" value={filters[f.key] || ""} onChange={(v) => setFilters((s) => ({ ...s, [f.key]: v }))}
+                          options={[{ value: "", label: `All ${f.label.toLowerCase() === "country" ? "countries" : f.label.toLowerCase() + "s"}` }, ...optionsFor(f).map((o) => ({ value: o, label: `${o} · ${(rows || []).filter((r) => matches(r, f.key) && r[f.key] === o).length}` }))]} ariaLabel={f.label} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) :
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-100">
                 <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0"><Icon size={16} stroke={1.8} /></span>
                 <div className="mr-2">
@@ -149,7 +195,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                 {!viewRow && <button onClick={() => setEditing("new")} className={`${tab.viewer ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]`}>
                   <IconPlus size={15} stroke={2} /> {tab.folders ? "New folder" : `Add ${tab.noun}`}
                 </button>}
-              </div>
+              </div>}
               {error && <div className="px-4 py-3 text-[13px] text-[#C03221]">{error}</div>}
               {list.length === 0 ? (
                 <div className="px-4 py-14 text-center text-[13px] text-[#8A92A6]">{rows.length ? "Nothing matches — clear the search or filters." : `No ${tab.nounPlural} yet.`}</div>
@@ -335,42 +381,30 @@ function MiniThumb({ file }: { file?: MFile }) {
   );
 }
 
-// List view (Marketing Material): small first-page preview, name and file, the tags,
-// last changed. Narrower while the viewer is open.
-function MaterialList({ rows, compact, selectedId, onOpen }: { rows: Row[]; compact: boolean; selectedId?: string; onOpen: (r: Row) => void }) {
+// List view (Marketing Material, option A): one clean line per material — small
+// first-page preview, the name, then country · level · files, version, date.
+function MaterialList({ rows, selectedId, onOpen }: { rows: Row[]; compact?: boolean; selectedId?: string; onOpen: (r: Row) => void }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wide text-[#8A92A6]">
-            <th className="w-[64px]" /><th className="font-medium px-3 py-2.5">Name</th>
-            {!compact && <><th className="font-medium px-3 py-2.5">Country</th><th className="font-medium px-3 py-2.5">Level</th><th className="font-medium px-3 py-2.5">Version</th><th className="font-medium px-3 py-2.5">Files</th></>}
-            <th className="font-medium px-3 py-2.5 whitespace-nowrap">Last changed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const fs = filesOf(r);
-            const on = r.id === selectedId;
-            return (
-              <tr key={r.id} onClick={() => onOpen(r)} className={`border-t border-gray-100 cursor-pointer align-middle ${on ? "bg-brand-light" : "hover:bg-[#F7F8FC]"}`}>
-                <td className="pl-4 py-2"><MiniThumb file={fs[0]} /></td>
-                <td className="px-3 py-2 min-w-[200px]">
-                  <div className="font-medium text-[#232D42]">{String(r.title || "") || fs[0]?.name || "Untitled"}</div>
-                  <div className="text-[11.5px] text-[#8A92A6] truncate max-w-[360px]">{fs[0]?.name || "No file yet"}</div>
-                </td>
-                {!compact && <>
-                  <td className="px-3 py-2">{r.country ? <Chip>{String(r.country)}</Chip> : <span className="text-[#C2C8D6]">—</span>}</td>
-                  <td className="px-3 py-2">{r.education_level ? <Chip tone="muted">{String(r.education_level)}</Chip> : <span className="text-[#C2C8D6]">—</span>}</td>
-                  <td className="px-3 py-2"><VersionChip v={r.version} /></td>
-                  <td className="px-3 py-2 text-[#4A5468]">{fs.length}</td>
-                </>}
-                <td className="px-3 py-2 text-[#4A5468] whitespace-nowrap">{fmtDate(String(r.updated_at || ""))}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div>
+      {rows.map((r) => {
+        const fs = filesOf(r);
+        const on = r.id === selectedId;
+        const meta = [r.country, r.education_level, `${fs.length} file${fs.length === 1 ? "" : "s"}`].filter(Boolean) as string[];
+        return (
+          <button key={r.id} type="button" onClick={() => onOpen(r)}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 border-t border-gray-100 first:border-t-0 text-left transition ${on ? "bg-brand-light" : "hover:bg-[#F7F8FC]"}`}>
+            <MiniThumb file={fs[0]} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-medium text-[#232D42] truncate">{String(r.title || "") || fs[0]?.name || "Untitled"}</div>
+              <div className="flex items-center gap-1.5 mt-0.5 text-[11.5px] text-[#8A92A6] min-w-0">
+                {meta.map((m, i) => <span key={i} className="flex items-center gap-1.5 whitespace-nowrap">{i > 0 && <span className="w-[3px] h-[3px] rounded-full bg-[#C2C8D6]" />}{m}</span>)}
+              </div>
+            </div>
+            {r.version ? <VersionChip v={r.version} /> : null}
+            <span className="text-[12px] text-[#4A5468] whitespace-nowrap ml-2">{fmtDate(String(r.updated_at || ""))}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
