@@ -381,6 +381,13 @@ export async function importFromAirtable(opts: {
     }
 
     if (hit && PROTECTED_STATUSES.has(String(hit.publish_status || "").toLowerCase())) { skip("already published here"); continue; }
+    // A post waiting in the publish queue keeps the caption and settings it was queued
+    // with: the import rewriting them (from a snapshot read at the start) could swap the
+    // caption under a file already sent to Instagram, or undo what the publisher saved.
+    if (hit && ["scheduled", "failed", "draft"].includes(String(hit.publish_status || "").toLowerCase())) {
+      delete row.caption; delete row.custom;
+      if (Object.keys(row).every((k) => k === "updated_at")) continue;
+    }
     writes.push({ row, existingId: hit?.id, particulars });
   }
 

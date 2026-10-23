@@ -664,10 +664,13 @@ function DetailModal({ post, onClose, onRetried, onReschedule }: {
   const acct = ACCOUNT_STYLE[accountKeyFor(post.publishToPage)];
   const st = STATUS_STYLE[post.effectiveStatus];
 
-  async function retry() {
+  // "Publish now instead" moves the time to now (publish-now); "Try again" re-arms a
+  // failed post at its time (retry). Both used the retry route, which never changes
+  // the time — so "Publish now instead" did nothing (22 Oct review).
+  async function retry(now = false) {
     setRetrying(true); setError(null);
     try {
-      const r = await fetch("/api/scheduler/retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: post.id }) });
+      const r = await fetch(now ? "/api/scheduler/publish-now" : "/api/scheduler/retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: post.id }) });
       const d = await r.json();
       if (!r.ok || d.error) setError(d.error || `HTTP ${r.status}`); else onRetried();
     } catch (e) { setError((e as Error).message); } finally { setRetrying(false); }
@@ -730,7 +733,7 @@ function DetailModal({ post, onClose, onRetried, onReschedule }: {
           <div className="hcal-modal-faillbl">What went wrong</div>
           <div className="hcal-modal-failtxt">{post.failureReason || "No reason was recorded."}</div>
           <div className="hcal-state-actions">
-            <button onClick={retry} disabled={retrying} className="hcal-act primary">
+            <button onClick={() => retry()} disabled={retrying} className="hcal-act primary">
               {retrying ? "Putting it back…" : "Try again now"}
             </button>
             <button onClick={() => onReschedule?.(post)} className="hcal-act">Pick a new time</button>
@@ -747,7 +750,7 @@ function DetailModal({ post, onClose, onRetried, onReschedule }: {
             anyone being here.
           </div>
           <div className="hcal-state-actions">
-            <button onClick={retry} disabled={retrying} className="hcal-act primary">
+            <button onClick={() => retry(true)} disabled={retrying} className="hcal-act primary">
               {retrying ? "Sending…" : "Publish now instead"}
             </button>
             <button onClick={() => onReschedule?.(post)} className="hcal-act">Pick a new time</button>

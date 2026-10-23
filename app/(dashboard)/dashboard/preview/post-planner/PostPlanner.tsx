@@ -4,7 +4,23 @@ import { IconCalendarEvent, IconPhoto, IconPlayerPause, IconSearch, IconSparkles
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { BrandLoader } from "@/components/BrandLoader";
-import { alertDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { alertDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+
+// Moves a planner card's date through /api/post-planner/move. When the person's
+// "Ask why when a date moves" is on, the server answers gate:"reason" and we ask.
+async function movePlannerDate(id: string, dateISO: string, note?: string): Promise<{ ok: boolean; error?: string; pendingApproval?: boolean }> {
+  const send = (reason?: string) => fetch("/api/post-planner/move", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, dateISO, ...(note ? { note } : {}), ...(reason ? { reason } : {}) }),
+  }).then(async (r) => ({ status: r.status, d: await r.json().catch(() => ({})) }));
+  let { status, d } = await send();
+  if (status === 422 && d.gate === "reason") {
+    const why = await promptDialog({ title: "Why is the date changing?", body: "Add a short reason — it's saved in the task's history.", placeholder: "e.g. Waiting for the speaker's photos", action: "Change date" });
+    if (!why || !why.trim()) return { ok: false, error: "cancelled" };
+    ({ status, d } = await send(why.trim()));
+  }
+  return status < 300 && !d.error ? { ok: true, pendingApproval: !!d.pendingApproval } : { ok: false, error: d.error || `HTTP ${status}` };
+}
 
 type Planned = {
   id: string; title: string; type: string; interest: string; thumbnailUrl: string | null;
@@ -179,12 +195,12 @@ export function Planner() {
     setBusy(true);
     setPubOverride((o) => ({ ...o, [card.id]: targetISO }));
     try {
-      const r = await fetch("/api/post-planner/move", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: card.id, dateISO: targetISO }),
-      });
-      const d = await r.json();
-      if (!r.ok || d.error) { alertDialog(`Move failed: ${d.error || r.status}`); setPubOverride((o) => { const n = { ...o }; delete n[card.id]; return n; }); }
+      const d = await movePlannerDate(card.id, targetISO);
+      if (!d.ok || d.pendingApproval) {
+        if (d.pendingApproval) alertDialog("Sent for admin approval", "The new date shows once an admin approves it.");
+        else if (d.error !== "cancelled") alertDialog(`Move failed: ${d.error}`);
+        setPubOverride((o) => { const n = { ...o }; delete n[card.id]; return n; });
+      }
     } finally { setBusy(false); }
   }
 
@@ -207,12 +223,12 @@ export function Planner() {
     setPubOverride((o) => ({ ...o, [card.id]: targetISO }));
     setAccepted((s) => new Set(s).add(card.id));
     try {
-      const r = await fetch("/api/post-planner/move", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: card.id, dateISO: targetISO, note: "Added from AI plan" }),
-      });
-      const d = await r.json();
-      if (!r.ok || d.error) { alertDialog(`Couldn't add: ${d.error || r.status}`); setAccepted((s) => { const n = new Set(s); n.delete(card.id); return n; }); }
+      const d = await movePlannerDate(card.id, targetISO, "Added from AI plan");
+      if (!d.ok || d.pendingApproval) {
+        if (d.pendingApproval) alertDialog("Sent for admin approval", "The new date shows once an admin approves it.");
+        else if (d.error !== "cancelled") alertDialog(`Couldn't add: ${d.error}`);
+        setAccepted((s) => { const n = new Set(s); n.delete(card.id); return n; });
+      }
     } finally { setBusy(false); }
   }
 

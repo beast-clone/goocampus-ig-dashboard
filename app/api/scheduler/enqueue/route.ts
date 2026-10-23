@@ -95,10 +95,15 @@ export async function POST(req: Request) {
       // Merge into whatever custom already holds. An Output-Ready row can carry other
       // custom fields (claim_role, and any column the Marketing Hub has added), and
       // replacing the object outright would quietly delete them.
-      const { data: existing } = await sb.from("mh_posts").select("custom, publish_status").eq("id", b.taskId).maybeSingle();
+      const { data: existing } = await sb.from("mh_posts").select("custom, publish_status, media_urls, caption").eq("id", b.taskId).maybeSingle();
       // Never re-queue a post the publisher is sending right now — that is a double post.
       if (existing?.publish_status === "publishing") return NextResponse.json({ error: "It's being published right now — wait a minute, then refresh.", publishing: true }, { status: 409 });
-      const merged = { ...freshPublishState(existing?.custom, true), ...customPatch };
+      // Forget what already went out only when the post itself changed. Re-queueing the
+      // same post (taken out after Instagram went and Facebook failed) must not post
+      // Instagram a second time (22 Oct review).
+      const newVersion = JSON.stringify(existing?.media_urls || []) !== JSON.stringify(media.length ? media : [])
+        || (existing?.caption || "") !== (b.caption || "");
+      const merged = { ...freshPublishState(existing?.custom, newVersion), ...customPatch };
       const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).or(NOT_PUBLISHING).select("id").single();
       if (error) throw new Error(error.message);
       await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));

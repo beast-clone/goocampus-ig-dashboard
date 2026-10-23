@@ -113,6 +113,7 @@ const TOOLS = [
         status: { type: "string" },
         publishing_date: { type: "string", description: "YYYY-MM-DD, or empty string to clear." },
         due_date: { type: "string", description: "YYYY-MM-DD, or empty string to clear." },
+        reason: { type: "string", description: "Why the publishing date is moving. Required for people whose 'Ask why when a date moves' is on — ask the user for it." },
         priority: { type: "string", enum: ["Low", "Medium", "High"] },
         owner: { type: "string", enum: [...TEAM] },
         caption: { type: "string" },

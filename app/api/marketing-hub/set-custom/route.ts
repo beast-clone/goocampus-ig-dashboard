@@ -17,8 +17,11 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const cur = await sb.from("mh_posts").select("custom").eq("id", body.postId).single();
+    const cur = await sb.from("mh_posts").select("custom, publish_status").eq("id", body.postId).single();
     if (cur.error) throw new Error(cur.error.message);
+    // The publisher writes the whole custom bag when it finishes; an edit landing in
+    // the same moment would be lost (or lose what went out). Wait until it's done.
+    if (cur.data?.publish_status === "publishing") return NextResponse.json({ error: "It's being published right now — try again in a minute." }, { status: 409 });
     const custom = { ...((cur.data?.custom as Record<string, unknown>) || {}) };
     if (body.value === "" || body.value === null || body.value === undefined) delete custom[body.key];
     else custom[body.key] = body.value;

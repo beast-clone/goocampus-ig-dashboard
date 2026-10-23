@@ -47,6 +47,8 @@ for (const it of $input.all()) {
     const igPrep = prep && prep.ig && prep.ig.id ? prep.ig : null;
     const fbPrep = (prep && prep.fb) || {};
     if (igPrep && !cust.ig_creation_id && (igPrep.kind === 'reel' || igPrep.kind === 'story')) cust.ig_creation_id = igPrep.id;
+    // Carousel slides sent ahead but not combined into the carousel yet — reuse them.
+    if (prep && prep.ig && prep.ig.kind === 'carousel' && !prep.ig.id && Array.isArray(prep.ig.kids) && !cust.ig_kids) cust.ig_kids = prep.ig.kids;
     cust.attempts = (Number(cust.attempts) || 0) + 1;
     let waiting = false;
     const POLLS = 6;   // 6 x 5s = 30s per run; the run is every minute
@@ -94,7 +96,7 @@ for (const it of $input.all()) {
           const c = await call('POST', GRAPH + '/' + ig + '/media?media_type=STORIES&' + part + '&access_token=' + tok);
           creationId = c.id; cust.ig_creation_id = creationId;
         }
-        if (!(igPrep && igPrep.ready) && isVid(media[0]) && !(await pollUntilReady(creationId, 'story video'))) waiting = true;
+        if (!(igPrep && igPrep.ready) && (isVid(media[0]) || igPrep) && !(await pollUntilReady(creationId, isVid(media[0]) ? 'story video' : 'story image'))) waiting = true;
       } else if (isVid(media[0]) && wantReel) {
         if (cust.ig_creation_id) { creationId = cust.ig_creation_id; }
         else {

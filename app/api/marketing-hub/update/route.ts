@@ -7,7 +7,8 @@ import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { requestDateChange, supersedeDateChange } from "@/lib/date-approvals";
-import { needsDateApproval } from "@/lib/permissions";
+import { needsDateApproval, needsDateReason } from "@/lib/permissions";
+import { freshPublishState } from "@/lib/scheduler-lock";
 import { rosterById } from "@/lib/team-db";
 import { siblingOf } from "@/lib/notifications";
 import { defaultCollaboratorFor } from "@/lib/task-create";
@@ -147,7 +148,7 @@ export async function PATCH(req: Request) {
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")
-      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom, created_by")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom, created_by, publish_status")
       .eq("id", body.id)
       .single();
     if (before.error) throw new Error(before.error.message);
@@ -192,6 +193,22 @@ export async function PATCH(req: Request) {
       || ("due_date" in clean && "due_date" in body.fields && day(clean.due_date) !== day(preRow.due_date))) {
       const no = await requireCapability("reschedule");
       if (no) return no;
+    }
+    // "Ask why when a date moves" is enforced here, not only on screen, so no path
+    // skips it — planner drag, the Claude connector, older pages (22 Oct review).
+    if ("publishing_date" in clean && !firstDate && day(clean.publishing_date) !== day(preRow.publishing_date)
+      && needsDateReason(await rosterById(me)) && !String((body as { reason?: string }).reason || "").trim()) {
+      return NextResponse.json({ error: "Add a short reason for moving the date — it's saved in the task's history.", gate: "reason" }, { status: 422 });
+    }
+    // A post the publisher is sending can't have its caption or settings changed
+    // mid-way; one waiting in the queue drops any upload made with the old caption
+    // (it is baked into the Instagram upload) so the new one goes out.
+    const ps = preRow.publish_status as string | null;
+    if (ps === "publishing" && ("caption" in clean || "custom" in clean)) {
+      return NextResponse.json({ error: "It's being published right now — wait a minute, then try again.", publishing: true }, { status: 409 });
+    }
+    if ("caption" in clean && (clean.caption ?? "") !== (preRow.caption ?? "") && ps && ps !== "published") {
+      clean.custom = freshPublishState(clean.custom ?? preRow.custom);
     }
 
     // A) Content-Approved: the brief must be complete before it hands off to a producer.

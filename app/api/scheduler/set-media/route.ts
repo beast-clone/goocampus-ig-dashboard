@@ -14,7 +14,8 @@ export async function POST(req: Request) {
   if (__denied) return __denied;
 
   try {
-    const { postId, mediaUrls } = (await req.json()) as { postId?: string; mediaUrls?: string[] };
+    const { postId, mediaUrls: incoming, append } = (await req.json()) as { postId?: string; mediaUrls?: string[]; append?: boolean };
+    let mediaUrls = incoming;
     if (!postId) return NextResponse.json({ error: "postId is required" }, { status: 400 });
     if (!Array.isArray(mediaUrls)) return NextResponse.json({ error: "mediaUrls must be an array" }, { status: 400 });
 
@@ -23,8 +24,16 @@ export async function POST(req: Request) {
 
     // Swapping the media is a creative change: an approved / queued post goes back to
     // Content Review (lib/re-review.ts), and any upload made from the old files is dropped.
-    const { data: cur } = await sb.from("mh_posts").select("custom, media_urls").eq("id", postId).maybeSingle();
-    const changed = JSON.stringify(cur?.media_urls || []) !== JSON.stringify(mediaUrls);
+    const { data: before } = await sb.from("mh_posts").select("media_urls, publish_status").eq("id", postId).maybeSingle();
+    if (before?.publish_status === "publishing") return notUpdated(sb, postId);
+    // Uploading from a Scheduler card ADDS to what the post already has; it used to
+    // replace the list, which dropped earlier uploads (22 Oct review).
+    if (append) mediaUrls = [...new Set([...(((before?.media_urls as string[] | null) || [])), ...mediaUrls])];
+    const changed = JSON.stringify(before?.media_urls || []) !== JSON.stringify(mediaUrls);
+    // Out of the queue / back to review FIRST, then the new files — so there is no
+    // moment where the publisher can claim the post with the unreviewed file.
+    const sentBack = changed ? await sendBackForReview(sb, postId, getSessionUserId() || null, null) : false;
+    const { data: cur } = await sb.from("mh_posts").select("custom").eq("id", postId).maybeSingle();
     const { data, error } = await sb
       .from("mh_posts")
       .update({ media_urls: mediaUrls.length ? mediaUrls : null, ...(changed ? { custom: freshPublishState(cur?.custom) } : {}) })
@@ -33,7 +42,6 @@ export async function POST(req: Request) {
       .select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) return notUpdated(sb, postId);
-    const sentBack = changed ? await sendBackForReview(sb, postId, getSessionUserId() || null, null) : false;
 
     return NextResponse.json({ ok: true, count: mediaUrls.length, sentBack });
   } catch (err) {

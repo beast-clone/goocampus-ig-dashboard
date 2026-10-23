@@ -4,6 +4,10 @@ import { normalizeOwner } from "@/lib/task-create";
 import { ALL_TYPES } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
 import { listItems } from "@/lib/content-radar";
+import { rosterById } from "@/lib/team-db";
+import { needsDateApproval, needsDateReason } from "@/lib/permissions";
+import { requestDateChange, supersedeDateChange } from "@/lib/date-approvals";
+import { freshPublishState } from "@/lib/scheduler-lock";
 
 // The read and update half of the Claude connector.
 //
@@ -172,6 +176,44 @@ export async function updateTask(args: Record<string, unknown>, userId: string, 
   if (before.error) throw new Error(before.error.message);
   if (!before.data) throw new Error(`No task with id ${id}.`);
 
+  // The same rules the dashboard applies (22 Oct review — this tool skipped them).
+  const extra = await sb().from("mh_posts").select("publish_status, custom, end_at").eq("id", id).maybeSingle();
+  const ps = (extra.data?.publish_status as string | null) ?? null;
+  const day = (d: unknown) => (d ? String(d).slice(0, 10) : null);
+  let pending: string | null = null;
+  // Moving an existing publishing date: a reason when the person's switch is on, an
+  // admin's approval when theirs needs it, and due_date kept in step.
+  if ("publishing_date" in patch && before.data.publishing_date && day(patch.publishing_date) !== day(before.data.publishing_date)) {
+    const who = await rosterById(userId);
+    const reason = s("reason") || "";
+    if (needsDateReason(who) && !reason) throw new Error("Moving the publishing date needs a short reason — ask the user why and pass it as `reason`.");
+    if (needsDateApproval(who)) {
+      await requestDateChange(sb(), {
+        postId: id, title: String(before.data.particulars || "a task"), type: before.data.type || undefined,
+        owner: before.data.owner_key || undefined, createdAt: before.data.created_at || undefined,
+        from: before.data.publishing_date, to: (patch.publishing_date as string | null) ?? null, reason: reason || undefined, requestedBy: userId,
+      });
+      pending = String(patch.publishing_date || "unset");
+      delete patch.publishing_date;
+    } else {
+      if (!("due_date" in patch)) patch.due_date = patch.publishing_date;
+      await supersedeDateChange(sb(), id, userId);
+    }
+  }
+  // A post being published can't have its caption changed mid-way; a queued one drops
+  // the upload made with the old caption.
+  if ("caption" in patch && ps === "publishing") throw new Error("That post is being published right now — try again in a minute.");
+  if ("caption" in patch && ps && ps !== "published" && patch.caption !== before.data.caption) patch.custom = freshPublishState(extra.data?.custom);
+  // Finishing / starting work stamps the task clock, as the dashboard does.
+  const DONE = new Set(["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
+  if (typeof patch.status === "string" && patch.status !== before.data.status) {
+    if (DONE.has(patch.status) && (!extra.data?.end_at || !DONE.has(String(before.data.status)))) patch.end_at = new Date().toISOString();
+    if (patch.status === "Output - In Progress") { patch.start_at = new Date().toISOString(); patch.end_at = null; }
+  }
+  if (Object.keys(patch).length === 0 && pending) {
+    return { updated: [], pendingApproval: pending, task: brief(before.data as Row, origin, true) };
+  }
+
   patch.updated_at = new Date().toISOString();
   const { data, error } = await sb().from("mh_posts").update(patch).eq("id", id).select(COLS).single();
   if (error) throw new Error(error.message);
@@ -191,6 +233,7 @@ export async function updateTask(args: Record<string, unknown>, userId: string, 
 
   return {
     updated: Object.keys(patch).filter((k) => k !== "updated_at"),
+    ...(pending ? { pendingApproval: `The publishing date move to ${pending} is waiting for an admin's approval.` } : {}),
     task: brief(data as Row, origin, true),
   };
 }

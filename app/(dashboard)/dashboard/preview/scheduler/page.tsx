@@ -1815,7 +1815,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
         else alertDialog(`Upload failed: ${d.error || r.status}`);
       }
       if (urls.length) {
-        await fetch("/api/scheduler/set-media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, mediaUrls: urls }) });
+        await fetch("/api/scheduler/set-media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, mediaUrls: urls, append: true }) });
         onRefresh();
       }
     } finally { setUploadingId(null); }
