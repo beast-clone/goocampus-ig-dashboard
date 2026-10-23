@@ -451,7 +451,7 @@ export function PublishApprovalProvider({ children }: { children: React.ReactNod
     <PublishApprovalContext.Provider value={{ ready: viewer.ready, isAdmin: viewer.isAdmin, changePublishDate }}>
       {children}
       {ask && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 px-4" onClick={cancel}>
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/30 px-4" data-overlay onClick={cancel}>
           <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconCalendarEvent size={18} stroke={1.8} /></div>
@@ -3726,7 +3726,7 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                       {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
                     </div>
                     {it.kind === "comment" ? (
-                      <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5">{linkify(it.body || "")}</div>
+                      <div className="text-[14px] text-gray-800 whitespace-pre-wrap mt-0.5" data-ref-preview data-ref-from="Comment">{linkify(it.body || "")}</div>
                     ) : stFrom || stTo ? (
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {it.from && <span className="text-[11px] px-2 py-0.5 rounded-full line-through" style={{ background: stFrom!.bg, color: stFrom!.text }}>{it.from}</span>}
@@ -4079,7 +4079,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         <span className="flex items-start gap-1.5 min-w-0 flex-1">
           {/* The whole link, in a box, opening on click — not a bare "Open" (Praveen, 21 Oct). */}
           {/* Several pages = several links in one field (" , "); one box each. */}
-          <span className="flex flex-col gap-1.5 min-w-0">
+          <span className="flex flex-col gap-1.5 min-w-0" data-ref-preview data-ref-from="Published post">
             {value.split(/\s*,\s*(?=https?:)/).map((u) => (
               <a key={u} href={u} target="_blank" rel="noreferrer" title="Open in a new tab"
                 className="min-w-0 break-all rounded-lg border border-gray-100 bg-[#F7F8FC] px-2 py-1 text-[13px] leading-[18px] text-brand hover:border-brand hover:underline">{u}</a>
@@ -4240,7 +4240,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     pending={qCre.pending} onDismiss={qCre.dismiss}
                     links={(detail?.outputLink ?? row.outputLink) ? [String(detail?.outputLink ?? row.outputLink)] : []} singleLink
                     linkPlaceholder="Paste the output link (Drive / Canva)…"
-                    onAddLink={(v) => { saveOne("output_link", v); }} onRemoveLink={() => { saveOne("output_link", null); }} />
+                    onAddLink={(v) => { saveOne("output_link", v); }} onRemoveLink={async () => { if (await confirmDialog({ title: "Remove the output link?", body: "The link is taken off the task (it stays in the task's history).", action: "Remove", danger: true })) saveOne("output_link", null); }} />
                 </div>
                 <div onMouseOver={() => { pasteKind.current = "reference"; }}>
                   <FilesCard icon={<IconBookmark size={15} stroke={1.8} />} title="References"
@@ -4254,7 +4254,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     })}
                     pending={qRef.pending} onDismiss={qRef.dismiss}
                     links={refLinks} linkPlaceholder="Paste a reference link…"
-                    onAddLink={(v) => { saveOne("reference_links", [...refLinks, v]); }} onRemoveLink={(l) => { removeRefLink(l); }} />
+                    onAddLink={(v) => { saveOne("reference_links", [...refLinks, v]); }} onRemoveLink={async (l) => { if (await confirmDialog({ title: "Remove this reference link?", body: "The link is taken off the task (it stays in the task's history).", action: "Remove", danger: true })) removeRefLink(l); }} />
                 </div>
                 {/* Working files that are never published — "references are different and
                     attachments are different" (Manya, 10 Oct). Same card, own section. */}

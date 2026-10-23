@@ -43,7 +43,11 @@ export async function POST(req: Request) {
     const mime = String(meta.mimetype || "").toLowerCase();
     const size = Number(meta.size || 0);
     if (!mimeAllowed(mime, kind) || size > MAX_MB * 1024 * 1024) {
-      await sb.storage.from(BUCKET).remove([path]);
+      // Only remove a file nobody has attached yet — never one already on a task
+      // (a request naming an existing file's path must not delete it, bin bypassed).
+      const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      const { count } = await sb.from("mh_attachments").select("id", { count: "exact", head: true }).eq("storage_path", url);
+      if (!count) await sb.storage.from(BUCKET).remove([path]);
       return NextResponse.json({ error: size > MAX_MB * 1024 * 1024 ? `The limit is ${MAX_MB} MB.` : mimeRefusal(kind) }, { status: 415 });
     }
 
