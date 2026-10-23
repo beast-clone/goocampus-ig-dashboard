@@ -304,7 +304,7 @@ export async function PATCH(req: Request) {
       .from("mh_posts")
       .update(clean)
       .eq("id", body.id)
-      .select("id, particulars, status, type, owner_key, updated_at")
+      .select("id, particulars, status, type, owner_key, updated_at, custom")
       .single();
 
     if (error) throw new Error(error.message);
@@ -345,9 +345,14 @@ export async function PATCH(req: Request) {
     const actual = (field: string) => (field in saved ? saved[field] : clean[field]);
     let ownershipNote: string | null = null;
     if ("owner_key" in clean && (saved.owner_key ?? null) !== (clean.owner_key ?? null)) {
-      ownershipNote = `Design tasks at this stage always belong to Praveen — change the type to a video type first to give it to ${clean.owner_key || "someone else"}.`;
+      const editorPicked = ["nikhil", "nandu"].includes(String(clean.owner_key || "").toLowerCase());
+      ownershipNote = editorPicked
+        ? `Kept with Praveen while it's design work. ${String(clean.owner_key).charAt(0).toUpperCase() + String(clean.owner_key).slice(1)} gets it as soon as the format is changed to a video type (e.g. Meta Ads - Video).`
+        : `Design tasks at this stage always belong to Praveen — change the format to a video type first to give it to someone else.`;
     } else if ("type" in clean && beforeRow.owner_key === "praveen" && saved.owner_key == null && saved.status === "Content - Approved") {
       ownershipNote = "It's a video task now, so it went to the editors' claim pool for Nikhil / Nandu to pick up.";
+    } else if ("type" in clean && beforeRow.owner_key === "praveen" && typeof saved.owner_key === "string" && saved.owner_key !== "praveen") {
+      ownershipNote = `It's a video task now, so it went to ${saved.owner_key.charAt(0).toUpperCase() + saved.owner_key.slice(1)} (picked as owner earlier).`;
     }
     const extraFields = ["owner_key", "status"].filter((f) => !(f in clean) && f in saved && (saved[f] ?? null) !== (beforeRow[f] ?? null));
     const activityRows = [...Object.keys(clean).filter((field) => field !== "custom"), ...extraFields].flatMap((field) => {

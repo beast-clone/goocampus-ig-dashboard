@@ -3879,6 +3879,16 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     setSbuSet(v);
     await saveOne("sbu", v, { value: sbuCur, label: "SBU" });
   };
+  // An editor picked as owner while this was still design work — the database keeps
+  // it with Praveen and remembers the editor (custom.intended_owner) for when the
+  // format becomes a video type (sql/design_owner_remembers_editor).
+  // What the last save returned (the ownership rule can change owner and custom).
+  const [savedCustom, setSavedCustom] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { setSavedCustom(null); }, [row.id]);
+  const customNow = savedCustom ?? row.custom ?? {};
+  const rememberedKey = typeof customNow.intended_owner === "string" ? customNow.intended_owner : "";
+  const rememberedEditor = rememberedKey ? (TEAM.find((m) => m.key === rememberedKey)?.label || rememberedKey) : "";
+  const [guideOpen, setGuideOpen] = useState(false);
   const changeType = async (v: string) => {
     if (!v || v === typeCur) return;
     // Past approval the type decides who produces it — a database rule hands design
@@ -3887,13 +3897,21 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     if (handedOn && isVideoType(v) !== isVideoType(typeCur)) {
       const ok = await confirmDialog({
         title: `Change to ${v}?`,
-        body: isVideoType(v) ? "This is approved, so it goes to the video editors' claim pool." : "This is approved, so it is handed to Praveen as design work.",
+        body: isVideoType(v)
+          ? (rememberedEditor ? `This is approved, so it goes to ${rememberedEditor} (picked as owner earlier).` : "This is approved, so it goes to the video editors' claim pool.")
+          : "This is approved, so it is handed to Praveen as design work.",
         action: "Change format",
       });
       if (!ok) return;
     }
     setTypeSet(v);
     await saveOne("type", v, { value: typeCur, label: "Format" });
+  };
+  // Show the owner (and remembered editor) the server actually saved.
+  const showSavedOwner = (f?: { owner_key?: string | null; custom?: Record<string, unknown> | null }) => {
+    if (!f) return;
+    if ("owner_key" in f) { const k = f.owner_key || ""; setOwnerSet({ key: k, label: k ? (TEAM.find((m) => m.key === k)?.label || k) : "" }); }
+    if (f.custom) setSavedCustom(f.custom);
   };
   const [ownerEdit, setOwnerEdit] = useState(false);
   const [ownerSet, setOwnerSet] = useState<{ key: string; label: string } | null>(null);
@@ -3920,7 +3938,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
       setFailure(block ? { kind: "gate", block } : { kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
       return;
     }
-    setOwnerSet({ key: toPool ? "" : to, label: toPool ? "" : (TEAM.find((m) => m.key === to)?.label || to) });
+    const ok = await res.json().catch(() => ({})) as { warning?: string; fields?: { owner_key?: string | null; custom?: Record<string, unknown> | null } };
+    // The ownership rule may have kept it with Praveen — show the owner that was saved.
+    showSavedOwner(ok.fields ?? { owner_key: toPool ? null : to });
+    if (ok.warning) alertDialog("Owner", ok.warning);
     if (toPool) showToast({ who: "Back in the claim pool", body: "Nikhil and Nandu have been told.", color: "#3A57E8", av: "✓" });
     await loadDetail();
   };
@@ -3943,6 +3964,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
       else setFailure({ kind: "error", message: (j as { error?: string }).error || `HTTP ${res.status}` });
       return;
     }
+    // e.g. a format change that moved the task to the claim pool / an editor.
+    const okBody = await res.json().catch(() => ({})) as { warning?: string; fields?: { owner_key?: string | null; custom?: Record<string, unknown> | null } };
+    if (okBody.warning) alertDialog("Owner", okBody.warning);
+    showSavedOwner(okBody.fields);
     await loadDetail();
     // Recorded only once the server has taken it, so Ctrl+Z can never offer to undo
     // something that was refused.
@@ -4195,6 +4220,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               <span className="text-gray-300">·</span>
               <PreviewSelect bare value={typeCur || ""} onChange={changeType} ariaLabel="Format" title="Change the format" placeholder="— format"
                 options={Array.from(new Set([...(typeCur ? [typeCur] : []), ...ALL_TYPES])).map((o) => ({ value: o, label: o }))} />
+              {typeCur && <span className="text-[11.5px] text-[#8A92A6]">({isVideoType(typeCur) ? "video work → editors" : "design work → Praveen"})</span>}
+              <button type="button" onClick={() => setGuideOpen((o) => !o)} title="How tasks are assigned"
+                className="w-[18px] h-[18px] rounded-full border border-gray-200 text-[11px] leading-none text-[#8A92A6] hover:text-brand hover:border-brand">?</button>
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
             </div>
           </div>
@@ -4207,6 +4235,15 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         {/* Body — light canvas so the white cards read as real sections.
             Creatives sits in the content column (compact), so the Details + Activity
             column reaches the top and the feed is visible without deep scrolling. */}
+        {guideOpen && (
+            <div className="mx-6 mb-2 rounded-xl border border-gray-100 bg-[#F7F8FC] px-3.5 py-3 text-[12.5px] text-[#4A5468] leading-relaxed">
+              <div className="flex items-center justify-between mb-1"><b className="font-medium text-[#232D42]">How tasks are assigned</b><button type="button" onClick={() => setGuideOpen(false)} className="text-gray-400 hover:text-gray-700">×</button></div>
+              <div>Design formats (Post, Carousel, Meta Ads, Story (Image), thumbnails) go to <b className="font-medium">Praveen</b> once approved.</div>
+              <div>Video formats (Reels, YouTube, Story (Video), Meta Ads - Video) go to the <b className="font-medium">editors&apos; claim pool</b> once approved — Nikhil or Nandu claims it.</div>
+              <div>Changing an approved task from design to video sends it to the claim pool — or straight to Nikhil / Nandu if you picked them as owner first. Video to design sends it to Praveen.</div>
+              <div>A design task can&apos;t be given to anyone but Praveen; pick an editor and change the format to a video type, in either order.</div>
+            </div>
+          )}
         <div className="flex-1 flex min-h-0 bg-white">
           <div className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4">
             <div>
@@ -4307,6 +4344,18 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                       : <span className="text-[12px] text-[#8A92A6]">{isVideoType(row.type) && statusCur === "Content - Approved" ? "In the claim pool" : "— set"}</span>}
                   </button>
                 ))}
+                {(() => {
+                  const handed = !["Content - Pending", "Content - In Progress", "Content - Needs Approval"].includes(statusCur || "");
+                  const note = !typeCur ? null
+                    : !isVideoType(typeCur)
+                      ? (rememberedEditor
+                        ? `Stays with Praveen while it's design work — goes to ${rememberedEditor} when the format is changed to a video type.`
+                        : handed ? "Design work stays with Praveen. To give it to Nikhil or Nandu, change the format to a video type (before or after picking them)."
+                          : "Once approved, design work goes to Praveen.")
+                      : handed ? "Video work: pick an editor, or leave it in the claim pool for Nikhil / Nandu."
+                        : "Once approved, video work goes to the editors' claim pool.";
+                  return note ? <div className="pl-[174px] -mt-1.5 pb-1 text-[11.5px] text-[#8A92A6]">{note}</div> : null;
+                })()}
                 {detailRow("Priority", priorityEdit ? (
                   <PreviewSelect defaultOpen size="sm" onClose={() => setPriorityEdit(false)} value={priorityCur || ""} placeholder="— set priority"
                     onChange={async (val) => {
