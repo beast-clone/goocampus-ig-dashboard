@@ -61,3 +61,7 @@ alter table mm_materials enable row level security;
 alter table mm_promotions enable row level security;
 alter table mm_subscriptions enable row level security;
 alter table mm_meetings enable row level security;
+
+-- Marketing Material viewer (Praveen, 23 Oct): tell the final file from the working one.
+alter table mm_materials add column if not exists version text,          -- "Final" / "Needs update"
+                         add column if not exists source_url text;       -- the editable source (Canva link)

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   IconPlus, IconSearch, IconX, IconPaperclip, IconCheck, IconTrash, IconFileText, IconReceipt, IconPhoto,
-  IconFileDescription, IconSpeakerphone, IconRepeat, IconCalendar, IconChevronLeft, IconFolder, IconUpload, IconPencil, IconCurrencyRupee, IconListNumbers,
+  IconFileDescription, IconSpeakerphone, IconRepeat, IconCalendar, IconChevronLeft, IconChevronRight, IconFolder, IconUpload, IconPencil, IconList, IconLayoutGrid, IconExternalLink, IconDownload, IconCurrencyRupee, IconListNumbers,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -44,6 +44,12 @@ export function MaterialsView({ tab }: { tab: MTab }) {
   const [openId, setOpenId] = useState<string | null>(null);   // the folder open (folders tabs)
   const upsert = (row: Row) => setRows((rs) => { const all = rs || []; return all.some((r) => r.id === row.id) ? all.map((r) => (r.id === row.id ? row : r)) : [row, ...all]; });
   const openRow = tab.folders && openId ? (rows || []).find((r) => r.id === openId) || null : null;
+  // Viewer tabs (Marketing Material): Grid / List, and a click opens the file on the right.
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [mode, setModeRaw] = useState<"list" | "grid">("list");
+  useEffect(() => { try { const m = localStorage.getItem(`mm-view-${tab.key}`); if (m === "grid" || m === "list") setModeRaw(m); } catch {} }, [tab.key]);
+  const setMode = (m: "list" | "grid") => { setModeRaw(m); try { localStorage.setItem(`mm-view-${tab.key}`, m); } catch {} };
+  const viewRow = tab.viewer && viewId ? (rows || []).find((r) => r.id === viewId) || null : null;
   const page = tab.grid ? 48 : 100;   // picture tiles are heavier than table rows
   const [shown, setShown] = useState(page);
 
@@ -81,6 +87,27 @@ export function MaterialsView({ tab }: { tab: MTab }) {
     });
   }, [rows, q, filters, tab]);
   useEffect(() => { setShown(page); }, [q, filters, page]);
+  const step = (d: number) => {
+    if (!viewRow || !list.length) return;
+    const i = list.findIndex((r) => r.id === viewRow.id);
+    const next = list[(i + d + list.length) % list.length];
+    setViewId(next.id);
+    const at = list.indexOf(next);
+    if (at >= shown) setShown(at + 1);
+  };
+  const stepRef = useRef(step); stepRef.current = step;
+  useEffect(() => {
+    if (!viewRow) return;
+    const onKey = (e: KeyboardEvent) => {
+      const a = e.target as HTMLElement | null;
+      if (editing || document.querySelector("[data-overlay]") || (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)))) return;
+      if (e.key === "Escape") setViewId(null);
+      else if (e.key === "ArrowDown") { e.preventDefault(); stepRef.current(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); stepRef.current(-1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewRow, editing]);
 
   const Icon = ICONS[tab.key];
   return (
@@ -90,7 +117,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
           {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <>
             <Totals tab={tab} rows={list} all={rows} />
             {openRow ? <FolderView tab={tab} row={openRow} onBack={() => setOpenId(null)} onEdit={() => setEditing(openRow)} onSaved={upsert} /> :
-            <div className="bg-white border border-gray-100 rounded-2xl">
+            <div className={viewRow ? "flex gap-4 items-start" : ""}>
+            <div className={`bg-white border border-gray-100 rounded-2xl ${viewRow ? "flex-1 min-w-0" : ""}`}>
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-100">
                 <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0"><Icon size={16} stroke={1.8} /></span>
                 <div className="mr-2">
@@ -102,21 +130,33 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                   <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${tab.nounPlural}…`} className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-[#232D42] placeholder:text-[#8A92A6]" />
                   {q && <button onClick={() => setQ("")} aria-label="Clear search" className="text-[#8A92A6] hover:text-[#232D42]"><IconX size={14} /></button>}
                 </label>
-                {filterFields.map((f) => (
+                {!viewRow && filterFields.map((f) => (
                   <PreviewSelect key={f.key} value={filters[f.key] || ""} onChange={(v) => setFilters((s) => ({ ...s, [f.key]: v }))}
                     options={[{ value: "", label: `All ${f.label.toLowerCase()}` }, ...optionsFor(f).map((o) => ({ value: o, label: o }))]} ariaLabel={f.label} />
                 ))}
-                <button onClick={() => setEditing("new")} className="ml-auto inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]">
+                {tab.viewer && (
+                  <div className="ml-auto inline-flex border border-gray-200 rounded-lg overflow-hidden" role="group" aria-label="View">
+                    {([["list", "List", IconList], ["grid", "Grid", IconLayoutGrid]] as const).map(([m, label, I]) => (
+                      <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m}
+                        className={`inline-flex items-center gap-1.5 h-[34px] px-3 text-[13px] font-medium ${mode === m ? "bg-brand-light text-[#2138B0]" : "bg-white text-[#4A5468] hover:text-brand"}`}>
+                        <I size={15} stroke={1.8} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!viewRow && <button onClick={() => setEditing("new")} className={`${tab.viewer ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]`}>
                   <IconPlus size={15} stroke={2} /> {tab.folders ? "New folder" : `Add ${tab.noun}`}
-                </button>
+                </button>}
               </div>
               {error && <div className="px-4 py-3 text-[13px] text-[#C03221]">{error}</div>}
               {list.length === 0 ? (
                 <div className="px-4 py-14 text-center text-[13px] text-[#8A92A6]">{rows.length ? "Nothing matches — clear the search or filters." : `No ${tab.nounPlural} yet.`}</div>
+              ) : tab.viewer && mode === "list" ? (
+                <MaterialList rows={list.slice(0, shown)} compact={!!viewRow} selectedId={viewRow?.id} onOpen={(r) => setViewId(r.id)} />
               ) : tab.folders ? (
                 <Folders rows={list.slice(0, shown)} onOpen={(r) => setOpenId(r.id)} />
               ) : tab.grid ? (
-                <Grid tab={tab} rows={list.slice(0, shown)} onOpen={setEditing} />
+                <Grid tab={tab} rows={list.slice(0, shown)} selectedId={viewRow?.id} onOpen={tab.viewer ? (r) => setViewId(r.id) : setEditing} />
               ) : (
                 <Table tab={tab} rows={list.slice(0, shown)} all={rows} onOpen={setEditing} />
               )}
@@ -125,13 +165,16 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                   <button onClick={() => setShown((n) => n + page)} className="text-[13px] text-brand font-medium hover:underline">Show more ({list.length - shown} left)</button>
                 </div>
               )}
+            </div>
+            {viewRow && <Viewer tab={tab} row={viewRow} pos={`${list.findIndex((r) => r.id === viewRow.id) + 1} of ${list.length}`}
+              onStep={step} onEdit={() => setEditing(viewRow)} onClose={() => setViewId(null)} />}
             </div>}
           </>}
           {editing && <Editor tab={tab} row={editing === "new" ? null : editing} optionsFor={optionsFor}
             onClose={() => setEditing(null)}
             onSaved={(row) => { const isNew = editing === "new"; upsert(row); setEditing(null); if (isNew && tab.folders) setOpenId(row.id); }}
             onRemoved={(row) => {
-              setRows((rs) => (rs || []).filter((r) => r.id !== row.id)); setEditing(null); setOpenId(null);
+              setRows((rs) => (rs || []).filter((r) => r.id !== row.id)); setEditing(null); setOpenId(null); setViewId(null);
               showToast({ who: "Removed", body: String(row.title || tab.noun), av: "✓", action: "Undo", onOpen: async () => {
                 const r = await fetch(`/api/materials/${tab.key}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: row.id, restore: true }) });
                 if (r.ok) void load();
@@ -245,14 +288,14 @@ function Thumb({ file }: { file?: MFile }) {
   return <div className="h-full grid place-items-center text-[#8A92A6] text-[11px] uppercase gap-1"><IconFileText size={26} stroke={1.5} />{file.name.split(".").pop()}</div>;
 }
 
-function Grid({ tab, rows, onOpen }: { tab: MTab; rows: Row[]; onOpen: (r: Row) => void }) {
+function Grid({ tab, rows, onOpen, selectedId }: { tab: MTab; rows: Row[]; onOpen: (r: Row) => void; selectedId?: string }) {
   const chips = tab.fields.filter((f) => f.col && f.type === "select");
   return (
     <div className="p-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
       {rows.map((r) => {
         const fs = filesOf(r);
         return (
-          <button key={r.id} type="button" onClick={() => onOpen(r)} className="text-left border border-gray-100 rounded-xl overflow-hidden bg-white hover:border-brand transition">
+          <button key={r.id} type="button" onClick={() => onOpen(r)} className={`text-left border rounded-xl overflow-hidden bg-white hover:border-brand transition ${r.id === selectedId ? "border-brand" : "border-gray-100"}`}>
             <div className="relative h-[150px] bg-[#F0F2F8] overflow-hidden">
               <Thumb file={fs[0]} />
               {fs.length > 1 && <span className="absolute top-2 right-2 text-[11px] bg-[rgba(35,45,66,.6)] text-white rounded-md px-1.5">{fs.length} files</span>}
@@ -271,6 +314,121 @@ function Grid({ tab, rows, onOpen }: { tab: MTab; rows: Row[]; onOpen: (r: Row) 
         );
       })}
     </div>
+  );
+}
+
+const mb = (n?: number) => (n ? (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`) : "—");
+const VersionChip = ({ v }: { v: unknown }) => (v === "Final" ? <Chip tone="good">Final</Chip> : v ? <span className="inline-flex px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-[#FFF4E0] text-[#B5730A] whitespace-nowrap">{String(v)}</span> : <span className="text-[#C2C8D6]">—</span>);
+
+function MiniThumb({ file }: { file?: MFile }) {
+  return (
+    <div className="w-[40px] h-[52px] rounded-md overflow-hidden bg-[#F0F2F8] border border-gray-100 flex-shrink-0">
+      {!file ? null : isImage(file)
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={thumbUrl(file.url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        : isPdf(file.url, file.mime)
+          ? <PdfThumb url={file.url} width={40} badge={false} fallback={<div className="h-full grid place-items-center text-[9px] font-medium text-[#8A92A6]">PDF</div>} />
+          : <div className="h-full grid place-items-center text-[9px] font-medium text-[#8A92A6] uppercase">{file.name.split(".").pop()}</div>}
+    </div>
+  );
+}
+
+// List view (Marketing Material): small first-page preview, name and file, the tags,
+// last changed. Narrower while the viewer is open.
+function MaterialList({ rows, compact, selectedId, onOpen }: { rows: Row[]; compact: boolean; selectedId?: string; onOpen: (r: Row) => void }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[13px]">
+        <thead>
+          <tr className="text-left text-[11px] uppercase tracking-wide text-[#8A92A6]">
+            <th className="w-[64px]" /><th className="font-medium px-3 py-2.5">Name</th>
+            {!compact && <><th className="font-medium px-3 py-2.5">Country</th><th className="font-medium px-3 py-2.5">Level</th><th className="font-medium px-3 py-2.5">Version</th><th className="font-medium px-3 py-2.5">Files</th></>}
+            <th className="font-medium px-3 py-2.5 whitespace-nowrap">Last changed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const fs = filesOf(r);
+            const on = r.id === selectedId;
+            return (
+              <tr key={r.id} onClick={() => onOpen(r)} className={`border-t border-gray-100 cursor-pointer align-middle ${on ? "bg-brand-light" : "hover:bg-[#F7F8FC]"}`}>
+                <td className="pl-4 py-2"><MiniThumb file={fs[0]} /></td>
+                <td className="px-3 py-2 min-w-[200px]">
+                  <div className="font-medium text-[#232D42]">{String(r.title || "") || fs[0]?.name || "Untitled"}</div>
+                  <div className="text-[11.5px] text-[#8A92A6] truncate max-w-[360px]">{fs[0]?.name || "No file yet"}</div>
+                </td>
+                {!compact && <>
+                  <td className="px-3 py-2">{r.country ? <Chip>{String(r.country)}</Chip> : <span className="text-[#C2C8D6]">—</span>}</td>
+                  <td className="px-3 py-2">{r.education_level ? <Chip tone="muted">{String(r.education_level)}</Chip> : <span className="text-[#C2C8D6]">—</span>}</td>
+                  <td className="px-3 py-2"><VersionChip v={r.version} /></td>
+                  <td className="px-3 py-2 text-[#4A5468]">{fs.length}</td>
+                </>}
+                <td className="px-3 py-2 text-[#4A5468] whitespace-nowrap">{fmtDate(String(r.updated_at || ""))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// The file, large, on the right: every page scrolls and zooms (the browser's own PDF
+// viewer), tabs when it has more than one file, ‹ › to the next material, and its
+// details underneath — Version and the editable source among them (Praveen, 23 Oct).
+function Viewer({ tab, row, pos, onStep, onEdit, onClose }: { tab: MTab; row: Row; pos: string; onStep: (d: number) => void; onEdit: () => void; onClose: () => void }) {
+  const files = filesOf(row);
+  const [ix, setIx] = useState(0);
+  useEffect(() => { setIx(0); }, [row.id]);
+  const f = files[Math.min(ix, Math.max(0, files.length - 1))];
+  const name = String(row.title || "") || f?.name || "Untitled";
+  const src = typeof row.source_url === "string" && row.source_url ? (/^https?:\/\//i.test(row.source_url) ? row.source_url : `https://${row.source_url}`) : "";
+  const Icon = ICONS[tab.key];
+  const k = (label: string, v: React.ReactNode) => <div className="min-w-0"><div className="text-[11px] text-[#8A92A6]">{label}</div><div className="text-[12.5px] font-medium text-[#232D42] mt-0.5 truncate">{v}</div></div>;
+  return (
+    <aside className="w-[58%] flex-shrink-0 sticky top-4 h-[calc(100vh-32px)] flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
+        <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0"><Icon size={16} stroke={1.8} /></span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-medium text-[#232D42] truncate" title={name}>{name}</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            {row.country ? <Chip>{String(row.country)}</Chip> : null}
+            {row.education_level ? <Chip tone="muted">{String(row.education_level)}</Chip> : null}
+            <span className="text-[11.5px] text-[#8A92A6] ml-1">{pos}</span>
+          </div>
+        </div>
+        <button onClick={() => onStep(-1)} title="Previous (↑)" className="w-8 h-8 rounded-lg border border-gray-200 grid place-items-center text-[#4A5468] hover:border-brand hover:text-brand"><IconChevronLeft size={15} /></button>
+        <button onClick={() => onStep(1)} title="Next (↓)" className="w-8 h-8 rounded-lg border border-gray-200 grid place-items-center text-[#4A5468] hover:border-brand hover:text-brand"><IconChevronRight size={15} /></button>
+        {f && <a href={f.url} target="_blank" rel="noreferrer" data-ref-preview-skip className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] hover:border-brand hover:text-brand">Open <IconExternalLink size={13} /></a>}
+        {f && <a href={f.url} download data-ref-preview-skip className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] hover:border-brand hover:text-brand"><IconDownload size={13} /> Download</a>}
+        <button onClick={onClose} title="Close (Esc)" className="w-8 h-8 rounded-lg border border-gray-200 grid place-items-center text-[#4A5468] hover:border-brand hover:text-brand"><IconX size={15} /></button>
+      </div>
+      {files.length > 1 && (
+        <div className="flex gap-1.5 px-4 py-2 border-b border-gray-100 bg-[#FAFBFD] overflow-x-auto">
+          {files.map((x, j) => (
+            <button key={`${x.url}-${j}`} onClick={() => setIx(j)} className={`h-7 px-2.5 rounded-lg border text-[12px] whitespace-nowrap max-w-[260px] truncate ${j === ix ? "border-brand bg-brand-light text-[#2138B0]" : "border-gray-200 bg-white text-[#4A5468] hover:border-brand"}`}>File {j + 1} · {x.name}</button>
+          ))}
+        </div>
+      )}
+      <div className="flex-1 min-h-0 bg-[#525659]">
+        {!f ? <div className="h-full grid place-items-center text-[13px] text-white/70">No file yet — use Edit details to add one.</div>
+          : isPdf(f.url, f.mime) ? <iframe key={f.url} src={`${f.url}#view=FitH`} title={f.name} className="w-full h-full border-0 block" />
+          // eslint-disable-next-line @next/next/no-img-element
+          : isImage(f) ? <img key={f.url} src={f.url} alt={f.name} className="w-full h-full object-contain" />
+          : (f.mime || "").startsWith("video/") ? <video key={f.url} src={f.url} controls className="w-full h-full" />
+          : <div className="h-full grid place-items-center text-center text-[13px] text-white/80"><div>This file can&apos;t be shown here.<br /><a href={f.url} download className="inline-flex mt-3 h-8 px-3 items-center rounded-lg bg-brand text-white font-medium">Download</a></div></div>}
+      </div>
+      <div className="border-t border-gray-100 px-4 py-3 grid grid-cols-4 gap-x-4 gap-y-2.5">
+        {k("Version", <VersionChip v={row.version} />)}
+        {k("Editable source", src ? <a href={src} target="_blank" rel="noreferrer" data-ref-preview-skip className="text-brand hover:underline">Open in Canva ↗</a> : <button onClick={onEdit} className="text-brand hover:underline font-medium">+ Add Canva link</button>)}
+        {k("Type", String(row.kind || "—"))}
+        {k("Size", String(row.dimensions || "—"))}
+        {k("File", f?.name || "—")}
+        {k("File size", mb(f?.size))}
+        {k("Last changed", fmtDate(String(row.updated_at || "")))}
+        <div className="flex items-end"><button onClick={onEdit} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 text-[12.5px] font-medium text-[#4A5468] hover:border-brand hover:text-brand"><IconPencil size={14} stroke={1.8} /> Edit details</button></div>
+      </div>
+    </aside>
   );
 }
 

@@ -23,6 +23,8 @@ export type MTab = {
   grid?: boolean;
   /** Each row is a folder of files, opened like a folder on a computer. */
   folders?: boolean;
+  /** Grid / List switch, and a click opens the file large on the right. */
+  viewer?: boolean;
   /** Date column for the month filter / totals, and the money column to add up. */
   date?: string; money?: string;
   fields: MField[];
@@ -55,7 +57,7 @@ export const MTABS: MTab[] = [
       { key: "design_files", label: "Design files", type: "bool" },
       { key: "non_usable", label: "Not usable", type: "bool" },
     ] },
-  { key: "materials", label: "Marketing Material", table: "mm_materials", noun: "material", nounPlural: "materials", grid: true,
+  { key: "materials", label: "Marketing Material", table: "mm_materials", noun: "material", nounPlural: "materials", grid: true, viewer: true,
     intro: "Brochures and flyers for every university and programme, by country and level.",
     sort: { col: "title", asc: true },
     fields: [
@@ -65,6 +67,9 @@ export const MTABS: MTab[] = [
       { key: "education_level", label: "Level", type: "select", col: true, options: ["Under-graduate", "Post-graduate"] },
       { key: "kind", label: "Type", type: "select", options: ["Mobile-First", "Print"] },
       { key: "dimensions", label: "Size", type: "text" },
+      // So anyone can tell the final file from the working one (Praveen, 23 Oct).
+      { key: "version", label: "Version", type: "select", col: true, options: ["Final", "Needs update"] },
+      { key: "source_url", label: "Editable source (Canva link)", type: "text" },
     ] },
   { key: "promotions", label: "Paid Promotions", table: "mm_promotions", noun: "promotion", nounPlural: "promotions",
     intro: "Boosted posts and influencer spends, with what each one cost.",
