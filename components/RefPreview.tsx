@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { IconX, IconExternalLink, IconChevronLeft, IconChevronRight, IconDownload } from "@tabler/icons-react";
 
 // One side panel for everything a task points at (Praveen, 23 Oct): a link in the
@@ -11,11 +11,16 @@ import { IconX, IconExternalLink, IconChevronLeft, IconChevronRight, IconDownloa
 //
 // Mounted once (RefPreviewHost, in the preview layout). Opened from anywhere with
 // openRefPreview(); links inside an element marked data-ref-preview open here too.
+// Opened from inside a task box marked data-ref-dock, it sits inside that box (its
+// right side) rather than over the whole screen (Praveen, 23 Oct).
 
 export type RefItem = { url: string; title?: string; from?: string };
-type State = { items: RefItem[]; index: number } | null;
+type State = { items: RefItem[]; index: number; dock?: HTMLElement | null } | null;
 
 let setOpenState: ((s: State) => void) | null = null;
+// The element last pressed — its task box is where the panel docks.
+let lastDown: Element | null = null;
+const dockOf = (el: Element | null) => el?.closest<HTMLElement>("[data-ref-dock]") ?? null;
 /** Whether the side panel is on this page (so callers can leave links to it). */
 export const refPreviewAvailable = () => !!setOpenState;
 
@@ -24,7 +29,7 @@ export function openRefPreview(items: RefItem | RefItem[], index = 0): boolean {
   if (!setOpenState) return false;   // no host on this page — the caller opens a tab
   const list = Array.isArray(items) ? items : [items];
   if (!list.length) return false;
-  setOpenState({ items: list, index: Math.min(Math.max(0, index), list.length - 1) });
+  setOpenState({ items: list, index: Math.min(Math.max(0, index), list.length - 1), dock: dockOf(lastDown) });
   return true;
 }
 
@@ -81,7 +86,34 @@ const nameOf = (r: RefItem) => r.title || (() => { try { const u = new URL(r.url
 export function RefPreviewHost() {
   const [st, setSt] = useState<State>(null);
   const [failed, setFailed] = useState<string | null>(null);   // a file that wouldn't load
+  const [box, setBox] = useState<React.CSSProperties | null>(null);   // docked position
   useEffect(() => { setOpenState = setSt; return () => { setOpenState = null; }; }, []);
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => { lastDown = e.target as Element; };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, []);
+
+  // Docked: follow the task box as the page scrolls or resizes, kept on screen. The
+  // panel closes if the box goes away (another task opened, window closed).
+  const dock = st?.dock ?? null;
+  useLayoutEffect(() => {
+    if (!dock) { setBox(null); return; }
+    let raf = 0;
+    const place = () => {
+      if (!dock.isConnected) { setSt(null); return; }
+      const r = dock.getBoundingClientRect();
+      const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, window.innerHeight);
+      const width = Math.min(r.width, Math.max(360, Math.min(520, r.width * 0.55)));
+      setBox({ top, height: Math.max(bottom - top, 240), left: r.right - width, width });
+    };
+    const later = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
+    place();
+    window.addEventListener("scroll", later, true);
+    window.addEventListener("resize", later);
+    const ro = new ResizeObserver(later); ro.observe(dock);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", later, true); window.removeEventListener("resize", later); ro.disconnect(); };
+  }, [dock]);
 
   // Links inside a task window (marked data-ref-preview) open here, not in a new tab.
   // Ctrl/Cmd-click still opens a tab, as everywhere else.
@@ -93,7 +125,7 @@ export function RefPreviewHost() {
       if (!/^https?:/i.test(a.href) || a.origin === window.location.origin) return;
       ev.preventDefault();
       ev.stopPropagation();   // the brief editor opens links itself on click; this replaces that
-      setSt({ items: [{ url: a.href, title: a.dataset.refTitle || undefined, from: a.closest<HTMLElement>("[data-ref-from]")?.dataset.refFrom }], index: 0 });
+      setSt({ items: [{ url: a.href, title: a.dataset.refTitle || undefined, from: a.closest<HTMLElement>("[data-ref-from]")?.dataset.refFrom }], index: 0, dock: dockOf(a) });
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
@@ -122,7 +154,7 @@ export function RefPreviewHost() {
   const go = (d: number) => setSt({ ...st, index: (st.index + d + st.items.length) % st.items.length });
 
   return (
-    <aside className="rfp" role="dialog" aria-label="Preview">
+    <aside className={`rfp${box ? " docked" : ""}`} style={box ?? undefined} role="dialog" aria-label="Preview">
       <style>{CSS}</style>
       <div className="rfp-bar">
         <div className="rfp-t">
@@ -161,6 +193,7 @@ export function RefPreviewHost() {
 // brief included — stays readable on the left.
 const CSS = `
 .rfp{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:120;display:flex;flex-direction:column;background:#F7F8FC;border-left:1px solid #E5E8F0;box-shadow:-12px 0 32px rgba(35,45,66,.12)}
+.rfp.docked{bottom:auto;right:auto;box-shadow:none;border:1px solid #E5E8F0;border-radius:12px;overflow:hidden}
 .rfp-bar{display:flex;align-items:center;gap:6px;padding:12px 14px;background:#fff;border-bottom:1px solid #EEF0F4}
 .rfp-t{flex:1;min-width:0}
 .rfp-name{font-size:13.5px;font-weight:500;color:#232D42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

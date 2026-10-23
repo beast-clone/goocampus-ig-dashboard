@@ -1001,7 +1001,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   return (
     // One column (prototype D, 22 Oct): History & comments slide in from the right
     // only when asked for, so the brief and files get the whole width.
-    <div className={`tb-d ${histOpen ? "hopen" : ""}`}>
+    <div className={`tb-d ${histOpen ? "hopen" : ""}`} data-ref-dock>
     <div style={{ minWidth: 0 }}>
       {/* One line on top (Praveen, 22 Oct): status, duration, Start, then Edit /
           Reassign / Delete, with History & comments at the far right — every control the

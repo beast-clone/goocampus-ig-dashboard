@@ -4195,7 +4195,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   return (
     <>
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 preview-scope" onClick={onClose}>
-      <div className="hub-airtable bg-white rounded-lg w-full max-w-[1104px] h-[829px] max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()} onPaste={onPasteFiles}>
+      <div className="hub-airtable bg-white rounded-lg w-full max-w-[1104px] h-[829px] max-h-[92vh] flex flex-col overflow-hidden" data-ref-dock onClick={(e) => e.stopPropagation()} onPaste={onPasteFiles}>
         {/* Header — Themed hero band: brand-tinted, large title */}
         <div className="relative flex items-start justify-between gap-4 pt-8 pr-5 pb-5 pl-[66px] border-b border-gray-100 flex-shrink-0 bg-white">
           
