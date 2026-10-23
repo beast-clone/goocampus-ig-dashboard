@@ -751,7 +751,9 @@ function blockGradient(type: string): string {
 }
 const fmtDur = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return `${h ? h + "h " : ""}${mm}m`; };
 
-type PlanBlk = { kind: "task" | "lunch" | "free"; label: string; dur: number; row?: Row; start: number };
+type PlanBlk = { kind: "task" | "lunch" | "free" | "buffer"; label: string; dur: number; row?: Row; start: number };
+const PLAN_BUFFER_MIN = 60;   // the hour My Day keeps free for urgent work at the end of the day
+const isHotPrio = (p: string) => p === "Urgent" || p === "High";
 // Shared day-plan layout: sequence a person's not-done tasks across the 9 AM–7 PM
 // span around the pinned 1–2 PM lunch. Used by both the Today row (all pending work)
 // and each Week mini-day (that day's tasks). A task running into lunch splits around
@@ -763,21 +765,33 @@ function useTodayLogins(): Record<string, number> {
   return data?.logins || {};
 }
 
-function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): { blocks: PlanBlk[]; taskBlocks: PlanBlk[]; free: number; overflow: number } {
-  const queue = queueRows
+// `asMyDay`: lay it out exactly as the person's own My Day "Today's plan" does — rows
+// already in their order, whole tasks only (what doesn't fit spills over), and the
+// last hour kept as a buffer for urgent work unless the task is High/Urgent.
+function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number, asMyDay = false): { blocks: PlanBlk[]; taskBlocks: PlanBlk[]; free: number; overflow: number } {
+  const filtered = queueRows
     .filter((r) => presentsOn(r, member) || onDayPlan(r.status, member.role === "writer"))
-    .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
-    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+    .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }));
+  const queue = asMyDay ? filtered : filtered.sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const blocks: PlanBlk[] = [];
   const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
   const dayEnd = shiftEnd(member);
   let cur = Math.max(shiftStart(member), loginMin ?? shiftStart(member)), lunchDone = false, overflow = 0;
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
+  // Working minutes left in the day from `cur` (lunch excluded) — My Day's capacity.
+  const startCur = cur;
+  const avail = dayEnd - startCur - Math.max(0, Math.min(dayEnd, LUNCH_END) - Math.max(startCur, LUNCH_AT_MIN));
+  let used = 0, placed = 0;
 
   for (const q of queue) {
     if (cur >= dayEnd) { overflow++; continue; }
     const shoot = presentsOn(q.r, member);
     let remaining = shoot ? SHOOT_MIN : rowDurMin(q.r);
+    if (asMyDay) {
+      const cap = isHotPrio(q.r.priority) ? avail : Math.max(0, avail - PLAN_BUFFER_MIN);
+      if (placed > 0 && used + remaining > cap) { overflow++; continue; }
+      used += remaining; placed++;
+    }
     const label = (shoot ? "On camera · " : "") + (q.r.particulars || q.r.type || "Task");
     if (!lunchDone && cur >= LUNCH_AT_MIN && cur < LUNCH_END) pushLunch();
     if (!lunchDone && cur < LUNCH_AT_MIN) {
@@ -791,7 +805,11 @@ function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): 
     if (cur < LUNCH_AT_MIN) { blocks.push({ kind: "free", label: "Free", dur: LUNCH_AT_MIN - cur, start: cur }); cur = LUNCH_AT_MIN; }
     pushLunch();
   }
-  if (cur < dayEnd) blocks.push({ kind: "free", label: "Free", dur: dayEnd - cur, start: cur });
+  if (asMyDay) {
+    const bufStart = Math.max(cur, dayEnd - PLAN_BUFFER_MIN);
+    if (bufStart > cur) blocks.push({ kind: "free", label: "Free", dur: bufStart - cur, start: cur });
+    if (bufStart < dayEnd) blocks.push({ kind: "buffer", label: "Buffer", dur: dayEnd - bufStart, start: bufStart });
+  } else if (cur < dayEnd) blocks.push({ kind: "free", label: "Free", dur: dayEnd - cur, start: cur });
   const seenT = new Set<string>();
   const taskBlocks = blocks.filter((b) => b.kind === "task" && b.row != null && !seenT.has(b.row.id) && (seenT.add(b.row.id), true));
   const free = blocks.reduce((s, b) => s + (b.kind === "free" ? b.dur : 0), 0);
@@ -917,7 +935,24 @@ function PersonTimelineRow({ card }: {
   }
   const lastDone = doneBlocks.reduce((m, b) => Math.max(m, b.start + b.dur), 0);
   const planFrom = Math.max(dayFrom, lastDone);
-  const { blocks, taskBlocks, free, overflow } = buildDayPlan(groups.todayOpen, member, planFrom);
+  // The bar is the person's My Day "Today's plan", not a list of tasks due today:
+  // all their open work, in the order they dragged it into (saved per day), the rest
+  // as My Day seeds it — late first, then High/Urgent, then by publishing date.
+  const { data: savedOrder } = useApi<{ order: string[] }>(`/api/my-day/plan-order?person=${encodeURIComponent(member.key)}`, { refreshInterval: 5 * 60_000 });
+  const planRows = useMemo(() => {
+    const open = mine.filter((r) => !(r.status === "Output - Ready" || r.status === "Rejected/Not Published" || DONE_STATUSES.includes(r.status)));
+    const order = savedOrder?.order || [];
+    const kept = order.map((id) => open.find((r) => r.id === id)).filter((r): r is Row => !!r);
+    const due = (r: Row) => (r.publishingDate || r.dueDate || "").slice(0, 10) || "9999";
+    const PR: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
+    const late = (r: Row) => due(r) < todayKey;
+    const restAll = open.filter((r) => !kept.includes(r))
+      .sort((a, b) => due(a).localeCompare(due(b)) || ((PR[a.priority] ?? 4) - (PR[b.priority] ?? 4)));
+    const first = restAll.filter((r) => late(r) || isHotPrio(r.priority))
+      .sort((a, b) => (Number(!late(a)) - Number(!late(b))) || (Number(!isHotPrio(a.priority)) - Number(!isHotPrio(b.priority))));
+    return [...kept, ...first, ...restAll.filter((r) => !first.includes(r))];
+  }, [mine, savedOrder, todayKey]);
+  const { blocks, taskBlocks, free, overflow } = buildDayPlan(planRows, member, planFrom, true);
 
   const now = new Date();
   const nowMin = (now.getHours() - WORK_START_H) * 60 + now.getMinutes();
@@ -1019,10 +1054,10 @@ function PersonTimelineRow({ card }: {
               <span className="text-[11px] opacity-90 mt-0.5 truncate">1h · protected</span>
             </div>
           );
-          if (b.kind === "free") return (
+          if (b.kind === "free" || b.kind === "buffer") return (
             <div key={i} style={pos} className="min-w-0 flex flex-col justify-center px-3 text-gray-400 bg-[repeating-linear-gradient(45deg,#F3F5F9,#F3F5F9_6px,#E9ECF2_6px,#E9ECF2_12px)]">
-              <span className="text-[14px] font-semibold leading-tight truncate">Free</span>
-              <span className="text-[11px] opacity-90 mt-0.5 truncate">{fmtDur(b.dur)} open</span>
+              <span className="text-[14px] font-semibold leading-tight truncate">{b.kind === "buffer" ? "Buffer" : "Free"}</span>
+              <span className="text-[11px] opacity-90 mt-0.5 truncate">{b.kind === "buffer" ? "Kept free for urgent work" : `${fmtDur(b.dur)} open`}</span>
             </div>
           );
           const isNow = b === currentBlk;
