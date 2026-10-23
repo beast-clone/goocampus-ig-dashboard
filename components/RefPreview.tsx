@@ -192,7 +192,7 @@ export function RefPreviewHost() {
 // Fixed to the right edge, above the task window (z above its overlay), so the task —
 // brief included — stays readable on the left.
 const CSS = `
-.rfp{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:120;display:flex;flex-direction:column;background:#F7F8FC;border-left:1px solid #E5E8F0;box-shadow:-12px 0 32px rgba(35,45,66,.12)}
+.rfp{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:310;display:flex;flex-direction:column;background:#F7F8FC;border-left:1px solid #E5E8F0;box-shadow:-12px 0 32px rgba(35,45,66,.12)}
 .rfp.docked{bottom:auto;right:auto;box-shadow:none;border:1px solid #E5E8F0;border-radius:12px;overflow:hidden}
 .rfp-bar{display:flex;align-items:center;gap:6px;padding:12px 14px;background:#fff;border-bottom:1px solid #EEF0F4}
 .rfp-t{flex:1;min-width:0}

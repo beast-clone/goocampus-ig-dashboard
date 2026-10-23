@@ -3,7 +3,7 @@
 // (PreviewSidebar) + an optional topbar. Used by every cloned tab (via
 // PreviewDashboardShell) so all V2 pages share one identical shell chrome.
 export type PreviewTab =
-  | "my-day" | "my-workspace" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
+  | "my-day" | "my-workspace" | "marketing-materials" | "overview" | "marketing-hub" | "calendar" | "content-review" | "scheduler" | "post-planner" | "radar" | "content-studio"
   | "broadcast" | "watchers"
   | "instagram" | "linkedin" | "youtube" | "facebook" | "website" | "seo" | "audience"
   | "ads" | "competitors" | "benchmark" | "leads" | "inbox" | "sales" | "organic-sales" | "campaigns" | "ai-insights" | "ai-reports"

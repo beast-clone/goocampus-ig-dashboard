@@ -26,6 +26,8 @@ export type ToastMsg = {
   convo?: string;
   /** What happens on click, when there is something to open. */
   onOpen?: () => void;
+  /** The action word; "Open" when not given ("Undo" after a remove). */
+  action?: string;
 };
 
 type Shown = ToastMsg & { id: number };
@@ -80,7 +82,7 @@ export function ToastHost() {
           <span className="block truncate text-[13px] font-medium text-[#232D42]">{msg.who}</span>
           {msg.body && <span className="block truncate text-[12px] text-[#8A92A6]">{msg.body}</span>}
         </span>
-        {clickable && <span className="flex-shrink-0 text-[12px] font-medium text-brand">Open</span>}
+        {clickable && <span className="flex-shrink-0 text-[12px] font-medium text-brand">{msg.action || "Open"}</span>}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setMsg(null); }}

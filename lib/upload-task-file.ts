@@ -49,6 +49,20 @@ export async function uploadTaskFile(postId: string, file: File, kind: AttachKin
   return { ok: true, attachment: j.attachment, sentBack: !!j.sentBack };
 }
 
+/** Upload one Marketing Materials file (receipt, photo, brochure) straight to storage. */
+export async function uploadMaterialFile(tab: string, file: File): Promise<{ ok: true; file: { url: string; name: string; mime: string; size: number } } | { ok: false; error: string }> {
+  const mime = file.type || guessMime(file.name);
+  const sign = await fetch("/api/materials/sign", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tab, filename: file.name, mime, size: file.size }),
+  }).catch(() => null);
+  if (!sign || !sign.ok) { const j = sign ? await sign.json().catch(() => ({})) : {}; return { ok: false, error: (j as { error?: string }).error || "Couldn't start the upload — try again." }; }
+  const { signedUrl, publicUrl } = (await sign.json()) as { signedUrl: string; publicUrl: string };
+  const put = await fetch(signedUrl, { method: "PUT", headers: { "content-type": mime, "x-upsert": "false" }, body: file }).catch(() => null);
+  if (!put || !put.ok) return { ok: false, error: "The file didn't upload — check the connection and try again." };
+  return { ok: true, file: { url: publicUrl, name: file.name, mime, size: file.size } };
+}
+
 // Some systems hand over a file with no type (often a PDF dragged from certain apps).
 function guessMime(name: string): string {
   const ext = name.toLowerCase().split(".").pop() || "";

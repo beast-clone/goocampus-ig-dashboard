@@ -46,3 +46,9 @@ Material, Paid Promotions, Subscriptions, Team Members (Email), Testimonials (25
 137 IG), Essential Photos, Comp Off Calculator, Industry Landscape, E Book Orders.
 Already covered: Content Calendar (Marketing Hub), Post Scheduler (Scheduler).
 IG_Competitor_Ads / IG_Hashtags are old caches. Base appLdJFTrothBLDc0.
+**Built 23 Oct:** Expenses, Essential Photos, Marketing Material, Paid Promotions,
+Subscriptions and Meetings → sidebar "Marketing Materials" (lib/materials.ts, copied once
+with scripts/import-marketing-materials.mjs; no emails yet — the Airtable "Send Email" /
+"Send MoM?" automations were not rebuilt). Still in Airtable only: Tasks, Publishing
+Cadence, Upcoming Events, Team Members, Testimonials, Comp Off Calculator, Industry
+Landscape, E Book Orders.

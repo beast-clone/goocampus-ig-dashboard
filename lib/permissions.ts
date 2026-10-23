@@ -198,6 +198,13 @@ export const TABS: TabDef[] = [
   { key: "attendance", label: "Attendance", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/attendance`] },
   { key: "master-sheet", label: "Master sheet", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["master"] },
   { key: "pipeline", label: "Pipeline", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["pipeline"] },
+  // Marketing Materials (23 Oct): money tabs start off for non-admins.
+  { key: "mm-expenses", label: "Expenses", group: "Marketing Materials", sec: "content", adminDefault: true, paths: [`${P}/materials/expenses`] },
+  { key: "mm-photos", label: "Essential Photos", group: "Marketing Materials", sec: "content", paths: [`${P}/materials/photos`] },
+  { key: "mm-materials", label: "Marketing Material", group: "Marketing Materials", sec: "content", paths: [`${P}/materials/materials`] },
+  { key: "mm-promotions", label: "Paid Promotions", group: "Marketing Materials", sec: "content", adminDefault: true, paths: [`${P}/materials/promotions`] },
+  { key: "mm-subscriptions", label: "Subscriptions", group: "Marketing Materials", sec: "content", adminDefault: true, paths: [`${P}/materials/subscriptions`] },
+  { key: "mm-meetings", label: "Meetings", group: "Marketing Materials", sec: "content", paths: [`${P}/materials/meetings`] },
   { key: "content-calendar", label: "Content calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"] },
   { key: "mentorship-calendar", label: "Mentorship calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"], channel: "goocampusworld" },
   { key: "radar", label: "Content Radar", group: "Content", sec: "content", paths: [`${P}/radar`] },

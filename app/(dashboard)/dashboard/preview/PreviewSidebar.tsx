@@ -16,7 +16,7 @@ import {
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft, IconEye,
-  IconLock, IconCalendarDue,
+  IconLock, IconCalendarDue, IconFolders, IconReceipt, IconFileDescription, IconRepeat, IconNotes,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
@@ -63,6 +63,15 @@ const GROUPS: Group[] = [
       { label: "Attendance",       href: `${HUB}/attendance`,                 icon: IconUserCheck },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
+    ] },
+    // Six Airtable Marketing Hub tables brought in (Praveen, 23 Oct) — lib/materials.ts.
+    { key: "marketing-materials", label: "Marketing Materials", icon: IconFolders, href: `${HUB}/materials/expenses`, children: [
+      { label: "Expenses",           href: `${HUB}/materials/expenses`,      icon: IconReceipt },
+      { label: "Essential Photos",   href: `${HUB}/materials/photos`,        icon: IconPhoto },
+      { label: "Marketing Material", href: `${HUB}/materials/materials`,     icon: IconFileDescription },
+      { label: "Paid Promotions",    href: `${HUB}/materials/promotions`,    icon: IconSpeakerphone },
+      { label: "Subscriptions",      href: `${HUB}/materials/subscriptions`, icon: IconRepeat },
+      { label: "Meetings",           href: `${HUB}/materials/meetings`,      icon: IconNotes },
     ] },
     // Its own tab rather than buried under My Workspace — "Move content calendar
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
@@ -241,7 +250,7 @@ export function PreviewSidebar() {
       ...g,
       items: g.items.flatMap((it): (Leaf | Folder)[] => {
         if (!isFolder(it)) return ok(it.label) ? [it] : [];
-        if (it.key === "my-workspace") {
+        if (it.key === "my-workspace" || it.key === "marketing-materials") {
           const children = it.children.filter((c) => ok(c.label));
           return children.length ? [{ ...it, href: children[0].href, children }] : [];
         }
