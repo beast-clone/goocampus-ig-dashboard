@@ -30,7 +30,10 @@ export function MemberHub({ person, tab }: { person: string; tab: MemberTab }) {
   const { data, isLoading, refresh } = useApi<Data>(`/api/marketing-hub?${qs}`);
 
   const scoped = useMemo(
-    () => (data?.rows || []).filter((r) => ownerMatchesKey(r.owner, person)),
+    // Their own tasks, plus shoots where they're on camera on someone else's task —
+    // My Day plans those as a 1-hour block, so Workload must see them too.
+    () => (data?.rows || []).filter((r) => ownerMatchesKey(r.owner, person)
+      || (typeof r.custom?.presenter_key === "string" && r.custom.presenter_key.toLowerCase() === person.toLowerCase())),
     [data, person],
   );
 

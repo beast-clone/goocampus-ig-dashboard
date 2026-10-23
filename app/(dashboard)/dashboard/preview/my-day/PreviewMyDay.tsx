@@ -2086,8 +2086,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [screen, setScreen] = useState<"myday" | "team">("myday"); // My Day vs Team-capacity page
   // Workspace tabs — My Day (personal) + the member-scoped Marketing-Hub views.
   const [wsTab] = useState<"myday" | "team" | "master" | "pipeline" | "calendar">("myday"); // pinned — top tab bar removed; sidebar handles the other views
-  const [dayStarted, setDayStarted] = useState(false);  // login = day started (auto, no button)
-  const [dayStartMin, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (anchors Today's plan, spec §10)
+  const [, setDayStarted] = useState(false);  // login = day started (auto, no button)
+  const [, setDayStartMin] = useState(0);    // day-start clock-in, minutes since 9AM (the plan now anchors to attendance)
   // Today's first login per person (mh_attendance) — plans start at max(shift, login).
   const [teamLogins, setTeamLogins] = useState<Record<string, number>>({});
   useEffect(() => {
@@ -2401,7 +2401,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     // or high priority (ahead of the saved order), and follows it otherwise.
     const nowD = new Date();
     const todayKey = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, "0")}-${String(nowD.getDate()).padStart(2, "0")}`;
-    const all = uniqById([...claimedTasks, ...tasks]);
+    const all = uniqById(me.name === "Nandu" ? [...claimedTasks, ...tasks, ...samvaya] : [...claimedTasks, ...tasks]);
     const urgent = (id: string) => { const t = all.find((x) => x.id === id); return !!t && ((!!t.due && t.due < todayKey) || isHot(t.detail.priority)); };
     const pos = (id: string) => rank.get(id) ?? (urgent(id) ? -1 : Infinity);
     setPlan((arr) => arr.map((p, i) => ({ p, i })).sort((a, b) => (pos(a.p.taskId) - pos(b.p.taskId)) || (a.i - b.i)).map(({ p }) => p));
@@ -2709,8 +2709,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // attendance read failed — fall back to when THIS browser started the day, but
   // only for your own day: an admin previewing a teammate must not anchor that
   // teammate's plan to the admin's own morning.
-  const ownDay = !viewerIsAdmin || person === viewerId;
-  const loginMin = teamLogins[person] ?? (ownDay && dayStarted ? dayStartMin : undefined);
+  // Only the recorded sign-in (attendance) — the same source Workload uses, so the two
+  // bars start at the same time. (A fallback to this browser's own start made them
+  // differ by a few minutes.) No record yet → the shift start, on both.
+  const loginMin = teamLogins[person];
   // The "Started …" badge has to read from the SAME value the plan is anchored to.
   // It used to show this browser's own hmd-day-<person> record, so an admin opening
   // a teammate's day saw "Started 12:05 PM" — the admin's clock — above a timeline

@@ -4,7 +4,19 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
 import { useApi } from "@/lib/use-api";
 import { IconPin, IconClipboardList, IconMovie, IconUsers, IconPaperclip, IconCloudUpload, IconCheck, IconTrash, IconMessageCircle, IconCalendar, IconSun, IconCloud, IconCloudRain, IconMoon, IconNote, IconClipboardText, IconClockHour4, IconPlus, IconSend } from "@tabler/icons-react";
-import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+
+// PATCH /api/marketing-hub/update; when the server says the date move needs a reason
+// (the person's "Ask why when a date moves" switch), ask and send it again.
+async function updateTask(body: Record<string, unknown>): Promise<Response> {
+  const send = (reason?: string) => fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reason ? { ...body, reason } : body) });
+  const r = await send();
+  if (r.status !== 422) return r;
+  const j = await r.clone().json().catch(() => ({}));
+  if ((j as { gate?: string }).gate !== "reason") return r;
+  const why = await promptDialog({ title: "Why is the date changing?", body: "Add a short reason — it's saved in the task's history.", placeholder: "e.g. Waiting for the speaker's photos", action: "Change date" });
+  return why && why.trim() ? send(why.trim()) : r;
+}
 
 // The per-person day view — greeting, stat cards, reminders, task list + detail panel.
 // Used in TWO places:
@@ -529,7 +541,7 @@ function ChatBox({ messages, onSend }: { messages: ChatMsg[]; onSend: (text: str
 function TaskModal({ row, personKey, accent, onClose, onSaved }: { row: Row; personKey: string; accent: string; onClose: () => void; onSaved: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   async function patch(fields: Record<string, unknown>) {
-    await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: row.id, fields }) });
+    await updateTask({ id: row.id, fields });
   }
   async function markComplete() {
     setBusy("done");
@@ -1681,10 +1693,7 @@ function EditForm({ row, accent, currentRank, onClose, onCancel, onSaved }: {
     setSaving(true);
     setErr(null);
     try {
-      const r = await fetch(`/api/marketing-hub/update`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const r = await updateTask({
           id: row.id,
           fields: {
             particulars,
@@ -1698,7 +1707,6 @@ function EditForm({ row, accent, currentRank, onClose, onCancel, onSaved }: {
             additional_info: additionalInfo || null,
             needs_review: needsReview,
           },
-        }),
       });
       const j = await r.json();
       if (!r.ok || j.error) { setErr(j.error || `HTTP ${r.status}`); return; }

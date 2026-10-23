@@ -680,7 +680,7 @@ export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row
       // this person's stage — work waiting on someone else isn't their overdue. Same
       // rule as the Overdue table below the bar.
       const onMyStage = presentsOn(r, m) || onDayPlan(r.status, m.role === "writer");
-      if (!isDone && onMyStage && (pd || dd) && (pd || dd) < today) overdue_ += 1;
+      if (!isDone && onMyStage && (pd || dd) && (pd || dd) < today && startedTodayMin(r) == null) overdue_ += 1;
       if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) done_ += 1;
     }
     if (m.role === "writer") {
@@ -973,7 +973,7 @@ function PersonTimelineRow({ card }: {
   const focus = currentBlk || nextBlk;
 
   const freeH = Math.floor(free / 60);
-  const allDoneToday = groups.todayOpen.length === 0 && groups.finishedToday.length > 0;
+  const allDoneToday = groups.todayOpen.length === 0 && groups.finishedToday.length > 0 && taskBlocks.length === 0 && overflow === 0;
   const badge = allDoneToday
     ? { text: "Today's work done", cls: "bg-emerald-50 text-emerald-700" }
     : overflow > 0
@@ -992,6 +992,7 @@ function PersonTimelineRow({ card }: {
   const statusOf = (r: Row, overdueRow: boolean): { t: string; c: string } => {
     if (DONE_STATUSES.includes(r.status)) return { t: "Completed", c: "bg-emerald-50 text-emerald-700" };
     if (r.status === "Output - Ready") return { t: "Completed · in review", c: "bg-emerald-50 text-emerald-700" };
+    if (r.status === "Content - Needs Approval") return { t: "Waiting for approval", c: "bg-amber-50 text-amber-700" };
     if (!presentsOn(r, member) && !onDayPlan(r.status, member.role === "writer")) return { t: "With the team", c: "bg-brand-light text-[#2138B0]" };
     if (overdueRow) return { t: "Overdue", c: "bg-rose-50 text-rose-600" };
     if (r.status === "Output - In Progress" || r.status === "Content - In Progress") return { t: "In progress", c: "bg-blue-50 text-blue-700" };
