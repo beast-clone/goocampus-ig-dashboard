@@ -2107,6 +2107,9 @@ async function saveField(id: string, fields: Record<string, unknown>, opts?: { r
     });
     if (res.ok) {
       const okBody = await res.json().catch(() => ({}));
+      // The ownership rule changed what was asked for (or moved the task) — say so.
+      const warning = (okBody as { warning?: string }).warning;
+      if (warning) alertDialog("Owner", warning);
       return { ok: true, pendingApproval: (okBody as { pendingApproval?: PendingApproval }).pendingApproval };
     }
     const body = await res.json().catch(() => ({}));

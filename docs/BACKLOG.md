@@ -37,3 +37,12 @@ Agreed direction (build later):
    background steps are captured too.
 3. Optional: make "Publish now" wake the n8n publisher immediately (webhook) instead of
    waiting for the 5-minute tick — needs an n8n workflow change.
+
+## Airtable Marketing Hub tables not in the dashboard yet (Praveen, 23 Oct 2026 — on hold)
+
+Listed for Praveen to pick which to bring in: Tasks (simple to-do list), Publishing
+Cadence, Meetings (MoM + email), Upcoming Events, Expenses (receipts, SBU), Marketing
+Material, Paid Promotions, Subscriptions, Team Members (Email), Testimonials (25 YT +
+137 IG), Essential Photos, Comp Off Calculator, Industry Landscape, E Book Orders.
+Already covered: Content Calendar (Marketing Hub), Post Scheduler (Scheduler).
+IG_Competitor_Ads / IG_Hashtags are old caches. Base appLdJFTrothBLDc0.

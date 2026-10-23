@@ -338,9 +338,21 @@ export async function PATCH(req: Request) {
       return String(v);
     };
     const beforeRow = before.data as Record<string, unknown>;
-    const activityRows = Object.keys(clean).filter((field) => field !== "custom").flatMap((field) => {
+    // What was actually saved: the database's ownership rule (mh_design_owner) can
+    // override owner/status. Log and report THAT, not what was asked for — the history
+    // said "owner changed to Nandu" on a design task that had stayed with Praveen.
+    const saved = data as Record<string, unknown>;
+    const actual = (field: string) => (field in saved ? saved[field] : clean[field]);
+    let ownershipNote: string | null = null;
+    if ("owner_key" in clean && (saved.owner_key ?? null) !== (clean.owner_key ?? null)) {
+      ownershipNote = `Design tasks at this stage always belong to Praveen — change the type to a video type first to give it to ${clean.owner_key || "someone else"}.`;
+    } else if ("type" in clean && beforeRow.owner_key === "praveen" && saved.owner_key == null && saved.status === "Content - Approved") {
+      ownershipNote = "It's a video task now, so it went to the editors' claim pool for Nikhil / Nandu to pick up.";
+    }
+    const extraFields = ["owner_key", "status"].filter((f) => !(f in clean) && f in saved && (saved[f] ?? null) !== (beforeRow[f] ?? null));
+    const activityRows = [...Object.keys(clean).filter((field) => field !== "custom"), ...extraFields].flatMap((field) => {
       const oldV = beforeRow[field];
-      const newV = clean[field];
+      const newV = actual(field);
       const same = Array.isArray(oldV) || Array.isArray(newV)
         ? JSON.stringify(oldV ?? []) === JSON.stringify(newV ?? [])
         : (oldV ?? null) === (newV ?? null);
@@ -602,7 +614,7 @@ export async function PATCH(req: Request) {
       }
     }
 
-    return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at, pendingApproval });
+    return NextResponse.json({ id: data.id, fields: data, updatedAt: data.updated_at, pendingApproval, ...(ownershipNote ? { warning: ownershipNote } : {}) });
   } catch (err) {
     return NextResponse.json(safeError(err, "Task update failed"), { status: 502 });
   }
