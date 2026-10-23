@@ -307,7 +307,7 @@ function Editor({ tab, row, optionsFor, onClose, onSaved, onRemoved }: {
     if (!r || !r.ok) { setErr("Couldn't remove it — try again."); return; }
     onRemoved(row);
   };
-  const addFiles = async (picked: FileList, key: string) => {
+  const addFiles = async (picked: FileList | File[], key: string) => {
     const list = Array.from(picked);
     setUploading((n) => n + list.length);
     for (const f of list) {

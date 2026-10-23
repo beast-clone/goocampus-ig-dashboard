@@ -143,7 +143,7 @@ export type NewTaskAssets = { refLinks: string[]; refFiles: File[]; outLink: str
 export const EMPTY_ASSET: PendingAsset = { links: [], files: [] };
 
 export function PendingAssets({ title, drop, oneLink, value, onChange }: { title: string; drop?: boolean; oneLink?: boolean; value: PendingAsset; onChange: (p: PendingAsset) => void }) {
-  const addFiles = async (files: FileList) => {
+  const addFiles = async (files: FileList | File[]) => {
     let list = inNumberOrder(files);
     // Same as an uploaded task: a name that's already here is called out first (22 Oct).
     const stem = (n: string) => n.toLowerCase().replace(/\.[a-z0-9]+$/, "");

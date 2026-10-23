@@ -9,14 +9,14 @@ import { mtab } from "@/lib/materials";
 // One-time upload URL for a Marketing Materials file (receipt, photo, brochure): the
 // browser sends the file straight to storage, as task files do (attach/sign). The
 // same file types as a task's Attachments.
-// POST { tab, filename, mime, size } → { path, signedUrl, publicUrl }
-export async function POST(req: Request) {
+// POST /api/materials/<tab>/sign { filename, mime, size } → { path, signedUrl, publicUrl }
+export async function POST(req: Request, { params }: { params: { tab: string } }) {
   const denied = await requireSection("content");
   if (denied) return denied;
   try {
     if (!getSessionUserId()) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-    const b = (await req.json()) as { tab?: string; filename?: string; mime?: string; size?: number };
-    const t = mtab(b.tab || "");
+    const b = (await req.json()) as { filename?: string; mime?: string; size?: number };
+    const t = mtab(params.tab);
     if (!t) return NextResponse.json({ error: "Unknown tab" }, { status: 400 });
     if (!b.filename) return NextResponse.json({ error: "filename required" }, { status: 400 });
     if (!mimeAllowed(b.mime || "", "attachment")) return NextResponse.json({ error: mimeRefusal("attachment") }, { status: 415 });

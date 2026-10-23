@@ -10,6 +10,17 @@ import { openRefPreview } from "@/components/RefPreview";
 // (icon · title · count · Upload), an optional drop zone, numbered tiles with files on
 // their way up shown as progress rings, and a paste-a-link field. Presentational only:
 // the caller owns uploading, removing and saving links.
+//
+// Ctrl/Cmd+V pastes files into the box the pointer was last over (Praveen, 23 Oct:
+// "copy paste it on that references, it'll update") — a screenshot, a copied image.
+// Not while typing in some other field: the paste is that field's.
+let pasteTarget: HTMLElement | null = null;
+const pastedName = (files: File[]) => {
+  // A screenshot pastes as "image.png" every time; give it a name worth keeping.
+  const d = new Date(), p2 = (x: number) => String(x).padStart(2, "0");
+  const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+  return files.map((f, i) => (/^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? new File([f], `pasted-${stamp}${files.length > 1 ? `-${i + 1}` : ""}.${f.name.split(".").pop()}`, { type: f.type }) : f));
+};
 export type FileTile = {
   key: string; name: string; url?: string; preview?: string;
   kind: "image" | "video" | "pdf" | "file";
@@ -33,12 +44,12 @@ const linkHref = (s: string) => s.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 
 export function FilesCard({
   icon, title, count, drop, accept, onFiles, busyText, tiles, numbered, pending = [], onDismiss,
-  links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, addLabel = "+ Add file", addSub = "or drop here", hint, onReorder,
+  links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, addLabel = "+ Add file", addSub = "drop or paste here", hint, onReorder,
 }: {
   icon?: React.ReactNode; title: string; count?: string;
   /** Big drop zone under the header (Creatives). Otherwise a dashed Add tile ends the row. */
   drop?: boolean;
-  accept: string; onFiles: (files: FileList) => void; busyText?: string;
+  accept: string; onFiles: (files: FileList | File[]) => void; busyText?: string;
   tiles: FileTile[]; numbered?: boolean;
   pending?: PendingUpload[]; onDismiss?: (key: string) => void;
   links?: string[]; onAddLink?: (href: string) => void; onRemoveLink?: (href: string) => void;
@@ -48,6 +59,22 @@ export function FilesCard({
   onReorder?: (keys: string[]) => void;
 }) {
   const [url, setUrl] = useState("");
+  const cardRef = useRef<HTMLDivElement>(null);
+  const onFilesRef = useRef(onFiles); onFilesRef.current = onFiles;
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const el = cardRef.current;
+      if (!el || pasteTarget !== el || !el.isConnected) return;
+      const files = Array.from(e.clipboardData?.files || []);
+      if (!files.length) return;   // ordinary text paste — leave it alone
+      const a = document.activeElement as HTMLElement | null;
+      if (a && !el.contains(a) && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+      e.preventDefault(); e.stopPropagation();
+      onFilesRef.current(pastedName(files));
+    };
+    document.addEventListener("paste", onPaste, true);
+    return () => { document.removeEventListener("paste", onPaste, true); if (pasteTarget === cardRef.current) pasteTarget = null; };
+  }, []);
   const addUrl = () => {
     const raw = url.trim(); if (!raw || !onAddLink) return;
     setUrl("");
@@ -123,7 +150,7 @@ export function FilesCard({
     if (href && plain(e) && openRefPreview({ url: href, title: host(l), from: title })) e.preventDefault();
   };
   return (
-    <div className="gcf">
+    <div className="gcf" ref={cardRef} onMouseEnter={() => { pasteTarget = cardRef.current; }} onPointerDown={() => { pasteTarget = cardRef.current; }}>
       <style dangerouslySetInnerHTML={{ __html: GCF_CSS }} />
       <div className="gcf-h">
         <span className="gcf-ico">{icon || <IconUpload size={15} stroke={1.8} />}</span>
@@ -134,8 +161,8 @@ export function FilesCard({
       <div className="gcf-b">
         {drop && picker("gcf-drop", <>
           <span className="gcf-ci"><IconUpload size={17} stroke={1.7} /></span>
-          <span><span className="gcf-dt">{busyText || <>Drop files here or <span className="gcf-browse">browse</span></>}</span>
-            <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 2 GB each (Instagram posts reels up to 300 MB) · or paste an image"}</span></span>
+          <span><span className="gcf-dt">{busyText || <>Drop or paste files here, or <span className="gcf-browse">browse</span></>}</span>
+            <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 2 GB each (Instagram posts reels up to 300 MB)"}</span></span>
         </>)}
         {showTiles && (
           <div className="gcf-tiles">

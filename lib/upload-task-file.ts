@@ -52,9 +52,9 @@ export async function uploadTaskFile(postId: string, file: File, kind: AttachKin
 /** Upload one Marketing Materials file (receipt, photo, brochure) straight to storage. */
 export async function uploadMaterialFile(tab: string, file: File): Promise<{ ok: true; file: { url: string; name: string; mime: string; size: number } } | { ok: false; error: string }> {
   const mime = file.type || guessMime(file.name);
-  const sign = await fetch("/api/materials/sign", {
+  const sign = await fetch(`/api/materials/${tab}/sign`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tab, filename: file.name, mime, size: file.size }),
+    body: JSON.stringify({ filename: file.name, mime, size: file.size }),
   }).catch(() => null);
   if (!sign || !sign.ok) { const j = sign ? await sign.json().catch(() => ({})) : {}; return { ok: false, error: (j as { error?: string }).error || "Couldn't start the upload — try again." }; }
   const { signedUrl, publicUrl } = (await sign.json()) as { signedUrl: string; publicUrl: string };
