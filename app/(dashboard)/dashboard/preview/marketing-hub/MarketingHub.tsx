@@ -164,7 +164,9 @@ function ownerMatches(owner: string, m: TeamMember): boolean {
 const PENDING_STATUSES = ["Content - Pending", "Content - Approved"];
 const DONE_STATUSES = ["Ready to Publish", "Published/Scheduled"];
 
-const VIDEO_TYPES = ["Reel - Cut", "Reel - Original", "YouTube Long-Form", "YouTube Shorts"];
+// The one shared list (lib/mh-content-types) — this file had its own copy without
+// "Meta Ads - Video" and "Story (Video)", so Workload counted and coloured those as design.
+const VIDEO_TYPES = { includes: (t: string) => isVideoType(t) };
 const DESIGN_TYPES = ["Post", "Carousel", "Reel Thumbnail", "YouTube Thumbnail", "Meta Ads", "Story (Image)"];
 
 // --- Planned-day timeline (Workload tab) ---------------------------------------
