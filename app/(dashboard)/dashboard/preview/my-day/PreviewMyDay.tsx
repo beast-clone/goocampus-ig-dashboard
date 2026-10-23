@@ -12,7 +12,7 @@ import { useSbus } from "@/lib/use-sbus";
 import { Overlay } from "../Overlay";
 import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
-import { uploadTaskFile, removeTaskFile } from "@/lib/upload-task-file";
+import { uploadTaskFile, removeTaskFile, reorderTaskFiles } from "@/lib/upload-task-file";
 import { useUploadQueue } from "@/lib/use-upload-queue";
 import { FilesCard, type FileTile } from "@/components/FilesCard";
 import { useDraft } from "@/lib/use-draft";
@@ -553,6 +553,11 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
             onRemove: f.attId ? () => remove(f.attId!) : undefined };
         })}
         pending={q.pending} onDismiss={q.dismiss}
+        onReorder={nFiles > 1 && creatives.every((c) => c.attId) ? async (ids) => {
+          const res = await reorderTaskFiles(postId, ids);
+          if (!res.ok) { const j = await res.json().catch(() => ({})); showToast({ who: "Couldn't save the new order", body: (j as { error?: string }).error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); }
+          onSaved();
+        } : undefined}
         links={link ? [link] : []} singleLink linkPlaceholder="Paste the output link (Drive / Canva)…"
         onAddLink={(v) => saveLink(v)} onRemoveLink={() => saveLink("")} />
       {preview !== null && viewable.length > 0 && (

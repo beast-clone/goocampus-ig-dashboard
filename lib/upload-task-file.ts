@@ -64,6 +64,11 @@ export function sentBackNotice() {
     alertDialog("Sent back to Content Review", "This post was already approved, so changing its creative sends it back to Content Review and out of the Scheduler. Once it is approved again, schedule it again."));
 }
 
+/** Save the order a task's creatives were dragged into (attachment ids, first slide first). */
+export async function reorderTaskFiles(postId: string, ids: string[]): Promise<Response> {
+  return fetch("/api/marketing-hub/attach/reorder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, ids }) });
+}
+
 /** Remove a task file; says so if that sent an approved post back to review. */
 export async function removeTaskFile(id: string): Promise<Response> {
   const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });

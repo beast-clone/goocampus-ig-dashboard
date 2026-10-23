@@ -56,11 +56,13 @@ export async function GET() {
     // per-post-id .in() filter if the table ever outgrows it.
     const { data: atts } = await sb
       .from("mh_attachments")
-      .select("id, post_id, filename, storage_path, kind")
+      .select("id, post_id, filename, storage_path, kind, sort_order")
       .in("kind", ["reference", "creative"])
       .order("uploaded_at", { ascending: false })
       .limit(5000);
-    (atts || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string; kind: string }) => {
+    const orderOf = new Map<string, number>();   // the order set by dragging the tiles
+    (atts || []).forEach((a: { id: string; post_id: string; filename: string; storage_path: string; kind: string; sort_order: number | null }) => {
+      if (a.sort_order != null) orderOf.set(a.id, a.sort_order);
       if (a.kind === "creative") {
         const arr = creativeByPost.get(a.post_id) || [];
         // A PDF is a document, not a picture — typed "image" it rendered as a blank tile.
@@ -74,7 +76,7 @@ export async function GET() {
       }
     });
     // Read newest-first for the cap; shown oldest-first, so slide 1 is first (22 Oct).
-    creativeByPost.forEach((arr) => arr.reverse());
+    creativeByPost.forEach((arr) => { arr.reverse(); arr.sort((x, y) => (orderOf.get(x.attId!) ?? 1e9) - (orderOf.get(y.attId!) ?? 1e9)); });
     refByPost.forEach((arr) => arr.reverse());
     // Collaborators from the junction table (the approve-handoff writes here).
     const collabByPost = new Map<string, string[]>();

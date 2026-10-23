@@ -33,7 +33,7 @@ import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dash
 import { pageForSbu, type SbuPage } from "@/lib/sbu-pages";
 import { compressImage } from "@/lib/compress-image";
 import { useUploadQueue } from "@/lib/use-upload-queue";
-import { removeTaskFile } from "@/lib/upload-task-file";
+import { removeTaskFile, reorderTaskFiles } from "@/lib/upload-task-file";
 import { showToast } from "../Toast";
 import { useTeam, mergeTeam, NEWCOMER_COLOR, type TeamPerson } from "@/lib/use-team";
 import { hubRoleFor } from "@/lib/hub-role";
@@ -3546,7 +3546,7 @@ export const ACT_VERB: Record<string, string> = {
   priority_changed: "changed the priority", type_changed: "changed the type", content_edited: "edited the content",
   caption_edited: "edited the caption", notes_edited: "edited the notes", sbu_changed: "changed the brand",
   platforms_changed: "changed platforms", review_changed: "toggled review", output_link_changed: "updated the output link",
-  creative_added: "added a creative", creative_removed: "removed a creative", claim: "claimed this",
+  creative_added: "added a creative", creative_removed: "removed a creative", creatives_reordered: "changed the order of the creatives", claim: "claimed this",
   reference_added: "added a reference", reference_removed: "removed a reference",
   attachment_added: "added an attachment", attachment_removed: "removed an attachment", reference_links_changed: "updated the references",
   instagram_url_changed: "updated the Instagram link", facebook_url_changed: "updated the Facebook link", linkedin_url_changed: "updated the LinkedIn link",
@@ -4280,6 +4280,11 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                         onRemove: c.removable && c.id ? () => removeCreative(c.id!) : undefined };
                     })}
                     pending={qCre.pending} onDismiss={qCre.dismiss}
+                    onReorder={creatives.length > 1 && creatives.every((c) => c.id) ? async (ids) => {
+                      const res = await reorderTaskFiles(row.id, ids);
+                      if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't save the new order" }); }
+                      await loadDetail();
+                    } : undefined}
                     links={(detail?.outputLink ?? row.outputLink) ? [String(detail?.outputLink ?? row.outputLink)] : []} singleLink
                     linkPlaceholder="Paste the output link (Drive / Canva)…"
                     onAddLink={(v) => { saveOne("output_link", v); }} onRemoveLink={async () => { if (await confirmDialog({ title: "Remove the output link?", body: "The link is taken off the task (it stays in the task's history).", action: "Remove", danger: true })) saveOne("output_link", null); }} />

@@ -45,6 +45,7 @@ export async function GET() {
         .from("mh_attachments")
         .select("post_id, storage_path, kind, mime_type, uploaded_at")
         .in("post_id", ids)
+        .order("sort_order", { ascending: true, nullsFirst: false })   // the order set by dragging the tiles
         .order("uploaded_at", { ascending: true })
         .not("kind", "in", "(reference,attachment)")   // attachments are working files, never media;
       for (const a of atts || []) {

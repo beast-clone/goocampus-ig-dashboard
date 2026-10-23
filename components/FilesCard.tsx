@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconUpload, IconLink, IconFileText } from "@tabler/icons-react";
 import { PdfThumb } from "@/components/PdfThumb";
 import type { PendingUpload } from "@/lib/use-upload-queue";
@@ -33,7 +33,7 @@ const linkHref = (s: string) => s.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 
 export function FilesCard({
   icon, title, count, drop, accept, onFiles, busyText, tiles, numbered, pending = [], onDismiss,
-  links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, addLabel = "+ Add file", addSub = "or drop here", hint,
+  links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, addLabel = "+ Add file", addSub = "or drop here", hint, onReorder,
 }: {
   icon?: React.ReactNode; title: string; count?: string;
   /** Big drop zone under the header (Creatives). Otherwise a dashed Add tile ends the row. */
@@ -44,6 +44,8 @@ export function FilesCard({
   links?: string[]; onAddLink?: (href: string) => void; onRemoveLink?: (href: string) => void;
   linkPlaceholder?: string; singleLink?: boolean;
   addLabel?: string; addSub?: string; hint?: string;
+  /** Turns on drag-to-reorder; gets the tile keys in their new order. */
+  onReorder?: (keys: string[]) => void;
 }) {
   const [url, setUrl] = useState("");
   const addUrl = () => {
@@ -58,12 +60,61 @@ export function FilesCard({
     </label>
   );
   const showTiles = tiles.length > 0 || pending.length > 0 || !drop;
+  // Drag a tile onto another to move it there (Praveen, 23 Oct). The new order shows at
+  // once and is kept until the saved list comes back.
+  const tileKeys = tiles.map((t) => t.key).join("\u0000");
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  useEffect(() => { setOrder(null); }, [tileKeys]);
+  const shown = order ? [...order.map((k) => tiles.find((t) => t.key === k)).filter((t): t is FileTile => !!t), ...tiles.filter((t) => !order.includes(t.key))] : tiles;
+  const canDrag = !!onReorder && tiles.length > 1;
+  const justDragged = useRef(false);   // the click that ends a drag doesn't open the file
+  const dropOn = (from: string, target: string | null) => {
+    setDrag(null); setOver(null);
+    if (!target || from === target || !onReorder) return;
+    const keys = shown.map((t) => t.key);
+    const fi = keys.indexOf(from), ti = keys.indexOf(target);
+    keys.splice(fi, 1);
+    keys.splice(ti, 0, from);   // lands where the target was, pushing it along
+    setOrder(keys);
+    onReorder(keys);
+  };
+  // Pointer-based, not the browser's drag-and-drop, so it also works on touch screens.
+  // A press only becomes a drag after the pointer moves a few pixels; a plain click
+  // still opens the file.
+  const startDrag = (e: React.PointerEvent, key: string) => {
+    if (!canDrag || e.button !== 0 || (e.target as HTMLElement).closest(".gcf-x")) return;
+    const x0 = e.clientX, y0 = e.clientY;
+    let moving = false, target: string | null = null;
+    const keyAt = (x: number, y: number) => (document.elementFromPoint(x, y)?.closest("[data-tile-key]") as HTMLElement | null)?.dataset.tileKey ?? null;
+    const move = (ev: PointerEvent) => {
+      if (!moving && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      if (!moving) { moving = true; setDrag(key); }
+      ev.preventDefault();
+      target = keyAt(ev.clientX, ev.clientY);
+      setOver(target);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (!moving) return;
+      justDragged.current = true;
+      setTimeout(() => { justDragged.current = false; }, 0);
+      dropOn(key, target);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
   // A file or link opens in the side panel (components/RefPreview), next to the task,
   // with ‹ › through this card's other files. Ctrl/Cmd-click still opens a tab.
   const plain = (e: React.MouseEvent) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0);
   const openTile = (e: React.MouseEvent, t: FileTile) => {
+    if (justDragged.current) { e.preventDefault(); return; }
     if (!plain(e)) return;
-    const withUrl = tiles.filter((x) => x.url);
+    const withUrl = shown.filter((x) => x.url);
     if (t.url && openRefPreview(withUrl.map((x) => ({ url: x.url!, title: x.name, from: title })), withUrl.indexOf(t))) { e.preventDefault(); return; }
     if (t.onOpen) { e.preventDefault(); t.onOpen(); }
   };
@@ -88,7 +139,7 @@ export function FilesCard({
         </>)}
         {showTiles && (
           <div className="gcf-tiles">
-            {tiles.map((t, i) => {
+            {shown.map((t, i) => {
               const inner = t.kind === "pdf" && t.url
                 ? <PdfThumb url={t.url} width={96} fallback={<span className="gcf-doc"><IconFileText size={20} stroke={1.7} /></span>} />
                 : t.kind === "file" || (t.kind === "pdf" && !t.url)
@@ -96,10 +147,13 @@ export function FilesCard({
                   : t.kind === "video" ? <span className="gcf-play">▶</span> : null;
               const style = t.kind === "image" && (t.preview || t.url) ? { backgroundImage: `url(${t.preview || t.url})` } : undefined;
               return (
-                <div key={t.key} className="gcf-tile" title={t.name}>
+                <div key={t.key} className={`gcf-tile${drag === t.key ? " drag" : ""}${over === t.key && drag !== t.key ? " over" : ""}`} title={canDrag ? `${t.name} — drag to change the order` : t.name}
+                  data-tile-key={t.key} data-movable={canDrag || undefined}
+                  onPointerDown={canDrag ? (e) => startDrag(e, t.key) : undefined}
+                  onDragStart={canDrag ? (e) => e.preventDefault() : undefined}>
                   {t.url
-                    ? <a className="gcf-im" href={t.url} target="_blank" rel="noreferrer" style={style} onClick={(e) => openTile(e, t)}>{inner}</a>
-                    : <div className={`gcf-im${t.onOpen ? " clk" : ""}`} style={style} onClick={t.onOpen}>{inner}</div>}
+                    ? <a className="gcf-im" draggable={false} href={t.url} target="_blank" rel="noreferrer" style={style} onClick={(e) => openTile(e, t)}>{inner}</a>
+                    : <div className={`gcf-im${t.onOpen ? " clk" : ""}`} style={style} onClick={t.onOpen ? () => { if (!justDragged.current) t.onOpen!(); } : undefined}>{inner}</div>}
                   {numbered && <span className="gcf-n">{i + 1}</span>}
                   <div className="gcf-nm">{t.name}</div>
                   {t.onRemove && <button type="button" className="gcf-x" onClick={t.onRemove} title="Remove">✕</button>}
@@ -183,6 +237,9 @@ html[data-theme="dark"] .gcf{--ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--
 .gcf-n{position:absolute;top:6px;left:6px;font-size:10.5px;background:rgba(35,45,66,.6);color:#fff;border-radius:5px;padding:0 5px;z-index:2}
 .gcf-x{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:6px;border:none;background:rgba(35,45,66,.6);color:#fff;font-size:11px;display:grid;place-items:center;cursor:pointer;opacity:0;transition:opacity .12s;z-index:2}
 .gcf-tile:hover .gcf-x,.gcf-x.on{opacity:1}
+.gcf-tile[data-movable]{cursor:grab;touch-action:none;user-select:none}
+.gcf-tile.drag{opacity:.4}
+.gcf-tile.over{border-color:var(--brand);outline:2px solid var(--brand);outline-offset:-1px}
 .gcf-add{width:96px;height:126px;border:1.5px dashed var(--drop-line);background:var(--drop);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;text-align:center;padding:0 .4rem}
 .gcf-add:hover{border-color:var(--brand)}
 .gcf-add-t{font-size:12.5px;font-weight:500;color:var(--brand)}

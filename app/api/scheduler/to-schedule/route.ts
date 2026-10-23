@@ -51,6 +51,7 @@ export async function GET() {
         .select("post_id, storage_path, kind")
         .in("post_id", ids)
         .not("kind", "in", "(reference,attachment)")   // attachments are working files, never media;
+        .order("sort_order", { ascending: true, nullsFirst: false })   // the order set by dragging the tiles, then
         .order("uploaded_at", { ascending: true })   // first uploaded = first slide (22 Oct)
       for (const a of atts || []) {
         if (!a.storage_path) continue;
