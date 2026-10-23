@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection, requireSchedulerPost } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
+import { NOT_PUBLISHING, notUpdated, freshPublishState } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 import { logQueueAction, istTime } from "@/lib/publish-history";
 
@@ -27,10 +27,12 @@ export async function POST(req: Request) {
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
-    const { data: was } = await sb.from("mh_posts").select("schedule_time").eq("id", body.recordId).maybeSingle();
+    const { data: was } = await sb.from("mh_posts").select("schedule_time, custom").eq("id", body.recordId).maybeSingle();
     const { data, error } = await sb
       .from("mh_posts")
-      .update({ schedule_time: new Date(body.scheduleTime).toISOString(), publish_status: "scheduled" })
+      // A failed post rescheduled must not go back to its old (failed) upload or carry
+      // its old try count; what already went out stays marked so it isn't re-posted.
+      .update({ schedule_time: new Date(body.scheduleTime).toISOString(), publish_status: "scheduled", failure_reason: null, custom: freshPublishState(was?.custom) })
       .eq("id", body.recordId)
       .or(NOT_PUBLISHING)   // never while the publisher is sending it
       .select("id");

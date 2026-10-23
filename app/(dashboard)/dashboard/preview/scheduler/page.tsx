@@ -2012,10 +2012,10 @@ function liveStatusText(p: ScheduledPost, now: number): { text: string; tone: "w
   if (p.effectiveStatus === "scheduled" && due && due > now) {
     const at = new Date(due).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
     const left = `goes live at ${at} (in ${clockText(due - now)})`;
-    if (p.prepState === "error") return { text: `Instagram couldn't take the file — ${p.prepError || "check it"}. Fix it before ${at}.`, tone: "bad" };
-    if (p.prepState === "ready") return { text: `File is on Instagram, ready · ${left}`, tone: "done" };
-    if (p.prepState === "sending") return { text: `Sending the file to Instagram… · ${left}`, tone: "busy" };
-    if (due - now <= SEND_AHEAD_MIN * 60_000) return { text: `Sending the file to Instagram shortly · ${left}`, tone: "wait" };
+    if (p.prepState === "error") return { text: `The upload failed — ${p.prepError || "check it"}. Fix it before ${at}.`, tone: "bad" };
+    if (p.prepState === "ready") return { text: `File uploaded, ready · ${left}`, tone: "done" };
+    if (p.prepState === "sending") return { text: `Uploading the file… · ${left}`, tone: "busy" };
+    if (due - now <= SEND_AHEAD_MIN * 60_000) return { text: `Uploading the file shortly · ${left}`, tone: "wait" };
     return null;
   }
   if (p.effectiveStatus === "publishing") {

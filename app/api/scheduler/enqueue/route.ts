@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection, requireSchedulerPages } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
-import { freshPublishState } from "@/lib/scheduler-lock";
+import { freshPublishState, NOT_PUBLISHING } from "@/lib/scheduler-lock";
 import { logQueueAction, istTime } from "@/lib/publish-history";
 
 // POST /api/scheduler/enqueue
@@ -95,9 +95,11 @@ export async function POST(req: Request) {
       // Merge into whatever custom already holds. An Output-Ready row can carry other
       // custom fields (claim_role, and any column the Marketing Hub has added), and
       // replacing the object outright would quietly delete them.
-      const { data: existing } = await sb.from("mh_posts").select("custom").eq("id", b.taskId).maybeSingle();
-      const merged = { ...freshPublishState(existing?.custom), ...customPatch };
-      const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).select("id").single();
+      const { data: existing } = await sb.from("mh_posts").select("custom, publish_status").eq("id", b.taskId).maybeSingle();
+      // Never re-queue a post the publisher is sending right now — that is a double post.
+      if (existing?.publish_status === "publishing") return NextResponse.json({ error: "It's being published right now — wait a minute, then refresh.", publishing: true }, { status: 409 });
+      const merged = { ...freshPublishState(existing?.custom, true), ...customPatch };
+      const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).or(NOT_PUBLISHING).select("id").single();
       if (error) throw new Error(error.message);
       await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));
       return NextResponse.json({ ok: true, id: data.id, when: b.draft ? "draft" : when, scheduleTime, mode: "updated" });

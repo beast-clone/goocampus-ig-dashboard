@@ -15,7 +15,7 @@ export async function sendBackForReview(sb: SupabaseClient, postId: string, acto
   const queued = data.publish_status === "scheduled" || data.publish_status === "failed" || data.publish_status === "draft";
   if (data.status !== "Ready to Publish" && !queued) return false;
 
-  const custom = { ...freshPublishState(data.custom), changed_after_approval: new Date().toISOString() };
+  const custom = { ...freshPublishState(data.custom, true), changed_after_approval: new Date().toISOString() };
   const { data: moved } = await sb.from("mh_posts")
     .update({ status: "Output - Ready", publish_status: null, schedule_time: null, failure_reason: null, custom })
     .eq("id", postId)

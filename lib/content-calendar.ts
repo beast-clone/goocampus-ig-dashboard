@@ -288,7 +288,11 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
     const fullCaption = r.caption || "";
     const hasUrl = !!(r.instagram_url || r.facebook_url);
     const cust = (r.custom && typeof r.custom === "object" ? r.custom : {}) as Record<string, unknown>;
-    const derived = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl, !!cust.ig_creation_id);
+    // Waiting on Instagram to finish a file — either the publisher's own upload or one
+    // sent ahead that wasn't ready at the post's time — is processing, not stuck.
+    const prepIg = (cust.prep as { ig?: { id?: string; ready?: boolean } } | undefined)?.ig;
+    const processing = !!cust.ig_creation_id || !!(prepIg?.id && !prepIg.ready && r.schedule_time && new Date(r.schedule_time).getTime() <= Date.now());
+    const derived = deriveSupabaseStatus(r.publish_status, r.schedule_time, hasUrl, processing);
     const effective = derived.effective;
     // Prefer what the worker actually wrote. Overwriting it with "check the worker
     // log" is what made every failure look identical and unactionable.

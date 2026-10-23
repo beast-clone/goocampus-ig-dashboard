@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
+import { NOT_PUBLISHING, notUpdated, freshPublishState } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
@@ -28,9 +28,12 @@ export async function POST(req: Request) {
   try {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    // The caption is baked into an Instagram upload that is waiting or sent ahead —
+    // drop it, or the old caption goes out.
+    const { data: cur } = await sb.from("mh_posts").select("custom").eq("id", body.recordId).maybeSingle();
     const { data, error } = await sb
       .from("mh_posts")
-      .update({ caption: body.caption })
+      .update({ caption: body.caption, custom: freshPublishState(cur?.custom) })
       .eq("id", body.recordId)
       .or(NOT_PUBLISHING)   // never while the publisher is sending it
       .select("id");

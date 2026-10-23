@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { NOT_PUBLISHING, notUpdated } from "@/lib/scheduler-lock";
+import { NOT_PUBLISHING, notUpdated, freshPublishState } from "@/lib/scheduler-lock";
+import { sendBackForReview } from "@/lib/re-review";
+import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 
 // POST /api/scheduler/set-media  { postId, mediaUrls: string[] }
@@ -19,16 +21,21 @@ export async function POST(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
+    // Swapping the media is a creative change: an approved / queued post goes back to
+    // Content Review (lib/re-review.ts), and any upload made from the old files is dropped.
+    const { data: cur } = await sb.from("mh_posts").select("custom, media_urls").eq("id", postId).maybeSingle();
+    const changed = JSON.stringify(cur?.media_urls || []) !== JSON.stringify(mediaUrls);
     const { data, error } = await sb
       .from("mh_posts")
-      .update({ media_urls: mediaUrls.length ? mediaUrls : null })
+      .update({ media_urls: mediaUrls.length ? mediaUrls : null, ...(changed ? { custom: freshPublishState(cur?.custom) } : {}) })
       .eq("id", postId)
       .or(NOT_PUBLISHING)   // never while the publisher is sending it
       .select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) return notUpdated(sb, postId);
+    const sentBack = changed ? await sendBackForReview(sb, postId, getSessionUserId() || null, null) : false;
 
-    return NextResponse.json({ ok: true, count: mediaUrls.length });
+    return NextResponse.json({ ok: true, count: mediaUrls.length, sentBack });
   } catch (err) {
     return NextResponse.json(safeError(err, "Failed to save media"), { status: 502 });
   }

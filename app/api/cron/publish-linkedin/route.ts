@@ -46,31 +46,36 @@ async function run(req: Request) {
     .eq("status", "publishing").lt("schedule_time", strandedBefore)
     .select("id");
 
-  // Send ahead: upload the image / PDF of posts due in the next 30 minutes, so at the
-  // time only the post itself is created (22 Oct: "if it is going at 5:30, it should
-  // go at 5:30"). Best effort — anything not uploaded here is uploaded at the time.
   const nowIso = new Date().toISOString();
-  const soonIso = new Date(Date.now() + 30 * 60_000).toISOString();
-  const { data: soon } = await sb.from("linkedin_scheduled_posts")
-    .select("id, pages, image_url, prepared")
-    .eq("status", "scheduled").gt("schedule_time", nowIso).lte("schedule_time", soonIso)
-    .not("image_url", "is", null).limit(10);
-  let preparedCount = 0;
-  if (soon?.length) {
-    const token = await linkedinToken().catch(() => null);
-    for (const row of token ? soon : []) {
-      const prepared: PreparedMedia = { ...((row.prepared as PreparedMedia) || {}) };
-      let changed = false;
-      for (const page of (row.pages as string[]) || []) {
-        const org = orgUrnFor(page);
-        if (!org || prepared[page]?.src === row.image_url) continue;
-        try { prepared[page] = { src: row.image_url as string, urn: await uploadMedia(token!, org, row.image_url as string) }; changed = true; preparedCount++; }
-        catch { /* uploaded at the time instead */ }
+  // Send ahead — AFTER the due posts, so uploading tomorrow's PDF can never make a
+  // post that is due now late (or strand it if the run is cut short).
+  const prepareSoon = async (): Promise<number> => {
+    // Send ahead: upload the image / PDF of posts due in the next 30 minutes, so at the
+    // time only the post itself is created (22 Oct: "if it is going at 5:30, it should
+    // go at 5:30"). Best effort — anything not uploaded here is uploaded at the time.
+    const soonIso = new Date(Date.now() + 30 * 60_000).toISOString();
+    const { data: soon } = await sb.from("linkedin_scheduled_posts")
+      .select("id, pages, image_url, prepared")
+      .eq("status", "scheduled").gt("schedule_time", nowIso).lte("schedule_time", soonIso)
+      .not("image_url", "is", null).limit(10);
+    let preparedCount = 0;
+    if (soon?.length) {
+      const token = await linkedinToken().catch(() => null);
+      for (const row of token ? soon : []) {
+        const prepared: PreparedMedia = { ...((row.prepared as PreparedMedia) || {}) };
+        let changed = false;
+        for (const page of (row.pages as string[]) || []) {
+          const org = orgUrnFor(page);
+          if (!org || prepared[page]?.src === row.image_url) continue;
+          try { prepared[page] = { src: row.image_url as string, urn: await uploadMedia(token!, org, row.image_url as string) }; changed = true; preparedCount++; }
+          catch { /* uploaded at the time instead */ }
+        }
+        if (changed) await sb.from("linkedin_scheduled_posts").update({ prepared }).eq("id", row.id).eq("status", "scheduled");
       }
-      if (changed) await sb.from("linkedin_scheduled_posts").update({ prepared }).eq("id", row.id).eq("status", "scheduled");
     }
-  }
 
+    return preparedCount;
+  };
   // Due = scheduled and time has passed. Bounded batch so a tick can't run away.
   const { data: due, error } = await sb
     .from("linkedin_scheduled_posts")
@@ -81,7 +86,7 @@ async function run(req: Request) {
     .limit(10);
   if (error) return NextResponse.json(safeError(new Error(error.message), "query failed"), { status: 502 });
   const reapedCount = (reaped || []).length;
-  if (!due || due.length === 0) return NextResponse.json({ ok: true, published: 0, processed: 0, prepared: preparedCount, reaped: reapedCount, token: tokenState });
+  if (!due || due.length === 0) return NextResponse.json({ ok: true, published: 0, processed: 0, prepared: await prepareSoon(), reaped: reapedCount, token: tokenState });
 
   let published = 0;
   const outcomes: { id: string; status: string }[] = [];
@@ -118,7 +123,7 @@ async function run(req: Request) {
     outcomes.push({ id: row.id, status: finalStatus });
   }
 
-  return NextResponse.json({ ok: true, processed: due.length, published, reaped: reapedCount, outcomes, token: tokenState });
+  return NextResponse.json({ ok: true, processed: due.length, published, prepared: await prepareSoon(), reaped: reapedCount, outcomes, token: tokenState });
 }
 
 export async function POST(req: Request) { return run(req); }

@@ -19,6 +19,10 @@ const fingerprint = (r) => { const c = r.custom || {}; return JSON.stringify([r.
 for (const it of $input.all()) {
   const r = it.json;
   const out = { rowId: r.id, ig_url: null, fb_url: null, failure: null, publishStatus: 'failed' };
+  // The working copy of custom, kept outside the try: if anything throws after one
+  // platform has gone out, what went out (ig_url_done, fb_done) must be written back,
+  // or "Try again" posts it a second time.
+  let custRef = null;
   try {
     const t = r.schedule_time ? new Date(r.schedule_time).getTime() : NaN;
     if (isNaN(t) || t > Date.now()) {
@@ -36,6 +40,7 @@ for (const it of $input.all()) {
     const wantStory = fmt === 'story';
     const notes = [];
     const cust = Object.assign({}, r.custom || {});
+    custRef = cust;
     // What PREPARE sent ahead — used only if it is for exactly this post and had no error.
     const prep = cust.prep && cust.prep.fp === fingerprint(r) && !cust.prep.error ? cust.prep : null;
     delete cust.prep;
@@ -99,7 +104,11 @@ for (const it of $input.all()) {
         }
         if (!(igPrep && igPrep.ready) && !(await pollUntilReady(creationId, 'video'))) waiting = true;
       } else {
-        if (igPrep && igPrep.kind === 'image') creationId = igPrep.id;
+        if (igPrep && igPrep.kind === 'image') {
+          creationId = igPrep.id;
+          // Sent ahead but not confirmed ready — wait for it here, as for a video.
+          if (!igPrep.ready && !(await pollUntilReady(creationId, 'image'))) waiting = true;
+        }
         else { const c = await call('POST', GRAPH + '/' + ig + '/media?image_url=' + E(media[0]) + '&caption=' + E(caption) + collabParam + '&access_token=' + tok); creationId = c.id; await sleep(3000); }
       }
       if (!waiting) {
@@ -186,18 +195,22 @@ for (const it of $input.all()) {
       }
     }
     if (fbUrls.length) out.fb_url = fbUrls.join(' , ');
+    // Still processing a file that was sent ahead: keep the prepared upload for the
+    // next run, or the carousel / Facebook files would be uploaded all over again.
+    if (waiting && prep) cust.prep = prep;
     out.customOut = cust;
     if (waiting) {
       if (cust.attempts > 20) { out.failure = 'still processing at Meta after 20 minutes — gave up'; out.publishStatus = 'failed'; }
       else { out.publishStatus = 'scheduled'; out.failure = null; }
     }
-    else if (out.ig_url || out.fb_url) out.publishStatus = 'published';
+    // ig_url_done is set the moment Instagram accepted it, even if its link couldn't be read.
+    else if (out.ig_url || out.fb_url || cust.ig_url_done) out.publishStatus = 'published';
     else if (!out.failure) out.failure = 'no matching destination';
     if (out.publishStatus === 'published' && notes.length && !out.failure) out.failure = notes.join('; ');
   } catch (e) {
     out.failure = String((e && e.message) || e).slice(0, 400);
     // Never write the row back without its settings (format, channels, cover…).
-    if (!out.customOut) out.customOut = r.custom || {};
+    if (!out.customOut) out.customOut = custRef || r.custom || {};
   }
   results.push({ json: out });
 }
