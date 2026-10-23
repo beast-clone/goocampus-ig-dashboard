@@ -20,7 +20,8 @@ import { type MTab, type MField } from "@/lib/materials";
 // for the money tabs, search and filters, then a table (or a picture grid for photos
 // and brochures). Click a row to edit it in the side window; "Add" opens it empty.
 
-type MFile = { url: string; name: string; mime?: string; size?: number };
+// note / non_usable: a single photo moved into a folder keeps its own description and flag.
+type MFile = { url: string; name: string; mime?: string; size?: number; note?: string; non_usable?: boolean };
 type Row = Record<string, unknown> & { id: string };
 
 const ICONS = { expenses: IconReceipt, photos: IconPhoto, materials: IconFileDescription, promotions: IconSpeakerphone, subscriptions: IconRepeat };
@@ -389,7 +390,11 @@ function FolderView({ tab, row, onBack, onEdit, onSaved }: { tab: MTab; row: Row
                 onClick={() => openRefPreview(files.map((x) => ({ url: x.url, title: x.name, from: name })), i)}>
                 <Thumb file={f} />
               </button>
-              <div className="px-3 py-2 text-[12px] text-[#4A5468] truncate">{f.name}</div>
+              {f.non_usable && <span className="absolute top-2 left-2 text-[11px] bg-[#FDECEC] text-[#C03221] rounded-md px-1.5">Not usable</span>}
+              <div className="px-3 py-2">
+                <div className="text-[12px] text-[#4A5468] truncate">{f.name}</div>
+                {f.note && <div className="text-[11.5px] text-[#8A92A6] mt-0.5 line-clamp-2" title={f.note}>{f.note}</div>}
+              </div>
               <button type="button" onClick={() => void remove(i)} title="Take out of the folder"
                 className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-[rgba(35,45,66,.6)] text-white grid place-items-center opacity-0 group-hover:opacity-100 transition"><IconX size={14} /></button>
             </div>
