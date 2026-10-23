@@ -116,6 +116,9 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
   const [bin, setBin] = useState<TrashItem[] | undefined>();
   const [archive, setArchive] = useState<TrashItem[] | undefined>();
   const [files, setFiles] = useState<FileItem[] | undefined>();
+  // Admin: files emptied from the bin (kept anyway) — the way back for a file.
+  const [showEmptied, setShowEmptied] = useState(false);
+  const [emptied, setEmptied] = useState<FileItem[] | undefined>();
   const [notice, setNotice] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -147,6 +150,11 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
     } catch { setFiles([]); }
     if (!isAdmin) return;
     try {
+      const r = await fetch("/api/marketing-hub/trash/files?emptied=1", { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      setEmptied(r.ok ? (j.items || []) : []);
+    } catch { setEmptied([]); }
+    try {
       const r = await fetch("/api/marketing-hub/trash/archive", { cache: "no-store" });
       const j = await r.json().catch(() => ({}));
       setArchive(r.ok ? (j.items || []) : []);
@@ -155,7 +163,7 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => { load(); }, [load]);
 
   const list = (tab === "bin" ? bin : tab === "archive" ? archive : []) || [];
-  const fileList = files || [];
+  const fileList = (showEmptied ? emptied : files) || [];
   const chosen = list.filter((t) => picked.has(t.id));
   const chosenFiles = fileList.filter((f) => picked.has(f.id));
   const allOn = list.length > 0 && chosen.length === list.length;
@@ -186,9 +194,9 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
     act("/api/marketing-hub/trash/purge", "Delete");
   };
 
-  const actFiles = async (action: "restore" | "purge") => {
+  const actFiles = async (action: "restore" | "purge" | "recover") => {
     const n = chosenFiles.length;
-    if (!(await confirmDialog(action === "restore"
+    if (action !== "recover" && !(await confirmDialog(action === "restore"
       ? { title: `Restore ${n} file${n === 1 ? "" : "s"}?`, body: "They go back on their task. A creative put back on an approved post sends it to Content Review again.", action: "Restore" }
       : { title: `Delete ${n} from the bin?`, body: "They leave the recycle bin, but the files are NOT destroyed.", action: "Delete from bin", danger: true }))) return;
     setBusy(true);
@@ -231,7 +239,20 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
           {/* Bulk actions belong to the bin only. The archive has no toolbar action:
               putting a task back there is a decision you make AFTER reading the report,
               so the only route to it is through the report itself. */}
-          {tab === "files" && chosenFiles.length > 0 && (
+          {tab === "files" && isAdmin && (
+            <button onClick={() => { setShowEmptied((v) => !v); setPicked(new Set()); }}
+              className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13px] border transition ${showEmptied ? "bg-brand-light border-brand text-brand-dark" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+              <IconArchive size={15} stroke={1.8} />{showEmptied ? "Showing emptied files" : "Emptied files"} <span className="text-[11px] opacity-70">{emptied?.length ?? ""}</span>
+            </button>
+          )}
+          {tab === "files" && showEmptied && chosenFiles.length > 0 && (
+            <div className="ml-auto flex items-center gap-2">
+              <button disabled={busy} onClick={() => actFiles("recover")} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-50">
+                <IconRestore size={16} stroke={1.8} />Back to the bin ({chosenFiles.length})
+              </button>
+            </div>
+          )}
+          {tab === "files" && !showEmptied && chosenFiles.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
               <button disabled={busy} onClick={() => actFiles("restore")} className="inline-flex items-center gap-1.5 h-9 px-3 rounded text-[14px] font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-50">
                 <IconRestore size={16} stroke={1.8} />Restore {chosenFiles.length}
@@ -256,10 +277,12 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
         {tab === "files" && (
           <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 text-[12.5px] text-gray-500">
-              Creatives, references and attachments removed from tasks. Restore puts one back on its task. Everything stays here at least 30 days — after that you decide; nothing is removed on its own.
+              {showEmptied
+                ? "Files emptied from the bin — kept anyway. Tick one and put it back into the bin, then restore it from there."
+                : "Creatives, references and attachments removed from tasks. Restore puts one back on its task. Everything stays here at least 30 days — after that you decide; nothing is removed on its own."}
             </div>
-            {files === undefined ? <LoadingBlock /> : fileList.length === 0 ? (
-              <div className="px-5 py-10 text-center text-[14px] text-[#8A92A6]">No deleted files.</div>
+            {(showEmptied ? emptied : files) === undefined ? <LoadingBlock /> : fileList.length === 0 ? (
+              <div className="px-5 py-10 text-center text-[14px] text-[#8A92A6]">{showEmptied ? "No emptied files." : "No deleted files."}</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm whitespace-nowrap">
@@ -282,7 +305,7 @@ export function RecycleBinView({ isAdmin }: { isAdmin: boolean }) {
                         </td>
                         <td className="px-4 py-2.5">
                           <span className="flex items-center gap-2.5">
-                            <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0"><CreativeThumb thumbnailUrl={f.url && /\.(png|jpe?g|webp|gif|mp4|mov|webm)(\?|$)/i.test(f.url) ? f.url : null} title={f.filename} seed={f.id} /></span>
+                            <span className="w-9 h-9 rounded-md bg-[#F6F7FB] overflow-hidden flex-shrink-0"><CreativeThumb thumbnailUrl={f.url && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(f.url) ? f.url : null} type={f.url && /\.(mp4|mov|webm)(\?|$)/i.test(f.url) ? "video" : null} title={f.filename} seed={f.id} /></span>
                             {f.url ? <a href={f.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-800 max-w-[300px] truncate hover:text-brand">{f.filename || "(file)"}</a>
                               : <span className="text-gray-800 max-w-[300px] truncate">{f.filename || "(file)"}</span>}
                           </span>

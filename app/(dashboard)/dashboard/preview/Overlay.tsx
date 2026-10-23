@@ -37,6 +37,7 @@ export function Overlay({ onClose, className, children }: {
   return createPortal(
     <div
       className={className ?? "fixed inset-0 bg-black/40 z-[300] flex items-start justify-center p-6 overflow-auto"}
+      data-overlay
       onClick={onClose}
     >
       {children}

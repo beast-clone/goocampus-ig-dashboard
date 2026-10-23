@@ -75,9 +75,11 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder, maxHe
     }
   };
 
-  // Where the dashboard's side panel is mounted, it opens links (components/RefPreview);
-  // the editor opening its own tab as well gave two of everything.
-  const openOnClick = !refPreviewAvailable();
+  // Links: the editor never opens them itself (that ran on mouseup, before anything
+  // could stop it, so a link opened twice). A plain click on a web link is picked up
+  // by the dashboard's side panel (components/RefPreview); everything else — no panel
+  // on this page, Ctrl/Cmd-click, mailto: — is opened here, in handleClick below.
+  const openOnClick = false;
   const editor = useEditor({
     immediatelyRender: false,   // Next renders on the server first; let the browser build it
     extensions: [
@@ -92,6 +94,15 @@ export function RichTextField({ value, onSave, mode = "rich", placeholder, maxHe
     content: toHtml(value, mode),
     editorProps: {
       attributes: { class: `gc-rtf-body ${mode === "plain" ? "is-plain" : ""}` },
+      handleClick: (_view, _pos, event) => {
+        const a = (event.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+        if (!a) return false;
+        const plain = event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+        const panelTakesIt = plain && refPreviewAvailable() && /^https?:/i.test(a.href) && a.origin !== window.location.origin;
+        if (panelTakesIt) return false;
+        window.open(a.href, "_blank", "noopener,noreferrer");
+        return true;
+      },
       // "-" then Enter turns the line into a bullet, as Airtable does. ("- " then
       // typing already does, through the list's own input rule.)
       handleKeyDown: (view, event) => {

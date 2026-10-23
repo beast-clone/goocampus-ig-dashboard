@@ -488,7 +488,11 @@ function ReferencesSection({ initial, postId, uploadedBy, onSaved }: { initial: 
   const links = refs.filter((r) => r.kind !== "image");
   const removeRef = async (item: RefItem) => {
     setRefs((r) => r.filter((x) => x !== item));
-    if (item.kind === "image" && item.attId) await fetch(`/api/marketing-hub/attach?id=${item.attId}`, { method: "DELETE" });
+    if (item.kind === "image" && item.attId) {
+      // Say so when it didn't go, instead of the tile vanishing and coming back on reload.
+      const res = await removeTaskFile(item.attId);
+      if (!res.ok) { const j = await res.json().catch(() => ({})); showToast({ who: "Couldn't remove it", body: (j as { error?: string }).error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); }
+    }
     else if (item.kind === "link" && item.url) await saveLinks(currentLinks().filter((l) => l !== item.url));
     onSaved();
   };
@@ -529,7 +533,11 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   const q = useUploadQueue({ postId, kind: "creative", uploadedBy, onSaved,
     existing: creatives.map((c) => c.name),
     onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
-  const remove = async (attId: string) => { await removeTaskFile(attId); onSaved(); };
+  const remove = async (attId: string) => {
+    const res = await removeTaskFile(attId);
+    if (!res.ok) { const j = await res.json().catch(() => ({})); showToast({ who: "Couldn't remove it", body: (j as { error?: string }).error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); }
+    onSaved();
+  };
   const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
   const nFiles = creatives.length;
   return (

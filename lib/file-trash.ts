@@ -51,11 +51,13 @@ export async function restoreFiles(sb: SupabaseClient, ids: string[], actor: str
       const t = await sb.from("mh_attachments_trash").select("row, post_id, filename, kind").eq("id", id).is("purged_at", null).maybeSingle();
       if (t.error) throw new Error(t.error.message);
       if (!t.data) throw new Error("not in the bin");
+      if (!t.data.post_id) throw new Error("it isn't attached to any task");
       const live = await sb.from("mh_posts").select("id").eq("id", t.data.post_id).maybeSingle();
       if (!live.data) throw new Error("its task is deleted — restore the task first");
       const put = await sb.from("mh_attachments").insert(t.data.row);
       if (put.error) throw new Error(put.error.message);
-      await sb.from("mh_attachments_trash").delete().eq("id", id);
+      const gone = await sb.from("mh_attachments_trash").delete().eq("id", id);
+      if (gone.error) throw new Error(`restored, but still listed in the bin: ${gone.error.message}`);
       await sb.from("mh_activity").insert({ post_id: t.data.post_id, actor_key: actor, action: "file_restored",
         to_value: t.data.filename, detail: `restored a ${t.data.kind || "file"} from the recycle bin` }).then(() => {}, () => {});
       // A creative coming back onto an approved post is a creative change like any other.
@@ -66,6 +68,26 @@ export async function restoreFiles(sb: SupabaseClient, ids: string[], actor: str
     }
   }
   return out;
+}
+
+/** Files emptied from the bin — kept anyway, for an admin to bring back. */
+export async function listPurgedFiles(sb: SupabaseClient): Promise<(FileTrashItem & { purgedAt: string | null; purgedBy: string | null })[]> {
+  const { data, error } = await sb.from("mh_attachments_trash")
+    .select("id, post_id, post_title, filename, kind, storage_path, deleted_at, deleted_by, purged_at, purged_by")
+    .not("purged_at", "is", null).order("purged_at", { ascending: false }).limit(500);
+  if (error) throw new Error(error.message);
+  return (data || []).map((r) => ({
+    id: r.id, postId: r.post_id, postTitle: r.post_title, filename: r.filename, kind: r.kind,
+    url: r.storage_path, deletedAt: r.deleted_at, deletedBy: r.deleted_by, purgedAt: r.purged_at, purgedBy: r.purged_by,
+  }));
+}
+
+/** Admin: put an emptied file back into the bin, ready to restore. */
+export async function recoverPurgedFiles(sb: SupabaseClient, ids: string[]) {
+  const { data, error } = await sb.from("mh_attachments_trash")
+    .update({ purged_at: null, purged_by: null }).in("id", ids).not("purged_at", "is", null).select("id");
+  if (error) throw new Error(error.message);
+  return { done: (data || []).map((r: { id: string }) => r.id), failed: [] as { id: string; error: string }[] };
 }
 
 export async function purgeFiles(sb: SupabaseClient, ids: string[], actor: string) {
