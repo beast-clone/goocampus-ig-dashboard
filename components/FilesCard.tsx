@@ -15,7 +15,7 @@ import { openRefPreview } from "@/components/RefPreview";
 // "copy paste it on that references, it'll update") — a screenshot, a copied image.
 // Not while typing in some other field: the paste is that field's.
 let pasteTarget: HTMLElement | null = null;
-const pastedName = (files: File[]) => {
+export const pastedName = (files: File[]) => {
   // A screenshot pastes as "image.png" every time; give it a name worth keeping.
   const d = new Date(), p2 = (x: number) => String(x).padStart(2, "0");
   const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;

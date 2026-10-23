@@ -1,16 +1,16 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   IconPlus, IconSearch, IconX, IconPaperclip, IconCheck, IconTrash, IconFileText, IconReceipt, IconPhoto,
-  IconFileDescription, IconSpeakerphone, IconRepeat, IconCalendar, IconCurrencyRupee, IconListNumbers,
+  IconFileDescription, IconSpeakerphone, IconRepeat, IconCalendar, IconChevronLeft, IconFolder, IconUpload, IconPencil, IconCurrencyRupee, IconListNumbers,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { showToast } from "@/app/(dashboard)/dashboard/preview/Toast";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { FilesCard, type FileTile } from "@/components/FilesCard";
+import { FilesCard, pastedName, type FileTile } from "@/components/FilesCard";
 import { PdfThumb, isPdf } from "@/components/PdfThumb";
 import { openRefPreview } from "@/components/RefPreview";
 import { uploadMaterialFile } from "@/lib/upload-task-file";
@@ -40,6 +40,9 @@ export function MaterialsView({ tab }: { tab: MTab }) {
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<Row | "new" | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);   // the folder open (folders tabs)
+  const upsert = (row: Row) => setRows((rs) => { const all = rs || []; return all.some((r) => r.id === row.id) ? all.map((r) => (r.id === row.id ? row : r)) : [row, ...all]; });
+  const openRow = tab.folders && openId ? (rows || []).find((r) => r.id === openId) || null : null;
   const page = tab.grid ? 48 : 100;   // picture tiles are heavier than table rows
   const [shown, setShown] = useState(page);
 
@@ -85,6 +88,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
         <div className="preview-scope space-y-4">
           {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <>
             <Totals tab={tab} rows={list} all={rows} />
+            {openRow ? <FolderView tab={tab} row={openRow} onBack={() => setOpenId(null)} onEdit={() => setEditing(openRow)} onSaved={upsert} /> :
             <div className="bg-white border border-gray-100 rounded-2xl">
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-100">
                 <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0"><Icon size={16} stroke={1.8} /></span>
@@ -102,12 +106,14 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                     options={[{ value: "", label: `All ${f.label.toLowerCase()}` }, ...optionsFor(f).map((o) => ({ value: o, label: o }))]} ariaLabel={f.label} />
                 ))}
                 <button onClick={() => setEditing("new")} className="ml-auto inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]">
-                  <IconPlus size={15} stroke={2} /> Add {tab.noun}
+                  <IconPlus size={15} stroke={2} /> {tab.folders ? "New folder" : `Add ${tab.noun}`}
                 </button>
               </div>
               {error && <div className="px-4 py-3 text-[13px] text-[#C03221]">{error}</div>}
               {list.length === 0 ? (
                 <div className="px-4 py-14 text-center text-[13px] text-[#8A92A6]">{rows.length ? "Nothing matches — clear the search or filters." : `No ${tab.nounPlural} yet.`}</div>
+              ) : tab.folders ? (
+                <Folders rows={list.slice(0, shown)} onOpen={(r) => setOpenId(r.id)} />
               ) : tab.grid ? (
                 <Grid tab={tab} rows={list.slice(0, shown)} onOpen={setEditing} />
               ) : (
@@ -118,13 +124,13 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                   <button onClick={() => setShown((n) => n + page)} className="text-[13px] text-brand font-medium hover:underline">Show more ({list.length - shown} left)</button>
                 </div>
               )}
-            </div>
+            </div>}
           </>}
           {editing && <Editor tab={tab} row={editing === "new" ? null : editing} optionsFor={optionsFor}
             onClose={() => setEditing(null)}
-            onSaved={(row) => { setRows((rs) => { const all = rs || []; return all.some((r) => r.id === row.id) ? all.map((r) => (r.id === row.id ? row : r)) : [row, ...all]; }); setEditing(null); }}
+            onSaved={(row) => { const isNew = editing === "new"; upsert(row); setEditing(null); if (isNew && tab.folders) setOpenId(row.id); }}
             onRemoved={(row) => {
-              setRows((rs) => (rs || []).filter((r) => r.id !== row.id)); setEditing(null);
+              setRows((rs) => (rs || []).filter((r) => r.id !== row.id)); setEditing(null); setOpenId(null);
               showToast({ who: "Removed", body: String(row.title || tab.noun), av: "✓", action: "Undo", onOpen: async () => {
                 const r = await fetch(`/api/materials/${tab.key}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: row.id, restore: true }) });
                 if (r.ok) void load();
@@ -263,6 +269,133 @@ function Grid({ tab, rows, onOpen }: { tab: MTab; rows: Row[]; onOpen: (r: Row) 
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// Folders tab (Essential Photos): each row as a folder, like on a computer — a folder
+// shape with a peek of the first photos inside, its name and how many files it holds.
+function Folders({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
+  return (
+    <div className="p-4 grid gap-x-4 gap-y-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
+      {rows.map((r) => {
+        const fs = filesOf(r);
+        const peek = fs.filter(isImage).slice(0, 4);
+        return (
+          <button key={r.id} type="button" onClick={() => onOpen(r)} className="group text-left">
+            <div className="relative pt-3">
+              <span className="absolute top-0 left-0 w-[42%] h-5 rounded-t-lg bg-brand/20 group-hover:bg-brand/30 transition" />
+              <div className="relative h-[132px] rounded-xl rounded-tl-none bg-brand-light border border-brand/10 group-hover:border-brand/50 transition p-2 overflow-hidden">
+                {peek.length ? (
+                  <div className={`grid gap-1 h-full ${peek.length > 1 ? "grid-cols-2" : ""} ${peek.length > 2 ? "grid-rows-2" : ""}`}>
+                    {peek.map((f, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={i} src={thumbUrl(f.url)} alt="" loading="lazy" decoding="async"
+                        className={`w-full h-full object-cover rounded-md bg-white ${peek.length === 3 && i === 0 ? "row-span-2" : ""}`} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-full grid place-items-center text-brand/60"><IconFolder size={40} stroke={1.3} /></div>
+                )}
+                {r.non_usable === true && <span className="absolute bottom-2 left-2 text-[11px] bg-[#FDECEC] text-[#C03221] rounded-md px-1.5">Not usable</span>}
+              </div>
+            </div>
+            <div className="mt-2 px-0.5 flex items-start gap-1.5">
+              <IconFolder size={15} stroke={1.8} className="text-brand flex-shrink-0 mt-[2px]" />
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-[#232D42] truncate">{String(r.title || "") || fs[0]?.name || "Untitled folder"}</div>
+                <div className="text-[11.5px] text-[#8A92A6]">{fs.length === 1 ? "1 file" : `${fs.length} files`}{r.design_files === true ? " · design files" : ""}</div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// An open folder: every file in it, big. Drop, paste (Ctrl/Cmd+V) or pick files to add
+// them; ✕ takes one out. Each change saves straight away.
+function FolderView({ tab, row, onBack, onEdit, onSaved }: { tab: MTab; row: Row; onBack: () => void; onEdit: () => void; onSaved: (r: Row) => void }) {
+  const files = filesOf(row);
+  const [busy, setBusy] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  const saveFiles = async (next: MFile[]) => {
+    const r = await fetch(`/api/materials/${tab.key}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: row.id, values: { files: next } }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if (!r || !r.ok) { setErr((j as { error?: string }).error || "Couldn't save — try again."); return; }
+    onSaved((j as { row: Row }).row);
+  };
+  const add = async (picked: FileList | File[]) => {
+    const list = Array.from(picked);
+    if (!list.length) return;
+    setErr(null); setBusy(list.length);
+    const added: MFile[] = [];
+    for (const f of list) {
+      const res = await uploadMaterialFile(tab.key, f);
+      setBusy((n) => n - 1);
+      if (res.ok) added.push(res.file); else setErr(`${f.name}: ${res.error}`);
+    }
+    if (added.length) await saveFiles([...filesOf(row), ...added]);
+  };
+  const remove = async (i: number) => {
+    if (!(await confirmDialog({ title: "Take this file out of the folder?", body: files[i]?.name, action: "Remove", danger: true }))) return;
+    await saveFiles(files.filter((_, j) => j !== i));
+  };
+  // Paste a copied image or screenshot straight into the open folder.
+  const addRef = useRef(add); addRef.current = add;
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const fs = Array.from(e.clipboardData?.files || []);
+      const a = document.activeElement as HTMLElement | null;
+      if (!fs.length || document.querySelector("[data-overlay]") || (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)))) return;
+      e.preventDefault();
+      void addRef.current(pastedName(fs));
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, []);
+  const name = String(row.title || "") || files[0]?.name || "Untitled folder";
+  return (
+    <div className={`bg-white border rounded-2xl transition ${over ? "border-brand" : "border-gray-100"}`}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false); }}
+      onDrop={(e) => { e.preventDefault(); setOver(false); void add(e.dataTransfer.files); }}>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-100">
+        <button onClick={onBack} className="inline-flex items-center gap-1 h-9 pl-2 pr-3 rounded-lg border border-gray-200 text-[13px] font-medium text-[#4A5468] hover:border-brand hover:text-brand">
+          <IconChevronLeft size={15} stroke={2} /> {tab.label}
+        </button>
+        <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0 ml-1"><IconFolder size={16} stroke={1.8} /></span>
+        <div className="min-w-0 mr-2">
+          <div className="text-[14px] font-medium text-[#232D42] truncate">{name}</div>
+          <div className="text-[12px] text-[#8A92A6]">{busy ? `Uploading ${busy} file${busy === 1 ? "" : "s"}…` : `${files.length} file${files.length === 1 ? "" : "s"} · drop or paste photos here to add them`}</div>
+        </div>
+        <button onClick={onEdit} className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-200 text-[13px] font-medium text-[#4A5468] hover:border-brand hover:text-brand"><IconPencil size={15} stroke={1.8} /> Rename / details</button>
+        <label className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0] cursor-pointer">
+          <IconUpload size={15} stroke={2} /> Add photos
+          <input type="file" multiple hidden accept="image/*,video/*,.pdf,.docx,.xlsx,.pptx,.csv" onChange={(e) => { if (e.target.files?.length) void add(e.target.files); e.target.value = ""; }} />
+        </label>
+      </div>
+      {err && <div className="px-4 py-2 bg-[#FDECEC] text-[12.5px] text-[#C03221]">{err}</div>}
+      {typeof row.description === "string" && row.description && <div className="px-4 pt-3 text-[13px] text-[#4A5468] whitespace-pre-wrap">{row.description}</div>}
+      {files.length === 0 ? (
+        <div className="m-4 py-14 rounded-xl border-2 border-dashed border-[#C8D0F5] bg-[#F7F8FE] text-center text-[13px] text-[#8A92A6]">This folder is empty — drop or paste photos here, or use Add photos.</div>
+      ) : (
+        <div className="p-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+          {files.map((f, i) => (
+            <div key={`${f.url}-${i}`} className="group relative border border-gray-100 rounded-xl overflow-hidden bg-white hover:border-brand transition">
+              <button type="button" className="block w-full h-[170px] bg-[#F0F2F8]" title={f.name}
+                onClick={() => openRefPreview(files.map((x) => ({ url: x.url, title: x.name, from: name })), i)}>
+                <Thumb file={f} />
+              </button>
+              <div className="px-3 py-2 text-[12px] text-[#4A5468] truncate">{f.name}</div>
+              <button type="button" onClick={() => void remove(i)} title="Take out of the folder"
+                className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-[rgba(35,45,66,.6)] text-white grid place-items-center opacity-0 group-hover:opacity-100 transition"><IconX size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

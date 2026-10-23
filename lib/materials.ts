@@ -21,6 +21,8 @@ export type MTab = {
   sort: { col: string; asc: boolean };
   /** Picture grid instead of a table. */
   grid?: boolean;
+  /** Each row is a folder of files, opened like a folder on a computer. */
+  folders?: boolean;
   /** Date column for the month filter / totals, and the money column to add up. */
   date?: string; money?: string;
   fields: MField[];
@@ -42,8 +44,9 @@ export const MTABS: MTab[] = [
       { key: "card_last4", label: "Card (last 4 digits)", type: "text" },
       { key: "files", label: "Receipt", type: "files", col: true },
     ] },
-  { key: "photos", label: "Essential Photos", table: "mm_photos", noun: "photo", nounPlural: "photos", grid: true,
-    intro: "Event photos, campus shots and logo files the team reuses in designs.",
+  // Folders, like on a computer (Praveen, 23 Oct): each row is a folder of photos.
+  { key: "photos", label: "Essential Photos", table: "mm_photos", noun: "folder", nounPlural: "folders", grid: true, folders: true,
+    intro: "Event photos, campus shots and logo files the team reuses in designs — one folder per event or set.",
     sort: { col: "created_at", asc: false },
     fields: [
       { key: "title", label: "Name", type: "text" },
