@@ -767,22 +767,13 @@ function buildDayPlan(queueRows: Row[], member: TeamMember, loginMin?: number): 
   const queue = queueRows
     .filter((r) => presentsOn(r, member) || onDayPlan(r.status, member.role === "writer"))
     .map((r) => ({ r, due: (r.dueDate || r.publishingDate || "").slice(0, 10) || "9999" }))
-    // Work already started today goes first, from the time it really started; the
-    // rest follows in due-date order.
-    .map((q) => ({ ...q, started: presentsOn(q.r, member) ? null : startedTodayMin(q.r) }))
-    .sort((a, b) => (a.started != null || b.started != null
-      ? (a.started ?? 1e9) - (b.started ?? 1e9)
-      : a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const blocks: PlanBlk[] = [];
   const LUNCH_END = LUNCH_AT_MIN + LUNCH_MIN;
   const dayEnd = shiftEnd(member);
   let cur = Math.max(shiftStart(member), loginMin ?? shiftStart(member)), lunchDone = false, overflow = 0;
   const pushLunch = () => { blocks.push({ kind: "lunch", label: "Lunch", dur: LUNCH_MIN, start: LUNCH_AT_MIN }); cur = LUNCH_END; lunchDone = true; };
-  const firstStart = queue[0]?.started;
-  if (firstStart != null && firstStart < dayEnd) {
-    if (firstStart > cur) blocks.push({ kind: "free", label: "Free", dur: firstStart - cur, start: cur });
-    cur = firstStart;
-  }
+
   for (const q of queue) {
     if (cur >= dayEnd) { overflow++; continue; }
     const shoot = presentsOn(q.r, member);
@@ -900,18 +891,32 @@ function PersonTimelineRow({ card }: {
     return { finishedToday, todayOpen, overdueL, upcoming };
   }, [mine, todayKey]);
 
-  // Finished work sits on the bar at the time it was finished; the plan for what's
-  // left starts after it (and never before they logged in).
-  const doneBlocks = groups.finishedToday.flatMap((r) => {
-    const t = new Date(r.endAt || r.completionTime || "");
-    if (Number.isNaN(t.getTime()) || ymd(t) !== todayKey) return [];
-    const end = Math.min(SPAN_MIN, Math.max(0, (t.getHours() - WORK_START_H) * 60 + t.getMinutes()));
-    const dur = Math.min(rowDurMin(r), end);
-    return dur > 0 ? [{ start: end - dur, dur, row: r }] : [];
-  });
-  const lastDone = doneBlocks.reduce((m, b) => Math.max(m, b.start + b.dur), 0);
+  // Same rule as My Day's Today's plan (23 Oct): the day is laid out from login and
+  // doesn't slide with the clock. Finished work comes first, greyed, each shrunk to
+  // the time it really took (never more than planned); what's left follows it.
   const logins = useTodayLogins();
-  const planFrom = Math.max(logins[member.key] ?? 0, lastDone) || undefined;
+  const dayFrom = Math.max(shiftStart(member), logins[member.key] ?? shiftStart(member));
+  const doneBlocks: { start: number; dur: number; row: Row }[] = [];
+  {
+    let cur = dayFrom;
+    const finishedSorted = [...groups.finishedToday].sort((a, b) => (a.endAt || a.completionTime || "").localeCompare(b.endAt || b.completionTime || ""));
+    for (const r of finishedSorted) {
+      const t = new Date(r.endAt || r.completionTime || "");
+      if (Number.isNaN(t.getTime()) || ymd(t) !== todayKey) continue;
+      if (cur >= LUNCH_AT_MIN && cur < LUNCH_AT_MIN + LUNCH_MIN) cur = LUNCH_AT_MIN + LUNCH_MIN;
+      const to = (t.getHours() - WORK_START_H) * 60 + t.getMinutes();
+      let dur = Math.min(rowDurMin(r), Math.max(10, to - cur));
+      if (cur < LUNCH_AT_MIN && cur + dur > LUNCH_AT_MIN) {
+        doneBlocks.push({ start: cur, dur: LUNCH_AT_MIN - cur, row: r });
+        dur -= LUNCH_AT_MIN - cur; cur = LUNCH_AT_MIN + LUNCH_MIN;
+      }
+      if (cur + dur > SPAN_MIN) dur = Math.max(0, SPAN_MIN - cur);
+      if (dur > 0) doneBlocks.push({ start: cur, dur, row: r });
+      cur += dur;
+    }
+  }
+  const lastDone = doneBlocks.reduce((m, b) => Math.max(m, b.start + b.dur), 0);
+  const planFrom = Math.max(dayFrom, lastDone);
   const { blocks, taskBlocks, free, overflow } = buildDayPlan(groups.todayOpen, member, planFrom);
 
   const now = new Date();
@@ -1030,7 +1035,7 @@ function PersonTimelineRow({ card }: {
           );
         })}
         {doneBlocks.map((b) => (
-          <div key={`done-${b.row.id}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(b.start / SPAN_MIN) * 100}%`, width: `${(b.dur / SPAN_MIN) * 100}%` }}
+          <div key={`done-${b.row.id}-${b.start}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(b.start / SPAN_MIN) * 100}%`, width: `${(b.dur / SPAN_MIN) * 100}%` }}
             className="min-w-0 flex flex-col justify-center px-3 bg-[#E4E8F0] text-[#6B7489] border-r border-white z-[1]" title={`${b.row.particulars} · completed`}>
             <span className="text-[13px] font-medium leading-tight truncate flex items-center gap-1"><IconCheck size={13} stroke={2.2} className="text-emerald-600 flex-shrink-0" />{b.row.particulars || "Task"}</span>
             <span className="text-[11px] mt-0.5 truncate">Completed</span>

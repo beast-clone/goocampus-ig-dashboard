@@ -2710,73 +2710,49 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // clocks on one screen, and neither of them the teammate's.
   const startedAt = loginMin == null ? null : clockOf(Math.max(0, Math.min(loginMin, DAY_MINS)));
   const planStart = Math.max(shiftStart, loginMin ?? shiftStart);
-  // Once the shift is running the plan is laid from NOW: the task in progress sits
-  // where it was started, everything else queues after it. It used to replay the
-  // whole day from the morning, so at 2:30 the timeline showed whichever task had
-  // landed there — not the one actually being worked on (Praveen, 21 Oct).
-  const liveNow = nowMin != null && !isWeekend && nowMin > planStart && nowMin < shiftStart + WORK_MIN + LUNCH_MIN ? nowMin : null;
-  const startedToday = useMemo(() => {
-    const out = new Map<string, number>();   // in-progress task id -> start (timeline minutes)
-    for (const t of [...claimedTasks, ...tasks, ...samvaya]) {
-      if (t.status !== "Output - In Progress") continue;
-      const s = t.detail.startAt ? new Date(t.detail.startAt) : null;
-      const today = s && !Number.isNaN(s.getTime()) && s.toDateString() === new Date().toDateString();
-      out.set(t.id, today ? s!.getHours() * 60 + s!.getMinutes() - DAY_START_H * 60 : -1);
-    }
-    return out;
-  }, [claimedTasks, tasks, samvaya]);
-  const availMin = workAvailFrom(liveNow ?? planStart, shiftStart);
-  // What was worked on earlier today, greyed out before the now line — once the plan
-  // runs from now, an empty morning read as "sat idle till 2:30" (Praveen, 21 Oct).
-  // A task's stretch runs from its start to when it was marked done; with no start
-  // recorded, its duration is counted back from the finish. Where two overlap, the
-  // one started later takes that stretch and the other resumes after it.
+  // The plan is FIXED from login (Praveen, 23 Oct): the first task starts when they
+  // logged in and every task keeps its slot — nothing slides along with the clock
+  // (it used to re-lay everything from "now", so at 10 the whole day started at 10,
+  // at 11 at 11). The timer isn't used; what moves the plan is finishing work: a
+  // task marked Output Ready stays on the bar, greyed, but shrinks to the time it
+  // actually took, so everything after it moves up and the freed time shows as free.
   const doneBlocks = useMemo(() => {
-    if (liveNow == null) return [];
     const today = new Date().toDateString();
     const minOf = (iso: string) => { const d = new Date(iso); return !Number.isNaN(d.getTime()) && d.toDateString() === today ? d.getHours() * 60 + d.getMinutes() - DAY_START_H * 60 : null; };
-    // Up to the start of this person's own in-progress work (or now).
-    const stop = Math.min(liveNow, ...myPlan.map((p) => startedToday.get(p.taskId) ?? -1).filter((v) => v >= 0));
-    const iv = uniqById([...claimedTasks, ...tasks, ...samvaya])
-      .filter((t) => t.detail.owner === me.name && t.status !== "Output - In Progress" && t.detail.endAt)
-      .flatMap((t) => {
-        const end = minOf(t.detail.endAt || "");
-        if (end == null) return [];
-        const from = t.detail.startAt ? minOf(t.detail.startAt) : null;
-        const start = Math.max(0, from ?? end - (t.detail.duration || estMins(t.detail.typeLine)));
-        return [{ id: t.id, title: t.title, start, end: Math.min(end, stop), from, to: end }];
-      })
-      .filter((x) => x.end > x.start);
-    const cuts = Array.from(new Set(iv.flatMap((x) => [x.start, x.end]).concat([LUNCH_AT, LUNCH_AT + LUNCH_MIN]))).sort((a, b) => a - b);
+    const finished = uniqById([...claimedTasks, ...tasks, ...samvaya])
+      .filter((t) => t.detail.owner === me.name && ["Output - Ready", "Ready to Publish", "Published/Scheduled"].includes(t.status) && t.detail.endAt && minOf(t.detail.endAt) != null)
+      .sort((a, b) => String(a.detail.endAt).localeCompare(String(b.detail.endAt)));
     const out: { id: string; title: string; start: number; dur: number; from: number | null; to: number }[] = [];
-    for (let i = 0; i < cuts.length - 1; i++) {
-      const a = cuts[i], b = cuts[i + 1];
-      if (a >= LUNCH_AT && b <= LUNCH_AT + LUNCH_MIN) continue;   // lunch stays lunch
-      const on = iv.filter((x) => x.start <= a && x.end >= b).sort((x, y) => y.start - x.start)[0];
-      if (!on) continue;
-      const last = out[out.length - 1];
-      if (last && last.id === on.id && last.start + last.dur === a) last.dur += b - a;
-      else out.push({ id: on.id, title: on.title, start: a, dur: b - a, from: on.from, to: on.to });
+    let cur = planStart;
+    for (const t of finished) {
+      const to = minOf(t.detail.endAt || "")!;
+      if (cur >= LUNCH_AT && cur < LUNCH_AT + LUNCH_MIN) cur = LUNCH_AT + LUNCH_MIN;
+      const planned = t.detail.duration || estMins(t.detail.typeLine);
+      // How long it really took, counted from where it sat in the plan — never more
+      // than planned (a task finished late doesn't push the rest of the day back).
+      let dur = Math.min(planned, Math.max(10, to - cur));
+      if (cur < LUNCH_AT && cur + dur > LUNCH_AT) {   // runs into lunch: split around it
+        out.push({ id: t.id, title: t.title, start: cur, dur: LUNCH_AT - cur, from: cur, to });
+        dur -= LUNCH_AT - cur; cur = LUNCH_AT + LUNCH_MIN;
+      }
+      out.push({ id: t.id, title: t.title, start: cur, dur, from: cur, to });
+      cur += dur;
     }
     return out;
-  }, [liveNow, startedToday, myPlan, claimedTasks, tasks, samvaya, me.name]);
+  }, [planStart, claimedTasks, tasks, samvaya, me.name]);
+  // Where the rest of the plan starts: after the finished work.
+  const openFrom = doneBlocks.reduce((m, b) => Math.max(m, b.start + b.dur), planStart);
+  const availMin = workAvailFrom(openFrom, shiftStart);
   const { fitPlan, spillPlan } = useMemo(() => {
     const fit: typeof myPlan = [], spill: typeof myPlan = [];
-    const working = liveNow == null ? [] : myPlan.filter((p) => p.taskId && startedToday.has(p.taskId));
     let used = 0;
-    for (const p of working) {
-      fit.push(p);
-      const st = startedToday.get(p.taskId!)!;
-      used += Math.max(0, (st < 0 ? liveNow! : st) + p.dur - liveNow!);   // what's left of it
-    }
     for (const p of myPlan) {
-      if (working.includes(p)) continue;
       const cap = p.high ? availMin : Math.max(0, availMin - BUFFER_MIN);
       if (fit.length === 0 || used + p.dur <= cap) { fit.push(p); used += p.dur; }
       else spill.push(p);
     }
     return { fitPlan: fit, spillPlan: spill };
-  }, [myPlan, availMin, liveNow, startedToday]);
+  }, [myPlan, availMin]);
   // Smart reminders (spec §13, revised per Manya's comment 22 Sep).
   //
   // A reminder's job is to get a task FINISHED IN TIME. Producers used to be
@@ -2818,20 +2794,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const LUNCH_END = LUNCH_AT + LUNCH_MIN;
     // Anchor the plan to when the day actually started — max(shift start, today's
     // login) — the same rule the Workload timeline uses, so both read identically.
-    const anchor = planStart;
+    const anchor = openFrom;   // after today's finished work (fixed plan — see doneBlocks)
     let cursor = anchor;
     let lunchDone = false;
     const pushLunch = () => { out.push({ kind: "lunch", label: "Lunch", start: LUNCH_AT, dur: LUNCH_MIN }); lunchDone = true; };
     for (const p of fitPlan) {
       let remaining = p.dur;
-      if (liveNow != null) {
-        const st = p.taskId ? startedToday.get(p.taskId) : undefined;
-        if (st !== undefined) {
-          // In progress: from when it was started (or now), running at least until now.
-          cursor = Math.max(cursor, Math.min(st < 0 ? liveNow : st, liveNow));
-          remaining = Math.max(p.dur, liveNow - cursor);
-        } else cursor = Math.max(cursor, liveNow);   // not started: queued from now
-      }
       // If we're sitting inside the lunch window, jump past the (fixed) 1 PM lunch.
       if (!lunchDone && cursor >= LUNCH_AT && cursor < LUNCH_END) { pushLunch(); cursor = LUNCH_END; }
       // Part that fits before lunch.
@@ -2850,7 +2818,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     const bufStart = Math.max(cursor, dayEnd - BUFFER_MIN);
     if (bufStart < dayEnd) out.push({ kind: "buffer", label: "Buffer", start: bufStart, dur: dayEnd - bufStart });
     return out;
-  }, [fitPlan, planStart, shiftStart, liveNow, startedToday]);
+  }, [fitPlan, openFrom, shiftStart]);
   const workMin = myPlan.reduce((s, p) => s + p.dur, 0);
   const plannedMin = fitPlan.reduce((s, p) => s + p.dur, 0);
   // Spilled work is only a problem if it publishes today or tomorrow; the rest is
