@@ -1081,7 +1081,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       </div>
       <div className="d-head-main">
         {label && <div className="lbl" style={{ marginBottom: ".35rem" }}>{label}</div>}
-        <div className="d-sub">{task.detail.typeLine}{task.detail.brand && <span className="sbu-chip lg">{task.detail.brand}</span>}</div>
+        <div className="d-sub">{task.detail.typeLine && <span className="type-chip lg">{task.detail.typeLine}</span>}{task.detail.brand && <span className="sbu-chip lg">{task.detail.brand}</span>}</div>
         <div className="d-title">{task.title}</div>
       </div>
 
@@ -4109,8 +4109,6 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     <div className="task-row">
                       <div className="task-main">
                         <div className="tt">{t.title}</div>
-                        {/* Type · brand — the brand (SBU) was missing from the list (Praveen, 23 Oct). */}
-                        <div className="mm">{t.detail.typeLine || t.meta}{t.detail.brand && <span className="sbu-chip">{t.detail.brand}</span>}</div>
                       </div>
                       <div className="task-side">
                         <DueChip due={t.due} today={todayStr} />
@@ -4120,6 +4118,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                         {claimed && <span className="pill xs" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                       </div>
                     </div>
+                    {/* Type and brand chips run the full card width, under the date too,
+                        so the brand isn't squeezed into the title column (Praveen, 23 Oct). */}
+                    <div className="mm">{t.detail.typeLine ? <span className="type-chip">{t.detail.typeLine}</span> : t.meta}{t.detail.brand && <span className="sbu-chip">{t.detail.brand}</span>}</div>
                   </div>
                 );
               })(rowTask, shownTasks.indexOf(rowTask)) : ((v: Task) => {

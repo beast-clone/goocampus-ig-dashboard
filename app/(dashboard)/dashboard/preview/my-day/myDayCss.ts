@@ -1172,9 +1172,10 @@ html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 .hmd .up-wrap{margin-top:1rem}
 
 /* Brand (SBU) next to the task type — list rows and the task header (23 Oct). */
-.hmd .sbu-chip{display:inline-block;margin-left:.4rem;padding:.05rem .45rem;border-radius:999px;background:var(--brand-light,#E9ECFB);color:#2138B0;font-size:11px;font-weight:500;line-height:1.5;vertical-align:1px;white-space:nowrap;max-width:60%;overflow:hidden;text-overflow:ellipsis}
-.hmd .sbu-chip.lg{font-size:12px;padding:.1rem .55rem}
-.hmd .mm:has(.sbu-chip),.hmd .d-sub:has(.sbu-chip){display:flex;align-items:center;min-width:0}
-.hmd .sbu-chip{flex:0 1 auto;min-width:0}
+.hmd .sbu-chip,.hmd .type-chip{display:inline-block;padding:.05rem .45rem;border-radius:999px;background:var(--brand-light,#E9ECFB);color:#2138B0;font-size:11px;font-weight:500;line-height:1.5;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.hmd .type-chip{background:var(--tone-muted-bg,#F0F2F8);color:var(--ink-soft);flex:none}
+.hmd .sbu-chip.lg,.hmd .type-chip.lg{font-size:12px;padding:.1rem .55rem}
+.hmd .mm:has(.sbu-chip,.type-chip),.hmd .d-sub:has(.sbu-chip,.type-chip){display:flex;align-items:center;gap:.35rem;min-width:0}
+.hmd .task > .mm{margin:.4rem 0 0}
 html[data-theme="dark"] .hmd .sbu-chip{background:#2C3666;color:#93A3FF}
 `;
