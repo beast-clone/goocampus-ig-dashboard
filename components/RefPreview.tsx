@@ -86,6 +86,8 @@ const nameOf = (r: RefItem) => r.title || (() => { try { const u = new URL(r.url
 export function RefPreviewHost() {
   const [st, setSt] = useState<State>(null);
   const [failed, setFailed] = useState<string | null>(null);   // a file that wouldn't load
+  const [big, setBig] = useState(false);   // the picture shown full screen (click it)
+  useEffect(() => { if (!st) setBig(false); }, [st]);
   const [box, setBox] = useState<React.CSSProperties | null>(null);   // docked position
   useEffect(() => { setOpenState = setSt; return () => { setOpenState = null; }; }, []);
   useEffect(() => {
@@ -116,8 +118,8 @@ export function RefPreviewHost() {
         top0 = Math.max(top0, c.top); bot0 = Math.min(bot0, c.bottom);
       }
       const r = { top: top0, bottom: bot0, height: Math.max(bot0 - top0, 0), width: d.width, right: d.right };
-      // 70 / 30 — the content keeps most of the room; the preview is a glance.
-      const width = Math.min(r.width, Math.max(260, Math.round(r.width * 0.3)));
+      // 60 / 40 — the content keeps most of the room (Praveen, 26 Oct).
+      const width = Math.min(r.width, Math.max(280, Math.round(r.width * 0.4)));
       const height = Math.min(r.height, window.innerHeight - 16);
       const top = Math.min(Math.max(r.top, 8), r.bottom - height);
       setBox({ top, height, left: r.right - width, width });
@@ -158,14 +160,14 @@ export function RefPreviewHost() {
       if (document.querySelector("[data-overlay]")) return;
       const el = e.target as HTMLElement | null;
       const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
-      if (e.key === "Escape") { e.stopPropagation(); setSt(null); }
+      if (e.key === "Escape") { e.stopPropagation(); if (big) setBig(false); else setSt(null); }
       else if (typing) return;   // arrows move the cursor while typing, not the preview
       else if (e.key === "ArrowRight" && st.items.length > 1) setSt({ ...st, index: (st.index + 1) % st.items.length });
       else if (e.key === "ArrowLeft" && st.items.length > 1) setSt({ ...st, index: (st.index - 1 + st.items.length) % st.items.length });
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [st]);
+  }, [st, big]);
 
   if (!st) return null;
   const cur = st.items[st.index];
@@ -176,6 +178,20 @@ export function RefPreviewHost() {
   return (
     <aside className={`rfp${box ? " docked" : ""}`} style={box ?? undefined} role="dialog" aria-label="Preview">
       <style>{CSS}</style>
+      {/* The side preview is a glance; click the picture to see it full size
+          (Praveen, 26 Oct). ‹ › and Esc work here too. */}
+      {big && v.kind === "image" && (
+        <div className="rfp-big" onClick={() => setBig(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={v.src} alt={nameOf(cur)} onClick={(e) => e.stopPropagation()} />
+          {many && <>
+            <button type="button" className="rfp-big-nav l" onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Previous"><IconChevronLeft size={22} stroke={2} /></button>
+            <button type="button" className="rfp-big-nav r" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Next"><IconChevronRight size={22} stroke={2} /></button>
+          </>}
+          <button type="button" className="rfp-big-x" onClick={() => setBig(false)} aria-label="Close full size"><IconX size={20} stroke={2} /></button>
+          <div className="rfp-big-name">{nameOf(cur)}{many ? ` · ${st.index + 1} of ${st.items.length}` : ""}</div>
+        </div>
+      )}
       <div className="rfp-bar">
         <div className="rfp-t">
           <div className="rfp-name" title={nameOf(cur)}>{nameOf(cur)}</div>
@@ -192,7 +208,7 @@ export function RefPreviewHost() {
         {v.kind === "frame" && <iframe className={v.narrow ? "narrow" : ""} src={v.src} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen loading="lazy" title={nameOf(cur)} />}
         {v.kind === "pdf" && <iframe src={v.src} title={nameOf(cur)} />}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {v.kind === "image" && <img src={v.src} alt={nameOf(cur)} onError={() => setFailed(cur.url)} />}
+        {v.kind === "image" && <img src={v.src} alt={nameOf(cur)} onError={() => setFailed(cur.url)} onClick={() => setBig(true)} className="rfp-zoomable" title="Click to view full size" />}
         {v.kind === "video" && <video src={v.src} controls autoPlay playsInline onError={() => setFailed(cur.url)} />}
         {v.kind === "download" && (
           <div className="rfp-msg">This file can&apos;t be previewed here.
@@ -217,6 +233,14 @@ const CSS = `
 .rfp.docked .rfp-bar{flex-wrap:wrap;row-gap:8px}
 .rfp.docked .rfp-t{flex-basis:100%}
 .rfp.docked .rfp-body{padding:10px}
+.rfp-zoomable{cursor:zoom-in}
+.rfp-big{position:fixed;inset:0;z-index:400;background:rgba(12,14,26,.86);display:flex;align-items:center;justify-content:center;padding:56px 72px;cursor:zoom-out}
+.rfp-big img{width:100%;height:100%;object-fit:contain;cursor:default}
+.rfp-big-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;border:none;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.rfp-big-nav:hover{background:rgba(255,255,255,.26)}
+.rfp-big-nav.l{left:16px}.rfp-big-nav.r{right:16px}
+.rfp-big-x{position:absolute;top:14px;right:16px;width:40px;height:40px;border-radius:999px;border:none;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.rfp-big-name{position:absolute;bottom:16px;left:0;right:0;text-align:center;color:#fff;font-size:13px;opacity:.85}
 .rfp-bar{display:flex;align-items:center;gap:6px;padding:12px 14px;background:#fff;border-bottom:1px solid #EEF0F4}
 .rfp-t{flex:1;min-width:0}
 .rfp-name{font-size:13.5px;font-weight:500;color:#232D42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
