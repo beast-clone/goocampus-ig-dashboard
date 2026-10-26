@@ -19,3 +19,7 @@ export async function postSlack(text: string): Promise<void> {
     });
   } catch { /* best-effort — Slack outages must not break the workflow */ }
 }
+
+// Deep link to the task's window on the live site (Netlify sets URL; APP_URL overrides).
+const APP_URL = (process.env.APP_URL || process.env.URL || "https://analytics.goocampus.in").replace(/\/+$/, "");
+export const slackTaskLink = (postId: string) => `${APP_URL}/dashboard/preview/marketing-hub?open=${postId}`;

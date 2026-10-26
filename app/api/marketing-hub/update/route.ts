@@ -5,6 +5,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
+import { postSlack, slackTaskLink } from "@/lib/slack";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { requestDateChange, supersedeDateChange } from "@/lib/date-approvals";
 import { needsDateApproval, needsDateReason } from "@/lib/permissions";
@@ -472,6 +473,17 @@ export async function PATCH(req: Request) {
       } else if (clean.status === "Incorporating Feedback") {
         await postTeamMessage(sb, chatActor, `${MH_NAME[chatActor] || chatActor} sent “${title}” back with feedback.`);
       }
+      // Slack (#marketing-os-updates) — only the approval steps, so the channel
+      // stays worth reading.
+      const who = MH_NAME[chatActor] || chatActor;
+      const link = `<${slackTaskLink(body.id)}|${title}>`;
+      const slackLine =
+        clean.status === "Content - Needs Approval" ? `🟡 *Needs approval* — ${link} (sent by ${who})`
+        : clean.status === "Content - Approved" && APPROVAL_COMES_FROM.has(String(before.data.status)) ? `✅ *Approved* — ${link} by ${who}`
+        : clean.status === "Output - Ready" ? `🟡 *Output ready for review* — ${link} (from ${who})`
+        : clean.status === "Incorporating Feedback" ? `↩️ *Sent back with feedback* — ${link} by ${who}`
+        : "";
+      if (slackLine) await postSlack(slackLine);
     }
 
     // PIPELINE HOLD: when the assigner saw "day already full" and chose to queue it,

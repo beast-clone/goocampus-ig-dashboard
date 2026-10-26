@@ -3,13 +3,15 @@ import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { MH_NAME } from "@/lib/mh-chat";
+import { getSessionUserId } from "@/lib/auth";
+import { postSlack, slackTaskLink } from "@/lib/slack";
 import { activeTeamIds } from "@/lib/team-db";
 
 // POST /api/my-day/swap-request
 // A packed producer does NOT pick which task to move — they send their whole
 // NOT-STARTED list to Manya ("swap any of these for the incoming task") and SHE
 // chooses. Stored as mh_activity 'swap_requested' (detail = candidate list) so
-// it persists into Manya's Requests feed; also DMs her so it pings in chat.
+// it persists into Manya's Requests feed (and her notifications); also posts to Slack.
 // Body: { pendingId, from, candidates: [{ id, title, dur, due }] }
 export const dynamic = "force-dynamic";
 
@@ -40,17 +42,19 @@ export async function POST(req: Request) {
     });
     if (error) throw new Error(error.message);
 
-    // DM Manya so it pings in chat too (best-effort).
+    // Slack, not a chat DM — the DM landed in Messages in the producer's name even
+    // when someone else pressed Swap on their day. Say who actually pressed it.
     try {
       const pending = await sb.from("mh_posts").select("particulars").eq("id", b.pendingId).single();
+      const by = (getSessionUserId() || "").toLowerCase();
+      const name = (k: string) => MH_NAME[k] || k;
       const list = candidates.map((c) => `“${c.title}”`).join(", ");
-      await sb.from("mh_messages").insert({
-        convo: [from, "manya"].sort().join("~"),
-        sender_key: from,
-        kind: "system",
-        body: `${MH_NAME[from] || from} is packed — asks to swap one of ${list} for “${pending.data?.particulars || "the queued task"}”. Pick in your Requests.`,
-      });
-    } catch { /* chat ping is a courtesy */ }
+      await postSlack(
+        `🔁 *${name(from)} is packed — Manya, pick a task to move*\n` +
+        `*Incoming:* <${slackTaskLink(b.pendingId)}|${pending.data?.particulars || "the queued task"}>\n` +
+        `*Can swap:* ${list}` +
+        (by && by !== from ? `\n_Sent by ${name(by)} from ${name(from)}'s My Day._` : ""));
+    } catch { /* the ping is a courtesy */ }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

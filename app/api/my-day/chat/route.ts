@@ -41,6 +41,9 @@ export async function GET(req: Request) {
       .from("mh_messages")
       .select("id, convo, sender_key, body, kind, created_at")
       .in("convo", convos)
+      // Only what people typed. The automatic posts ("X approved…", "X claimed…")
+      // buried the real chat — those belong in Notifications (Praveen, 26 Oct).
+      .eq("kind", "chat")
       .order("created_at", { ascending: false })
       .limit(300);
     if (error) throw new Error(error.message);
