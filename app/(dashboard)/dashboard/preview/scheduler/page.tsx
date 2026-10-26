@@ -174,7 +174,9 @@ function Scheduler() {
   const [publishToPage, setPublishToPage] = useState<PublishToPage>("GooCampus Main");
   // Cross-post: which brand pages this post goes to. The first entry is the "primary"
   // that drives the preview / best-time / daily-limit checks; the rest fan it out.
-  const [composePages, setComposePages] = useState<string[]>(["GooCampus Main"]);
+  // Nothing ticked until the social media person picks — a pre-ticked page sent a
+  // 10K Mentorship post to World instead of Main (Praveen, 26 Oct).
+  const [composePages, setComposePages] = useState<string[]>([]);
   // Collaborator(s) to auto-invite on Instagram (comma-separated usernames / Page URLs, max 3).
   const [collab, setCollab] = useState("");
   const [publishTo, setPublishTo] = useState<PublishTo>("Instagram/Facebook");
@@ -381,8 +383,8 @@ function Scheduler() {
   function scheduleFromTask(t: ToScheduleItem) {
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
-    setComposePages(t.defaultPage ? [t.defaultPage] : []);
-    setAlsoLinkedIn(!!(t.defaultPage && linkedInKeyFor(t.defaultPage)));
+    setComposePages([]);   // the social media person picks the page — never pre-ticked
+    setAlsoLinkedIn(false);
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setShowCreateForm(true);
@@ -394,8 +396,8 @@ function Scheduler() {
     if (selectedTaskId === t.id) { setSelectedTaskId(null); openTaskRef.current = null; return; }
     setSchedulingTaskId(t.id);
     setParticulars(t.title);
-    setComposePages(t.defaultPage ? [t.defaultPage] : []);
-    setAlsoLinkedIn(!!(t.defaultPage && linkedInKeyFor(t.defaultPage)));
+    setComposePages([]);   // the social media person picks the page — never pre-ticked
+    setAlsoLinkedIn(false);
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setScheduleEnabled(false);
@@ -653,7 +655,7 @@ function Scheduler() {
   // clickable when something's short so the popup can name it — a greyed-out button
   // with no reason was the single most common "why won't it do anything?" complaint.
   const missingToPublish = useMemo(() => [
-    !publishToPage && "A page to publish to",
+    composePages.length === 0 && "A page to publish to — tick where it should go",
     !caption.trim() && "A caption",
     cleanMediaUrls.length === 0 && "At least one image or video",
     // LinkedIn is ticked automatically, so this only fires if it was turned off
@@ -663,7 +665,7 @@ function Scheduler() {
         : "Somewhere to post the PDF — 12thPlus.com has no LinkedIn page, so pick GooCampus or GooCampus World, or add images")
       : "Somewhere to post — tick Instagram, Facebook or LinkedIn"),
     scheduleEnabled && !(scheduleDate && scheduleTime) && "A date and time to publish",
-  ].filter((x): x is string => !!x), [publishToPage, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, linkedInAvailable, scheduleEnabled, scheduleDate, scheduleTime, toInstagram, toFacebook]);
+  ].filter((x): x is string => !!x), [composePages, caption, cleanMediaUrls, linkedInOnly, alsoLinkedIn, linkedInAvailable, scheduleEnabled, scheduleDate, scheduleTime, toInstagram, toFacebook]);
   const canSubmit = missingToPublish.length === 0 && !submitting;
 
   // Posts already committed to the same local day for a given account (scheduled,
@@ -736,6 +738,37 @@ function Scheduler() {
       const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
       if (!Number.isNaN(local.getTime())) scheduleTimeISO = local.toISOString();
     }
+    // Review before anything goes out: exactly which page(s), networks and when.
+    {
+      const nets = [toInstagram && "Instagram", toFacebook && "Facebook", alsoLinkedIn && linkedInAvailable && "LinkedIn"].filter(Boolean).join(" · ");
+      const when = scheduleTimeISO ? `${dayLabel(scheduleTimeISO)} at ${hhmm(scheduleTimeISO)}` : "Right away";
+      const thumb = cleanMediaUrls[0];
+      const ok = await confirmDialog({
+        title: "Check before it goes",
+        body: (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              {thumb && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(thumb)
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={thumb} alt="" className="w-12 h-12 rounded-lg object-cover border border-gray-100 flex-shrink-0" />
+                : null}
+              <div className="min-w-0 text-[#232D42] font-medium truncate">{particulars.trim() || "This post"}</div>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-brand-light px-3 py-2.5">
+              <div className="text-[11px] uppercase tracking-wide text-[#8A92A6]">Posting to</div>
+              {composePages.map((p) => (
+                <div key={p} className="text-[15px] font-medium text-[#232D42]">{p} <span className="text-[#8A92A6] font-normal">{pageHandle(p)}</span></div>
+              ))}
+              <div className="text-[13px] text-[#4A5468] mt-1">{nets || "No network ticked"}</div>
+            </div>
+            <div className="text-[13px] text-[#4A5468]"><span className="text-[#8A92A6]">When:</span> {when}</div>
+          </div>
+        ),
+        action: scheduleTimeISO ? "Yes, schedule" : "Yes, post now",
+        cancel: "Go back",
+      });
+      if (!ok) return;
+    }
     // Over-posting guard — if that day+account is already full, warn before committing.
     if (scheduleTimeISO) {
       const existing = postsOnDay(scheduleTimeISO, publishToPage, schedulingTaskId || undefined);
@@ -781,6 +814,7 @@ function Scheduler() {
     setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false);
     setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
     setFormat("post"); setCoverUrl(""); setSplitCaption(false); setCaptionFb(""); setSbu("");
+    setComposePages([]);   // the next post starts with no page ticked too
   }
 
   // Instagram, Facebook and LinkedIn in one row — in Create post AND in the panel a
@@ -1908,7 +1942,7 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
                 </label>
               )}
               <div className="flex items-center justify-between mt-auto pt-1 border-t border-gray-50">
-                <span className="text-xs text-gray-500">defaults to <b className="text-gray-700">{pageChip[t.defaultPage] || t.defaultPage}</b></span>
+                <span className="text-xs text-gray-500">You pick the page</span>
                 <button onClick={() => onSchedule(t)} className="text-xs font-medium bg-brand text-white px-3 py-1.5 rounded-lg hover:bg-brand-dark">Schedule →</button>
               </div>
             </div>

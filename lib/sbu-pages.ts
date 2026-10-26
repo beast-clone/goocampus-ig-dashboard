@@ -4,9 +4,10 @@
 // Agreed with Praveen on 22 Sep: mentorship → GooCampus World; 12thPlus.com and NEET UG
 // → GooCampus India (12th Plus is UG only — NEET PG goes to Main); Samvaya has its own
 // channel, so none of ours; everything else → GooCampus Main.
+// 26 Oct: 10K Mentorship is GooCampus (Main), not World — Praveen.
 export type SbuPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
 
-const WORLD = ["Mentorship Platform", "10K Mentorship"];
+const WORLD = ["Mentorship Platform"];
 const INDIA = ["12thPlus.com", "India NEET UG Consulting"];
 const NONE = ["Samvaya"];
 
