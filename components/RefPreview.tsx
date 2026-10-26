@@ -100,12 +100,26 @@ export function RefPreviewHost() {
   useLayoutEffect(() => {
     if (!dock) { setBox(null); return; }
     let raf = 0;
+    // A box on the page itself (My Day's task panel) is taller than the screen. The
+    // panel keeps ONE size and stays inside that box: it rides along on screen while
+    // the box is in view and stops at the box's edges. Following the visible slice
+    // made it shrink, grow and spill past the task panel on every scroll (Praveen, 26 Oct).
     const place = () => {
       if (!dock.isConnected) { setSt(null); return; }
-      const r = dock.getBoundingClientRect();
-      const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, window.innerHeight);
+      // The box's VISIBLE frame — a scrolling parent can clip it (My Day's task
+      // panel is taller than the card it sits in), and the panel must not hang out.
+      const d = dock.getBoundingClientRect();
+      let top0 = d.top, bot0 = d.bottom;
+      for (let el = dock.parentElement; el && el !== document.body; el = el.parentElement) {
+        if (getComputedStyle(el).overflowY === "visible") continue;
+        const c = el.getBoundingClientRect();
+        top0 = Math.max(top0, c.top); bot0 = Math.min(bot0, c.bottom);
+      }
+      const r = { top: top0, bottom: bot0, height: Math.max(bot0 - top0, 0), width: d.width, right: d.right };
       const width = Math.min(r.width, Math.max(360, Math.min(520, r.width * 0.55)));
-      setBox({ top, height: Math.max(bottom - top, 240), left: r.right - width, width });
+      const height = Math.min(r.height, window.innerHeight - 16);
+      const top = Math.min(Math.max(r.top, 8), r.bottom - height);
+      setBox({ top, height, left: r.right - width, width });
     };
     const later = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
     place();
