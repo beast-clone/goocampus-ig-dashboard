@@ -3533,30 +3533,44 @@ export function relTime(iso: string): string {
   const mo = Math.floor(d / 30); if (mo < 12) return `${mo}mo ago`;
   return `${Math.floor(mo / 12)}y ago`;
 }
-// Word-level diff: added words green, removed words red-strikethrough (LCS).
+// Word-level diff: added words green, removed words red-strikethrough (LCS). Only the
+// part that changed is compared and shown, with a few words either side — a link pasted
+// into a long brief showed the WHOLE brief struck out and re-added, because the full
+// texts were too big to compare (Praveen, 26 Oct). Spacing-only differences count as equal.
 function wordDiff(oldStr: string, newStr: string): React.ReactNode {
   const a = (oldStr || "").split(/(\s+)/), b = (newStr || "").split(/(\s+)/);
-  const n = a.length, m = b.length;
-  if (n * m > 400_000) { // too large to diff cheaply — show before/after blocks
-    return (
-      <div className="space-y-1">
-        {oldStr && <div className="bg-red-50 text-red-600 line-through rounded px-1.5 py-1 whitespace-pre-wrap break-words">{oldStr}</div>}
-        {newStr && <div className="bg-emerald-50 text-emerald-700 rounded px-1.5 py-1 whitespace-pre-wrap break-words">{newStr}</div>}
-      </div>
-    );
+  const key = (t: string) => (/^\s*$/.test(t) ? (t.includes("\n") ? "\n" : " ") : t);
+  let pre = 0;
+  while (pre < a.length && pre < b.length && key(a[pre]) === key(b[pre])) pre++;
+  let suf = 0;
+  while (suf < a.length - pre && suf < b.length - pre && key(a[a.length - 1 - suf]) === key(b[b.length - 1 - suf])) suf++;
+  const am = a.slice(pre, a.length - suf), bm = b.slice(pre, b.length - suf);
+  if (!am.some((t) => t.trim()) && !bm.some((t) => t.trim())) return <span className="text-gray-400">Only the spacing changed.</span>;
+  const CTX = 14;   // tokens of unchanged text shown either side
+  const before = b.slice(Math.max(0, pre - CTX), pre).join(""), after = b.slice(b.length - suf, b.length - suf + CTX).join("");
+  const out: React.ReactNode[] = []; let k = 0;
+  // The brief is stored as Markdown; its ** bold marks are noise here.
+  const push = (t: string, cls: string) => { const v = t.replace(/\*\*/g, ""); if (v) out.push(<span key={k++} className={cls}>{v}</span>); };
+  if (pre > CTX) push("… ", "text-gray-400");
+  push(before, "text-gray-500");
+  const n = am.length, m = bm.length;
+  if (n * m > 400_000) {   // a very large rewrite — show the changed part as before / after
+    push(am.join(""), "bg-red-50 text-red-600 line-through"); push(bm.join(""), "bg-emerald-50 text-emerald-700");
+  } else {
+    const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = key(am[i]) === key(bm[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (key(am[i]) === key(bm[j])) { push(bm[j], ""); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { push(am[i], "bg-red-50 text-red-600 line-through"); i++; }
+      else { push(bm[j], "bg-emerald-50 text-emerald-700"); j++; }
+    }
+    while (i < n) { push(am[i], "bg-red-50 text-red-600 line-through"); i++; }
+    while (j < m) { push(bm[j], "bg-emerald-50 text-emerald-700"); j++; }
   }
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
-    dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  const out: React.ReactNode[] = []; let i = 0, j = 0, k = 0;
-  const push = (t: string, cls: string) => { if (t) out.push(<span key={k++} className={cls}>{t}</span>); };
-  while (i < n && j < m) {
-    if (a[i] === b[j]) { push(a[i], ""); i++; j++; }
-    else if (dp[i + 1][j] >= dp[i][j + 1]) { push(a[i], "bg-red-50 text-red-600 line-through"); i++; }
-    else { push(b[j], "bg-emerald-50 text-emerald-700"); j++; }
-  }
-  while (i < n) { push(a[i], "bg-red-50 text-red-600 line-through"); i++; }
-  while (j < m) { push(b[j], "bg-emerald-50 text-emerald-700"); j++; }
+  push(after, "text-gray-500");
+  if (suf > CTX) push(" …", "text-gray-400");
   return <span className="whitespace-pre-wrap break-words leading-relaxed">{out}</span>;
 }
 export const ACT_VERB: Record<string, string> = {

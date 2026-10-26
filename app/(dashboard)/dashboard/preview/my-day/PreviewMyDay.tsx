@@ -4771,8 +4771,9 @@ function CopyTaskLink({ id }: { id: string }) {
     setDone(true); setTimeout(() => setDone(false), 2000);
   };
   return (
-    <button type="button" className={`btn sm hist-btn ${done ? "on" : ""}`} onClick={copy} title="Copy a link to this task — paste it in WhatsApp or Slack">
-      {done ? <IconCheck size={14} stroke={2} /> : <IconLink size={14} stroke={1.8} />} {done ? "Copied" : "Copy link"}
+    // Icon only, so the header row doesn't wrap; the tooltip says what it does.
+    <button type="button" className={`btn sm hist-btn ${done ? "on" : ""}`} onClick={copy} title={done ? "Link copied" : "Copy link to this task"} aria-label="Copy link to this task" style={{ padding: "0 .55rem" }}>
+      {done ? <IconCheck size={15} stroke={2} /> : <IconLink size={15} stroke={1.8} />}
     </button>
   );
 }
