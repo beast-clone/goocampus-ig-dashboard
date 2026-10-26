@@ -146,6 +146,22 @@ export function RuleEditor() {
     [{ value: "", label: "Not set" }, ...withLeaver(active, cur), { value: POOL, label: "Nobody — claim pool" }];
   const helperOptions = (cur?: string | null) => [{ value: "", label: "Not set" }, ...withLeaver(active, cur)];
 
+  // The row read out loud, with the status it happens at (Praveen, 26 Oct: "at what
+  // task status? … until content is pending it will be with Manya; once content is
+  // approved it will go to Praveen — how will they know this?").
+  const nameOf = (k: string | null | undefined) => people.find((p) => p.value === k)?.label || k || "";
+  const sentence = (g: Group): string[] => {
+    const what = !g.kind ? "a task" : g.kind === "design" ? "design work" : g.kind === "video" ? "video work" : `a ${g.kind}`;
+    const scope = `${what} for ${g.sbu ?? "any brand"}`;
+    const out: string[] = [];
+    if (g.helper?.assign_to) out.push(`When ${scope} is created (Content - Pending), the writer owns it and ${nameOf(g.helper.assign_to)} is added as collaborator.`);
+    if (g.owner) {
+      if (!g.owner.assign_to) out.push(`When ${scope} is approved (Content - Approved), nobody owns it — it waits in the editors' pool until someone claims it.`);
+      else out.push(`When ${scope} is approved (Content - Approved), it is handed to ${nameOf(g.owner.assign_to)}.`);
+    } else if (g.helper?.assign_to) out.push("Who it goes to after approval is decided by the design / video rule.");
+    return out;
+  };
+
   const add = async () => {
     const kind = newKind || null;
     const sbu = newSbu || null;
@@ -182,21 +198,26 @@ export function RuleEditor() {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-3 px-4 pt-2.5 pb-1 text-[12px] text-[#8A92A6] font-semibold">
-          <span className="flex-1">Which tasks</span>
-          <span className="w-[178px]">Handed to (when approved)</span>
-          <span className="w-[160px]">Added as collaborator</span>
-          <span className="w-[62px]" />
-        </div>
 
         <ul className="divide-y divide-gray-50">
           {groups.map((g) => (
-            <li key={g.key} className={`px-4 py-3 flex items-center gap-3 flex-wrap ${isOn(g) ? "" : "opacity-60"}`}>
-              <span className="text-[13.5px] text-[#232D42] min-w-0 flex-1">{label(g)}</span>
-              <PreviewSelect className="w-[178px]" value={g.owner ? (g.owner.assign_to ?? POOL) : ""}
-                onChange={(v) => setHalf(g, "owner", v)} options={ownerOptions(g.owner?.assign_to)} />
-              <PreviewSelect className="w-[160px]" value={g.helper?.assign_to ?? ""}
-                onChange={(v) => setHalf(g, "collaborator", v)} options={helperOptions(g.helper?.assign_to)} />
+            <li key={g.key} className={`px-4 py-3.5 flex items-start gap-3 flex-wrap ${isOn(g) ? "" : "opacity-60"}`}>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-medium text-[#232D42]">{label(g)}</div>
+                {sentence(g).map((t, i) => <div key={i} className="text-[12.5px] text-[#4A5468] leading-relaxed mt-0.5">{t}</div>)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-[205px] whitespace-nowrap text-right text-[11px] text-[#8A92A6]"><b className="font-medium text-[#4A5468]">Content - Pending</b> · collaborator</span>
+                  <PreviewSelect className="w-[178px]" value={g.helper?.assign_to ?? ""}
+                    onChange={(v) => setHalf(g, "collaborator", v)} options={helperOptions(g.helper?.assign_to)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-[205px] whitespace-nowrap text-right text-[11px] text-[#8A92A6]"><b className="font-medium text-[#4A5468]">Content - Approved</b> · handed to</span>
+                  <PreviewSelect className="w-[178px]" value={g.owner ? (g.owner.assign_to ?? POOL) : ""}
+                    onChange={(v) => setHalf(g, "owner", v)} options={ownerOptions(g.owner?.assign_to)} />
+                </div>
+              </div>
               <button onClick={() => toggle(g)} disabled={busy === g.key}
                 title={isOn(g) ? "Switch this rule off" : "Switch it back on"}
                 className={`text-[12px] font-medium rounded-lg border px-2.5 py-1.5 ${isOn(g) ? "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
