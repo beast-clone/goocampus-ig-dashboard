@@ -1,6 +1,23 @@
 "use client";
 import { useEffect, useLayoutEffect, useState } from "react";
-import { IconX, IconExternalLink, IconChevronLeft, IconChevronRight, IconDownload } from "@tabler/icons-react";
+import { IconX, IconExternalLink, IconChevronLeft, IconChevronRight, IconDownload, IconCopy, IconCheck } from "@tabler/icons-react";
+
+// Put a picture on the clipboard so it pastes straight into WhatsApp, Canva, a doc…
+// (Praveen, 26 Oct). Browsers only take PNG, so anything else is redrawn as PNG first.
+async function copyImage(url: string): Promise<boolean> {
+  try {
+    const blob = await fetch(url, { mode: "cors" }).then((r) => r.blob());
+    let png = blob;
+    if (blob.type !== "image/png") {
+      const bmp = await createImageBitmap(blob);
+      const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+      c.getContext("2d")!.drawImage(bmp, 0, 0);
+      png = await new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error("no image"))), "image/png"));
+    }
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+    return true;
+  } catch { return false; }
+}
 
 // One side panel for everything a task points at (Praveen, 23 Oct): a link in the
 // brief, a reference link or file, a creative, an attachment. Click it and it opens
@@ -96,6 +113,7 @@ export function RefPreviewHost() {
   const [st, setSt] = useState<State>(null);
   const [failed, setFailed] = useState<string | null>(null);   // a file that wouldn't load
   const [big, setBig] = useState(false);   // the picture shown full screen (click it)
+  const [copied, setCopied] = useState<{ url: string; ok: boolean } | null>(null);   // the last copy, for the button label
   useEffect(() => { if (!st) setBig(false); }, [st]);
   const [box, setBox] = useState<React.CSSProperties | null>(null);   // docked position
   useEffect(() => { setOpenState = setSt; return () => { setOpenState = null; }; }, []);
@@ -191,6 +209,15 @@ export function RefPreviewHost() {
   // instead of one with ‹ › (Praveen, 26 Oct). A click opens that one full size.
   const stack = !!box && st.dock?.dataset.refStack === "1" && many;
   const openBig = (i: number) => { setSt({ ...st, index: i }); setBig(true); };
+  const copy = async (url: string) => {
+    const ok = await copyImage(url);
+    setCopied({ url, ok }); setTimeout(() => setCopied(null), 1800);
+  };
+  const CopyBtn = ({ url, dark }: { url: string; dark?: boolean }) => (
+    <button type="button" className={`rfp-copy${dark ? " dark" : ""}`} onClick={(e) => { e.stopPropagation(); copy(url); }} title="Copy the picture — then paste it anywhere">
+      {copied?.url === url ? (copied.ok ? <><IconCheck size={13} stroke={2.2} />Copied</> : <>Couldn&apos;t copy</>) : <><IconCopy size={13} stroke={2} />Copy</>}
+    </button>
+  );
 
   return (
     <aside className={`rfp${box ? " docked" : ""}`} style={box ?? undefined} role="dialog" aria-label="Preview">
@@ -206,6 +233,7 @@ export function RefPreviewHost() {
             <button type="button" className="rfp-big-nav r" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Next"><IconChevronRight size={22} stroke={2} /></button>
           </>}
           <button type="button" className="rfp-big-x" onClick={() => setBig(false)} aria-label="Close full size"><IconX size={20} stroke={2} /></button>
+          <div className="rfp-big-copy"><CopyBtn url={cur.url} dark /></div>
           <div className="rfp-big-name">{nameOf(cur)}{many ? ` · ${st.index + 1} of ${st.items.length}` : ""}</div>
         </div>
       )}
@@ -227,6 +255,7 @@ export function RefPreviewHost() {
           <button type="button" className="rfp-btn ic" onClick={() => go(-1)} aria-label="Previous"><IconChevronLeft size={15} stroke={2} /></button>
           <button type="button" className="rfp-btn ic" onClick={() => go(1)} aria-label="Next"><IconChevronRight size={15} stroke={2} /></button>
         </>}
+        {v.kind === "image" && <CopyBtn url={cur.url} />}
         <a className="rfp-btn" href={cur.url} target="_blank" rel="noreferrer">Open <IconExternalLink size={13} stroke={2} /></a>
         <button type="button" className="rfp-btn ic" onClick={() => setSt(null)} aria-label="Close"><IconX size={15} stroke={2} /></button>
       </div>
@@ -258,7 +287,10 @@ export function RefPreviewHost() {
                   // eslint-disable-next-line @next/next/no-img-element
                   ? <img src={iv.src} alt={nameOf(it)} loading="lazy" className="rfp-zoomable" title="Click to view full size" onClick={() => openBig(i)} />
                   : <a className="rfp-sfile" href={it.url} target="_blank" rel="noreferrer">{nameOf(it)} <IconExternalLink size={12} stroke={2} /></a>}
-                <div className="rfp-sname" title={nameOf(it)}>{i + 1}. {nameOf(it)}</div>
+                <div className="rfp-srow">
+                  <div className="rfp-sname" title={nameOf(it)}>{i + 1}. {nameOf(it)}</div>
+                  {iv.kind === "image" && <CopyBtn url={it.url} />}
+                </div>
               </div>
             );
           })}
@@ -282,14 +314,19 @@ const CSS = `
 .rfp.docked .rfp-sbar .rfp-t{flex:1;flex-basis:auto}
 .rfp-si{min-width:0}
 .rfp-si img{width:100%;max-height:none;display:block;border:1px solid #EEF0F4;background:#fff}
-.rfp-sname{font-size:11.5px;color:#8A92A6;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rfp-srow{display:flex;align-items:center;gap:6px;margin-top:4px}
+.rfp-sname{flex:1;min-width:0;font-size:11.5px;color:#8A92A6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rfp-copy{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;border-radius:8px;border:1px solid #E5E8F0;background:#fff;color:#3A57E8;font-size:12px;font-weight:500;cursor:pointer;flex-shrink:0}
+.rfp-copy:hover{border-color:#3A57E8}
+.rfp-copy.dark{height:34px;padding:0 14px;font-size:13px;border:none;background:#fff}
+.rfp-big-copy{position:absolute;top:16px;left:50%;transform:translateX(-50%)}
 .rfp-sfile{display:flex;align-items:center;gap:5px;padding:10px;border:1px solid #EEF0F4;border-radius:10px;background:#fff;color:#4A5468;font-size:12.5px;text-decoration:none;word-break:break-all}
 [data-ref-open] .mh-prow{flex-direction:column;align-items:stretch}
 [data-ref-open] .mh-plabel{width:auto;padding-bottom:6px}
 /* The task window widens for the preview, so History keeps its full width. */
 .hub-airtable:has([data-ref-open]){max-width:min(1500px,96vw)}
 .rfp-big{position:fixed;inset:0;z-index:400;background:rgba(12,14,26,.86);display:flex;align-items:center;justify-content:center;padding:56px 72px;cursor:zoom-out}
-.rfp-big img{width:100%;height:100%;object-fit:contain;cursor:default}
+.rfp-big img{max-width:100%;max-height:100%;width:auto;height:auto;border-radius:10px;background:#fff;cursor:default}
 .rfp-big-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;border:none;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .rfp-big-nav:hover{background:rgba(255,255,255,.26)}
 .rfp-big-nav.l{left:16px}.rfp-big-nav.r{right:16px}
