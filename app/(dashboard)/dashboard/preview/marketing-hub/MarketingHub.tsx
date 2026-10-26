@@ -2550,11 +2550,74 @@ const customVal = (r: Row, key: string) => (r.custom || {})[key];
 // Per-view ⋯ menu (mirrors Airtable): access level, reassign, rename, description,
 // duplicate, copy-another-view's-config, download CSV, print, delete. Edit actions
 // disable when the API says the current user can't edit/manage this view.
-function ViewMenu({ view, otherViews, onAction }: {
+const DEFAULT_SECTION = "My views";          // where views without a section live
+const RAIL_FOLD_KEY = "mh-rail-folded";      // which rail sections are folded (per browser)
+
+// Airtable's small "new view" pop-over: name, who can edit, which section.
+function GridViewPop({ defaultName, sections, defaultSection, onClose, onCreate }: {
+  defaultName: string; sections: string[]; defaultSection: string; onClose: () => void;
+  onCreate: (d: { name: string; access: ViewAccess; section: string }) => Promise<void>;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [access, setAccess] = useState<ViewAccess>("personal");
+  const [section, setSection] = useState(defaultSection);
+  const [busy, setBusy] = useState(false);
+  const go = async () => { if (!name.trim() || busy) return; setBusy(true); await onCreate({ name: name.trim(), access, section }); setBusy(false); };
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute left-full top-1 ml-2 z-50 w-[300px] bg-white border border-gray-200 rounded-xl shadow-lg p-4">
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => { if (e.key === "Enter") go(); if (e.key === "Escape") onClose(); }}
+          className="w-full border border-brand rounded-lg px-3 py-2 text-[14px] outline-none" />
+        <div className="text-[13px] font-medium text-[#232D42] mt-3 mb-1.5">Who can edit</div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {(["collaborative", "personal", "locked"] as ViewAccess[]).map((a) => (
+            <label key={a} className="flex items-center gap-1.5 text-[13px] text-gray-700 cursor-pointer">
+              <input type="radio" checked={access === a} onChange={() => setAccess(a)} className="accent-[#3A57E8]" />
+              {ACCESS_META[a].label.replace(" view", "")}
+            </label>
+          ))}
+        </div>
+        <div className="text-[11.5px] text-[#8A92A6] mt-1">{ACCESS_META[access].hint}</div>
+        <div className="text-[13px] font-medium text-[#232D42] mt-3 mb-1.5">Put it in</div>
+        <select value={section} onChange={(e) => setSection(e.target.value)} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-[13px] bg-white outline-none focus:border-brand">
+          {sections.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="text-[13px] font-medium text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={go} disabled={!name.trim() || busy} className="text-[13px] font-medium bg-brand text-white px-3.5 py-1.5 rounded-lg hover:bg-brand-dark disabled:opacity-50">{busy ? "Creating…" : "Create new view"}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ⋯ on a section of your own: rename or delete it (its views move, never deleted).
+function SectionMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative flex-shrink-0">
+      <button onClick={() => setOpen((o) => !o)} title="Section options" className={`${open ? "flex" : "hidden group-hover:flex"} text-gray-400 hover:text-gray-700`}><IconDots size={14} /></button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-5 z-50 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+            <button onClick={() => { setOpen(false); onRename(); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-gray-700 hover:bg-gray-50"><IconPencil size={14} stroke={1.7} />Rename section</button>
+            <button onClick={() => { setOpen(false); onDelete(); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-rose-600 hover:bg-rose-50"><IconTrash size={14} stroke={1.7} />Delete section</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ViewMenu({ view, otherViews, onAction, sections }: {
   view: SavedView; otherViews: SavedView[]; onAction: (action: string, payload?: string) => void;
+  sections?: string[];   // Master sheet only — offers "Move to section"
 }) {
   const [open, setOpen] = useState(false);
-  const [sub, setSub] = useState<null | "copy" | "reassign">(null);
+  const [sub, setSub] = useState<null | "copy" | "reassign" | "move">(null);
   const close = () => { setOpen(false); setSub(null); };
   const act = (a: string, p?: string) => { close(); onAction(a, p); };
   const { canEdit, canManage } = view;
@@ -2593,6 +2656,15 @@ function ViewMenu({ view, otherViews, onAction }: {
             {sub === "reassign" && (
               <div className="pl-8 pr-2 pb-1">
                 {TEAM.map((m) => <button key={m.key} onClick={() => act("reassign", m.key)} className="w-full text-left px-2 py-1 text-[12px] rounded hover:bg-gray-50">{m.label}</button>)}
+              </div>
+            )}
+            {sections && sections.length > 1 && item("move", IconLayoutList, "Move to section", () => setSub(sub === "move" ? null : "move"))}
+            {sub === "move" && sections && (
+              <div className="pl-8 pr-2 pb-1">
+                {sections.map((n) => (
+                  <button key={n} disabled={n === view.section} onClick={() => act("move", n)}
+                    className="w-full text-left px-2 py-1 text-[12px] rounded hover:bg-gray-50 disabled:text-gray-300 truncate">{n}{n === view.section ? " · here" : ""}</button>
+                ))}
               </div>
             )}
             {item("rename", IconPencil, "Rename view", () => act("rename"), { disabled: !canEdit })}
@@ -2890,6 +2962,12 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
 
   const [openTool, setOpenTool] = useState<null | "filter" | "sort" | "cols" | "color" | "group">(null);
   const [newViewOpen, setNewViewOpen] = useState(false);
+  const [createMenu, setCreateMenu] = useState(false);   // "Create new…" menu
+  const [gridPop, setGridPop] = useState(false);         // the new Grid view pop-over
+  const [findQ, setFindQ] = useState("");                // "Find a view"
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+  useEffect(() => { try { setFolded(JSON.parse(localStorage.getItem(RAIL_FOLD_KEY) || "{}") || {}); } catch { /* private mode */ } }, []);
+  const toggleFold = (t: string) => setFolded((f) => { const n = { ...f, [t]: !f[t] }; try { localStorage.setItem(RAIL_FOLD_KEY, JSON.stringify(n)); } catch { /* private mode */ } return n; });
   const [addColOpen, setAddColOpen] = useState(false);
   // Delete → recycle bin. Only people with the delete_tasks capability see the
   // checkboxes or the bin; the API enforces the same gate.
@@ -2901,7 +2979,13 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const onPick = (ids: string[], on: boolean) => setPicked((prev) => { const n = new Set(prev); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   // Calendar views live in the same table; they belong to the Content calendar's rail.
-  const custom = (viewsData?.views || []).filter((v) => (v.config as { kind?: string }).kind !== "calendar");
+  // Sections (Airtable's folders) are rows too, with config.kind = "section" (26 Oct).
+  const kindOf = (v: SavedView) => (v.config as { kind?: string }).kind;
+  const custom = (viewsData?.views || []).filter((v) => !kindOf(v));
+  const sectionRows = (viewsData?.views || []).filter((v) => kindOf(v) === "section");
+  const sectionNames = [DEFAULT_SECTION, ...sectionRows.map((r) => r.name).filter((n) => n !== DEFAULT_SECTION)];
+  const meKey = viewsData?.me || "";
+  const meName = TEAM.find((m) => m.key === meKey)?.label || "My";
   const { data: colsData, refresh: refreshCols } = useApi<{ columns: CustomColumn[] }>("/api/marketing-hub/columns");
   const customCols = useMemo(() => colsData?.columns || [], [colsData]);
   const fields = useMemo(() => [...FILTER_FIELDS, ...customFieldDefs(customCols)], [customCols]);
@@ -2958,7 +3042,25 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
     setSorts(c.config.sorts || []); setHiddenCols(c.config.hiddenCols || []); setColorField(c.config.color || ""); setGroupField(c.config.group || "");
     if (c.config.rangeDays) setRange(daysRange(c.config.rangeDays));
   };
-  const setFilter = (f: FilterModel) => { setDraft(f); setActiveId("draft"); };
+  // Like Airtable: changing the filter/sort/colour/group while on a view you can edit
+  // changes THAT view (saved a moment later). On a built-in or locked view it becomes
+  // an unsaved draft you can "Save as view".
+  const activeCustomView = custom.find((c) => c.id === activeId);
+  const onEditableView = !!activeCustomView?.canEdit;
+  const setFilter = (f: FilterModel) => { setDraft(f); if (!onEditableView) setActiveId("draft"); };
+  useEffect(() => {
+    if (!activeCustomView?.canEdit) return;
+    const c = activeCustomView.config;
+    const same = JSON.stringify([c.filter || legacyToFilter(c.filters), c.sorts || [], c.hiddenCols || [], c.color || "", c.group || ""])
+      === JSON.stringify([draft, sorts, hiddenCols, colorField, groupField]);
+    if (same) return;
+    const t = setTimeout(async () => {
+      const res = await fetch("/api/marketing-hub/views", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: activeCustomView.id, config: { ...c, filter: draft, sorts, hiddenCols, color: colorField, group: groupField } }) });
+      if (res.ok) refreshViews();
+    }, 700);
+    return () => clearTimeout(t);
+  }, [draft, sorts, hiddenCols, colorField, groupField]); // eslint-disable-line react-hooks/exhaustive-deps
   const hasFilter = draft.conditions.length > 0;
   const dirty = hasFilter || sorts.length > 0 || hiddenCols.length > 0 || !!colorField || !!groupField;
 
@@ -2969,6 +3071,43 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
     const res = await fetch(`/api/marketing-hub/views?id=${id}`, { method: "DELETE" });
     if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not delete view."); return; }
     if (activeId === id) { setActiveId("all"); setDraft(EMPTY_FILTER); setSorts([]); setHiddenCols([]); setColorField(""); setGroupField(""); }
+    await refreshViews();
+  };
+  // Create a Grid view the Airtable way: it starts as all tasks; you then filter /
+  // sort / group it with the toolbar and that is saved to the view as you go.
+  const createGrid = async (d: { name: string; access: ViewAccess; section: string }) => {
+    const res = await fetch("/api/marketing-hub/views", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: d.name, access: d.access, section: d.section, config: { filter: EMPTY_FILTER, sorts: [], hiddenCols: [], color: "", group: "", rangeDays: activeDays } }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { alertDialog(j.error || "Could not create the view."); return; }
+    setGridPop(false);
+    if (folded[d.section]) toggleFold(d.section);
+    await refreshViews();
+    if (j.view) selectCustom(j.view as SavedView);
+  };
+  // Sections are shared with the whole team, like Airtable's.
+  const newSection = async () => {
+    const name = (await promptDialog({ title: "New section", defaultValue: "" }))?.trim();
+    if (!name) return;
+    if (sectionNames.some((n) => n.toLowerCase() === name.toLowerCase())) { alertDialog(`There's already a section called "${name}".`); return; }
+    const res = await fetch("/api/marketing-hub/views", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, section: name, access: "collaborative", config: { kind: "section" } }) });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not create the section."); return; }
+    await refreshViews();
+  };
+  const renameSection = async (row: SavedView) => {
+    const name = (await promptDialog({ title: "Rename section", defaultValue: row.name }))?.trim();
+    if (!name || name === row.name) return;
+    await patchView(row.id, { name, section: name });
+    for (const v of custom.filter((c) => c.section === row.name)) await patchView(v.id, { section: name });
+  };
+  // Deleting a section never deletes views — they move back to the default section.
+  const deleteSection = async (row: SavedView) => {
+    const inside = custom.filter((c) => c.section === row.name);
+    if (!(await confirmDialog({ title: `Delete the section "${row.name}"?`, body: inside.length ? `Its ${inside.length} view${inside.length > 1 ? "s move" : " moves"} to "${DEFAULT_SECTION}". No view is deleted.` : "It's empty.", action: "Delete section", danger: true }))) return;
+    for (const v of inside) await patchView(v.id, { section: DEFAULT_SECTION });
+    const res = await fetch(`/api/marketing-hub/views?id=${row.id}`, { method: "DELETE" });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not delete the section."); }
     await refreshViews();
   };
   const deleteColumn = async (id: string, label: string) => {
@@ -3000,6 +3139,7 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
         break;
       case "copyConfig": { const src = custom.find((c) => c.id === payload); if (src) await patchView(v.id, { config: src.config }); break; }
       case "reassign": await patchView(v.id, { createdBy: payload }); break;
+      case "move": if (payload) await patchView(v.id, { section: payload }); break;
       case "csv": downloadText(`${v.name.replace(/[^a-z0-9]+/gi, "-")}.csv`, viewRowsToCsv(rowsForConfig(v.config))); break;
       case "print": selectCustom(v); setTimeout(() => window.print(), 150); break;
       case "delete": if (await confirmDialog({ title: `Delete view "${v.name}"?`, action: "Delete view", danger: true })) await deleteView(v.id); break;
@@ -3019,10 +3159,26 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
       </button>
     );
   };
-  const Section = ({ title, views }: { title: string; views: MasterViewDef[] }) => (
-    <div className="mb-2">
-      <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{title}</div>
-      {views.map((v) => <RailItem key={v.id} v={v} />)}
+  const Section = ({ title, views }: { title: string; views: MasterViewDef[] }) => {
+    const vs = views.filter((v) => found(v.label));
+    if (findQ && !vs.length) return null;
+    return (
+      <div className="mb-1">
+        <FoldHead title={title} />
+        {!isFolded(title) && vs.map((v) => <RailItem key={v.id} v={v} />)}
+      </div>
+    );
+  };
+  // Folding sections (remembered per browser) and the Find box.
+  const found = (name: string) => !findQ.trim() || name.toLowerCase().includes(findQ.trim().toLowerCase());
+  const isFolded = (t: string) => !findQ.trim() && !!folded[t];
+  const FoldHead = ({ title, menu }: { title: string; menu?: React.ReactNode }) => (
+    <div className="group flex items-center gap-1 px-1 pt-2 pb-1">
+      <button onClick={() => toggleFold(title)} className="flex items-center gap-1 flex-1 min-w-0 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600">
+        <IconChevronDown size={12} stroke={2} className={`flex-shrink-0 transition-transform ${isFolded(title) ? "-rotate-90" : ""}`} />
+        <span className="truncate">{title}</span>
+      </button>
+      {menu}
     </div>
   );
 
@@ -3033,30 +3189,64 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   return (
     <div className="flex gap-4 items-stretch">
       {/* Views rail */}
-      <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
-        <button onClick={() => newView()}
-          className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[14px] font-medium hover:brightness-105">
-          <IconPlus size={15} stroke={2} />New view
+      <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2 relative">
+        {/* Airtable's rail (26 Oct): Create new… (Grid / Section), Find a view, then
+            folding sections — the team's own first, the built-in ones after. */}
+        <button onClick={() => setCreateMenu((o) => !o)}
+          className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-[14px] font-medium text-[#232D42] hover:bg-gray-50">
+          <IconPlus size={15} stroke={2} className="text-brand" />Create new…
         </button>
-        {custom.length > 0 && (
-          <div className="mb-2">
-            <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">My views</div>
-            {custom.map((c) => {
-              const on = c.id === activeId;
-              const AccessIcon = ACCESS_META[c.access].icon;
-              return (
-                <div key={c.id} className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
-                  <button onClick={() => selectCustom(c)} className="flex items-center gap-2 flex-1 min-w-0 text-left" title={c.description || undefined}>
-                    <AccessIcon size={13} stroke={1.8} className="flex-shrink-0" />
-                    <span className="truncate flex-1">{c.name}</span>
-                  </button>
-                  <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"} group-hover:hidden`}>{countCustom(c)}</span>
-                  <ViewMenu view={c} otherViews={custom.filter((v) => v.id !== c.id)} onAction={(a, p) => doViewAction(a, c, p)} />
-                </div>
-              );
-            })}
-          </div>
+        {createMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setCreateMenu(false)} />
+            <div className="absolute left-full top-1 ml-2 z-50 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+              <button onClick={() => { setCreateMenu(false); setGridPop(true); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[14px] text-gray-700 hover:bg-gray-50">
+                <IconColumns size={15} stroke={1.7} />Grid
+              </button>
+              <div className="my-1 border-t border-gray-100" />
+              <button onClick={() => { setCreateMenu(false); newSection(); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[14px] text-gray-700 hover:bg-gray-50">
+                <IconLayoutList size={15} stroke={1.7} />Section
+              </button>
+            </div>
+          </>
         )}
+        {gridPop && (
+          <GridViewPop defaultName={`${meName}'s Grid`} sections={sectionNames} defaultSection={DEFAULT_SECTION}
+            onClose={() => setGridPop(false)} onCreate={createGrid} />
+        )}
+        <div className="flex items-center gap-1.5 border border-gray-100 rounded-lg px-2 py-1.5 mt-1 mb-1">
+          <IconSearch size={14} stroke={1.8} className="text-gray-400 flex-shrink-0" />
+          <input value={findQ} onChange={(e) => setFindQ(e.target.value)} placeholder="Find a view"
+            className="flex-1 min-w-0 text-[13px] outline-none bg-transparent" />
+          {findQ && <button onClick={() => setFindQ("")} className="text-gray-400 hover:text-gray-700"><IconX size={13} /></button>}
+        </div>
+        {sectionNames.map((sec) => {
+          const vs = custom.filter((c) => (sectionNames.includes(c.section) ? c.section : DEFAULT_SECTION) === sec).filter((c) => found(c.name)).reverse();
+          const row = sectionRows.find((r) => r.name === sec);
+          if (findQ && !vs.length) return null;
+          if (!row && !vs.length) return null;   // the default section shows once it has a view
+          return (
+            <div key={sec} className="mb-1">
+              <FoldHead title={sec} menu={row && (
+                <SectionMenu onRename={() => renameSection(row)} onDelete={() => deleteSection(row)} />
+              )} />
+              {!isFolded(sec) && (vs.length ? vs.map((c) => {
+                const on = c.id === activeId;
+                const AccessIcon = ACCESS_META[c.access].icon;
+                return (
+                  <div key={c.id} className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+                    <button onClick={() => selectCustom(c)} className="flex items-center gap-2 flex-1 min-w-0 text-left" title={c.description || undefined}>
+                      <AccessIcon size={13} stroke={1.8} className="flex-shrink-0" />
+                      <span className="truncate flex-1">{c.name}</span>
+                    </button>
+                    <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"} group-hover:hidden`}>{countCustom(c)}</span>
+                    <ViewMenu view={c} otherViews={custom.filter((v) => v.id !== c.id)} sections={sectionNames} onAction={(a, p) => doViewAction(a, c, p)} />
+                  </div>
+                );
+              }) : <div className="px-2 py-1 text-[12px] text-gray-400 italic">No views yet</div>)}
+            </div>
+          );
+        })}
         <Section title="Default" views={[allView]} />
         <Section title="Team" views={teamViews} />
         <Section title="By status" views={statusViews} />

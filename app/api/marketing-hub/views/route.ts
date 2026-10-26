@@ -109,14 +109,15 @@ export async function POST(req: Request) {
   }
 }
 
-// PATCH — update a view. Body: { id, name?, config?, description?, access?, createdBy? }
+// PATCH — update a view. Body: { id, name?, config?, description?, access?, createdBy?, section? }
+// section = which rail section (folder) it sits in — anyone who can see it may file it.
 // Config/name/description edits need canEditConfig; access/reassign need owner-or-admin.
 export async function PATCH(req: Request) {
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 
   try {
-    const body = (await req.json()) as { id?: string; name?: string; config?: Record<string, unknown>; description?: string; access?: Access; createdBy?: string | null };
+    const body = (await req.json()) as { id?: string; name?: string; config?: Record<string, unknown>; description?: string; access?: Access; createdBy?: string | null; section?: string };
     if (!body.id) return NextResponse.json({ error: "id is required" }, { status: 400 });
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
@@ -141,6 +142,7 @@ export async function PATCH(req: Request) {
     if (body.config) patch.config = body.config;
     if (body.access && ["personal", "collaborative", "locked"].includes(body.access)) patch.access = body.access;
     if (body.createdBy !== undefined) patch.created_by = body.createdBy || null;
+    if (typeof body.section === "string" && body.section.trim()) patch.section = body.section.trim();
 
     const { data, error } = await sb.from("mh_views").update(patch).eq("id", body.id).select(SELECT).single();
     if (error) throw new Error(error.message);
