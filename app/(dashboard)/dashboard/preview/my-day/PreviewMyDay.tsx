@@ -2,7 +2,7 @@
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport, IconCheck } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPaperclip, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport, IconCheck } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
@@ -174,6 +174,7 @@ type Task = {
     content: string;                                    // full write-up (paragraphs split on blank lines)
     creatives: { name: string; type: "image" | "video" | "doc"; url?: string; attId?: string }[]; // post media + uploaded assets
     references?: RefItem[];                             // links + images the team adds for context
+    attachments?: CreativeItem[];                       // working files, never published (kind='attachment')
     outputLink?: string;                                // the finished-creative link (Drive/Canva) — output_link
     collaborators: Person[];
     activity: { who: string; text: string; time: string }[];
@@ -567,6 +568,39 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   );
 }
 
+// Attachments — working files that are never published (mh_attachments kind='attachment'),
+// the same box the task window has. Missing here, a task with only attachments looked
+// empty in My Day while the task window showed them (Praveen, 26 Oct).
+function AttachmentsSection({ files, postId, uploadedBy, onSaved }: { files: CreativeItem[]; postId: string; uploadedBy: string; onSaved: () => void }) {
+  const [preview, setPreview] = useState<number | null>(null);
+  const viewable = files.filter((c) => c.url && c.type !== "doc");
+  const q = useUploadQueue({ postId, kind: "attachment", uploadedBy, onSaved,
+    existing: files.map((c) => c.name),
+    onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
+  const remove = async (attId: string) => {
+    const res = await removeTaskFile(attId);
+    if (!res.ok) { const j = await res.json().catch(() => ({})); showToast({ who: "Couldn't remove it", body: (j as { error?: string }).error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); }
+    onSaved();
+  };
+  return (
+    <div className="up-wrap">
+      <FilesCard icon={<IconPaperclip size={15} stroke={1.8} />} title="Attachments"
+        count={`${files.length} file${files.length === 1 ? "" : "s"} · never published`}
+        accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv" onFiles={(f) => q.add(f)} busyText={q.busy ? q.status : undefined}
+        tiles={files.map((f, i): FileTile => {
+          const pdf = !!f.url && (f.type === "doc" || isPdf(f.url, null));
+          return { key: f.attId || f.url || String(i), name: f.name, url: f.url,
+            kind: pdf ? "pdf" : f.type === "video" ? "video" : f.type === "image" ? "image" : "file",
+            onOpen: !pdf && f.url ? () => { const idx = viewable.indexOf(f); if (idx >= 0) setPreview(idx); } : undefined,
+            onRemove: f.attId ? () => remove(f.attId!) : undefined };
+        })}
+        pending={q.pending} onDismiss={q.dismiss} />
+      {preview !== null && viewable.length > 0 && (
+        <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
+      )}
+    </div>
+  );
+}
 
 // Fullscreen creative preview — image / carousel slideshow (‹ › + dots) / video play.
 function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeItem[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
@@ -1366,6 +1400,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
       <CreativesSection key={`cr-${task.id}`} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
+
+      <AttachmentsSection key={`at-${task.id}`} files={task.detail.attachments || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
 
     </div>

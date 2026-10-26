@@ -83,7 +83,7 @@ export type Row = {
 export type RefItem = { kind: "link" | "image"; label: string; url: string; attId?: string };
 export type Creative = { name: string; type: "image" | "video" | "doc"; url: string; attId?: string };
 
-export function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = [], collabKeys: string[] = []) {
+export function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative[] = [], collabKeys: string[] = [], workAtts: Creative[] = []) {
   const owner = ownerName(r.owner_key);
   const type = r.type || "Post";
   const media = r.media_urls || [];
@@ -131,6 +131,7 @@ export function toTask(r: Row, refImages: RefItem[] = [], creativeAtts: Creative
       feedback: typeof r.custom?.incorporating_feedback === "string" ? (r.custom.incorporating_feedback as string) : "",
       activity: [] as unknown[],
       references,
+      attachments: workAtts,                      // working files, never published
       outputLink: r.output_link || "",
       createdAt: r.created_at || "",
       startAt: r.start_at || "",

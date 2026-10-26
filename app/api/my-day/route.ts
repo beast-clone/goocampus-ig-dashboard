@@ -50,6 +50,7 @@ export async function GET() {
     // ~1200 task ids) and map by post; only the tasks in view read from it.
     const refByPost = new Map<string, RefItem[]>();
     const creativeByPost = new Map<string, Creative[]>();
+    const attByPost = new Map<string, Creative[]>();
     // Explicit bound: PostgREST silently caps unlimited selects (~1000 rows), which
     // would drop attachments arbitrarily as the table grows. Newest-first within the
     // cap so recent creatives always win. ponytail: 5000 flat cap — switch to a
@@ -57,7 +58,7 @@ export async function GET() {
     const { data: atts } = await sb
       .from("mh_attachments")
       .select("id, post_id, filename, storage_path, kind, sort_order")
-      .in("kind", ["reference", "creative"])
+      .in("kind", ["reference", "creative", "attachment"])
       .order("uploaded_at", { ascending: false })
       .limit(5000);
     const orderOf = new Map<string, number>();   // the order set by dragging the tiles
@@ -69,6 +70,12 @@ export async function GET() {
         const pdf = /\.pdf($|[?#])/i.test(a.storage_path) || /\.pdf$/i.test(a.filename || "");
         arr.push({ name: a.filename, type: pdf ? "doc" : isVideo(a.storage_path) ? "video" : "image", url: a.storage_path, attId: a.id });
         creativeByPost.set(a.post_id, arr);
+      } else if (a.kind === "attachment") {
+        // Working files that are never published — the task window's Attachments box.
+        const arr = attByPost.get(a.post_id) || [];
+        const pdf = /\.pdf($|[?#])/i.test(a.storage_path) || /\.pdf$/i.test(a.filename || "");
+        arr.push({ name: a.filename, type: pdf ? "doc" : isVideo(a.storage_path) ? "video" : "image", url: a.storage_path, attId: a.id });
+        attByPost.set(a.post_id, arr);
       } else {
         const arr = refByPost.get(a.post_id) || [];
         arr.push({ kind: "image", label: a.filename, url: a.storage_path, attId: a.id });
@@ -78,6 +85,7 @@ export async function GET() {
     // Read newest-first for the cap; shown oldest-first, so slide 1 is first (22 Oct).
     creativeByPost.forEach((arr) => { arr.reverse(); arr.sort((x, y) => (orderOf.get(x.attId!) ?? 1e9) - (orderOf.get(y.attId!) ?? 1e9)); });
     refByPost.forEach((arr) => arr.reverse());
+    attByPost.forEach((arr) => arr.reverse());
     // Collaborators from the junction table (the approve-handoff writes here).
     const collabByPost = new Map<string, string[]>();
     if (rows.length) {
@@ -94,7 +102,7 @@ export async function GET() {
     // Samvaya / other-platform work (spec §14) is split OUT here so it can never leak
     // into the GooCampus board or Manya's view — it only feeds Nandu's own section.
     const isSamvayaRow = (r: Row) => /samvaya|matrimony/i.test(r.sbu || "");
-    const mk = (r: Row) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || []);
+    const mk = (r: Row) => toTask(r, refByPost.get(r.id) || [], creativeByPost.get(r.id) || [], collabByPost.get(r.id) || [], attByPost.get(r.id) || []);
     const mainRows = rows.filter((r) => !isSamvayaRow(r));
     const tasks = mainRows.map(mk);
     // Claim pool = approved video work still up for grabs. Once an editor (Nikhil /
