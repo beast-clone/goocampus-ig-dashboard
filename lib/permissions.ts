@@ -204,6 +204,8 @@ export const TABS: TabDef[] = [
   { key: "mm-materials", label: "Marketing Material", group: "Marketing Hub", sec: "content", paths: [`${P}/materials/materials`] },
   { key: "mm-promotions", label: "Paid Promotions", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/promotions`] },
   { key: "mm-subscriptions", label: "Subscriptions", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/subscriptions`] },
+  // Buyer names, emails and phones — off for non-admins until switched on (26 Oct).
+  { key: "mm-ebooks", label: "eBook Orders", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/ebooks`] },
   { key: "content-calendar", label: "Content calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"] },
   { key: "mentorship-calendar", label: "Mentorship calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"], channel: "goocampusworld" },
   { key: "radar", label: "Content Radar", group: "Content", sec: "content", paths: [`${P}/radar`] },

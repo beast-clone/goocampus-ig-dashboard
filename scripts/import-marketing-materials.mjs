@@ -1,4 +1,4 @@
-// One-time copy of six Airtable Marketing Hub tables into the dashboard's Marketing
+// One-time copy of seven Airtable Marketing Hub tables into the dashboard's Marketing
 // Materials tabs (Praveen, 23 Oct 2026). After this the team works in the dashboard only.
 //
 //   node scripts/import-marketing-materials.mjs            (all six)
@@ -81,6 +81,16 @@ const TABLES = {
     minutes: typeof f["Minutes of Meeting"] === "string" ? f["Minutes of Meeting"].trim() || null : null,
     cross_functional: f["Cross Functional?"] === "Yes",
   }) },
+  // eBook Orders (26 Oct): the Australia and NZ sales logged before the n8n workflows
+  // switched to the dashboard. Run on its own: node scripts/import-marketing-materials.mjs ebooks
+  ebooks: { at: "tblDDCWiBZyIsXjca", to: "mm_ebook_orders", row: async (f, _id, _p, created) => ({
+    title: [text(f["First Name"]), text(f["Last Name"])].filter(Boolean).join(" "),
+    ebook: { "AMC E Book": "Australia", "New Zealand E Book": "New Zealand" }[f["Service"]] || text(f["Service"]),
+    order_date: day(created), paid_at: created, amount: f["Amount"] ?? null, status: text(f["Status"]),
+    email: text(f["Email ID"]), phone: text(f["Phone"]), payment_mode: text(f["Payment Mode"]),
+    payment_id: text(f["Payment ID"]), error_reason: text(f["Error Reason"]),
+    access_shared: String(f["Access Shared"] || "").trim() === "Yes", email_sent_at: f["Email Sent"] || null,
+  }) },
 };
 
 const only = process.argv[2];
@@ -94,7 +104,7 @@ for (const [name, t] of Object.entries(TABLES)) {
   let n = 0;
   const rows = [];
   for (const r of recs) {
-    const row = { ...(await t.row(r.fields, r.id, people)), airtable_id: r.id, created_at: r.createdTime, created_by: "airtable" };
+    const row = { ...(await t.row(r.fields, r.id, people, r.createdTime)), airtable_id: r.id, created_at: r.createdTime, created_by: "airtable" };
     rows.push(row);
     if (++n % 10 === 0) process.stdout.write(`\r${name}: ${n}/${recs.length}`);
   }

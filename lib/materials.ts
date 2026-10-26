@@ -13,7 +13,7 @@ export type MField = {
   /** Choices to offer; values already used on the tab are offered too. */
   options?: string[];
 };
-export type MTabKey = "expenses" | "photos" | "materials" | "promotions" | "subscriptions";
+export type MTabKey = "expenses" | "photos" | "materials" | "promotions" | "subscriptions" | "ebooks";
 export type MTab = {
   key: MTabKey; label: string; table: string; intro: string;
   /** Item word for buttons and counts ("Add expense", "26 expenses"). */
@@ -29,6 +29,10 @@ export type MTab = {
   date?: string; money?: string;
   fields: MField[];
 };
+
+// The nine country eBooks sold on Razorpay (Praveen, 26 Oct 2026). The n8n sale
+// workflows write the same names, so the filter chips line up.
+const EBOOKS = ["Australia", "New Zealand", "Canada", "Germany", "India (NEET-PG)", "Ireland", "Qatar", "Saudi Arabia", "UAE"];
 
 const TEAMS = ["Marketing", "Operations", "Sales", "Administration", "Mentorship Platform", "India Admissions"];
 
@@ -92,6 +96,25 @@ export const MTABS: MTab[] = [
       { key: "amount", label: "Amount", type: "money", col: true },
       { key: "billing", label: "Paid by", type: "select", col: true },
       { key: "status", label: "Status", type: "select", col: true, options: ["Still in use", "Discontinued"] },
+    ] },
+  // eBook sales (Praveen, 26 Oct 2026): written by the n8n Razorpay workflows, one per
+  // eBook, instead of the Airtable "E Book Orders" table. Paid and failed payments both
+  // land here; payment_id is unique so a repeated Razorpay webhook updates the same row.
+  { key: "ebooks", label: "eBook Orders", table: "mm_ebook_orders", noun: "order", nounPlural: "orders",
+    intro: "Every eBook payment from Razorpay — who bought which eBook, whether it went through and whether the Drive folder was shared.",
+    sort: { col: "paid_at", asc: false }, date: "order_date", money: "amount",
+    fields: [
+      { key: "title", label: "Buyer", type: "text" },
+      { key: "ebook", label: "eBook", type: "select", col: true, options: EBOOKS },
+      { key: "order_date", label: "Date", type: "date", col: true },
+      { key: "amount", label: "Amount", type: "money", col: true },
+      { key: "status", label: "Payment", type: "select", col: true, options: ["Paid", "Failed"] },
+      { key: "access_shared", label: "Access shared", type: "bool", col: true },
+      { key: "email", label: "Email", type: "text", col: true },
+      { key: "phone", label: "Phone", type: "text", col: true },
+      { key: "payment_mode", label: "Paid with", type: "select", options: ["UPI", "Card", "Netbanking", "Wallet", "EMI", "Other"] },
+      { key: "payment_id", label: "Razorpay payment ID", type: "text" },
+      { key: "error_reason", label: "Why it failed", type: "text" },
     ] },
 ];
 

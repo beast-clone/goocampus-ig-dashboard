@@ -65,3 +65,19 @@ alter table mm_meetings enable row level security;
 -- Marketing Material viewer (Praveen, 23 Oct): tell the final file from the working one.
 alter table mm_materials add column if not exists version text,          -- "Final" / "Needs update"
                          add column if not exists source_url text;       -- the editable source (Canva link)
+
+-- eBook Orders (Praveen, 26 Oct 2026): every Razorpay eBook payment, written by the n8n
+-- workflows (one per eBook) in place of the Airtable "E Book Orders" table. payment_id is
+-- unique so a repeated webhook updates the row instead of adding a second one.
+create table if not exists mm_ebook_orders (
+  id uuid primary key default gen_random_uuid(),
+  title text not null default '',        -- buyer's name
+  ebook text, order_date date, paid_at timestamptz not null default now(),
+  amount numeric(12,2), status text,     -- "Paid" / "Failed"
+  email text, phone text, payment_mode text,
+  payment_id text unique, error_reason text,
+  access_shared boolean not null default false, email_sent_at timestamptz,
+  airtable_id text unique, created_by text, created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(), deleted_at timestamptz
+);
+alter table mm_ebook_orders enable row level security;

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   IconPlus, IconSearch, IconX, IconPaperclip, IconCheck, IconTrash, IconFileText, IconReceipt, IconPhoto,
-  IconFileDescription, IconSpeakerphone, IconRepeat, IconCalendar, IconChevronLeft, IconChevronRight, IconFolder, IconUpload, IconPencil, IconList, IconLayoutGrid, IconExternalLink, IconDownload, IconCurrencyRupee, IconListNumbers,
+  IconFileDescription, IconSpeakerphone, IconRepeat, IconBook, IconAlertTriangle, IconCalendar, IconChevronLeft, IconChevronRight, IconFolder, IconUpload, IconPencil, IconList, IconLayoutGrid, IconExternalLink, IconDownload, IconCurrencyRupee, IconListNumbers,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -24,7 +24,7 @@ import { type MTab, type MField } from "@/lib/materials";
 type MFile = { url: string; name: string; mime?: string; size?: number; note?: string; non_usable?: boolean };
 type Row = Record<string, unknown> & { id: string };
 
-const ICONS = { expenses: IconReceipt, photos: IconPhoto, materials: IconFileDescription, promotions: IconSpeakerphone, subscriptions: IconRepeat };
+const ICONS = { expenses: IconReceipt, photos: IconPhoto, materials: IconFileDescription, promotions: IconSpeakerphone, subscriptions: IconRepeat, ebooks: IconBook };
 const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const fmtDate = (d: unknown) => (typeof d === "string" && d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const thisMonth = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date()).slice(0, 7);
@@ -245,6 +245,14 @@ function Totals({ tab, rows, all }: { tab: MTab; rows: Row[]; all: Row[] }) {
     cards.push({ label: "Still in use", value: String(live.length), icon: IconCheck, note: `of ${rows.length} tools` });
     cards.push({ label: "Monthly", value: String(live.filter((r) => r.frequency === "Monthly").length), icon: IconRepeat, note: "billed every month" });
     cards.push({ label: "Annual", value: String(live.filter((r) => r.frequency === "Annual").length), icon: IconCalendar, note: "billed once a year" });
+  } else if (tab.key === "ebooks") {
+    // Only payments that went through count as money in; failed ones are counted apart.
+    const paid = rows.filter((r) => r.status === "Paid");
+    const paidMonth = inMonth.filter((r) => r.status === "Paid");
+    cards.push({ label: "Sales", value: inr(sum(paid)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time, paid only" : "matching the filters" });
+    cards.push({ label: "This month", value: inr(sum(paidMonth)), icon: IconCalendar, note: `${paidMonth.length} paid ${paidMonth.length === 1 ? tab.noun : tab.nounPlural}` });
+    cards.push({ label: "Paid orders", value: String(paid.length), icon: IconListNumbers });
+    cards.push({ label: "Failed payments", value: String(rows.length - paid.length), icon: IconAlertTriangle, note: "retry link sent" });
   } else if (tab.money) {
     cards.push({ label: "Total", value: inr(sum(rows)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time" : "matching the filters" });
     if (tab.date) cards.push({ label: "This month", value: inr(sum(inMonth)), icon: IconCalendar, note: `${inMonth.length} ${inMonth.length === 1 ? tab.noun : tab.nounPlural}` });

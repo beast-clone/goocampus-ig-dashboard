@@ -16,7 +16,7 @@ import {
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
   IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft, IconEye,
-  IconLock, IconCalendarDue, IconFolders, IconReceipt, IconFileDescription, IconRepeat,
+  IconLock, IconCalendarDue, IconFolders, IconReceipt, IconFileDescription, IconRepeat, IconBook,
 } from "@tabler/icons-react";
 import type { PreviewTab } from "./PreviewShell";
 
@@ -72,6 +72,7 @@ const GROUPS: Group[] = [
       { label: "Marketing Material", href: `${HUB}/materials/materials`,     icon: IconFileDescription },
       { label: "Paid Promotions",    href: `${HUB}/materials/promotions`,    icon: IconSpeakerphone },
       { label: "Subscriptions",      href: `${HUB}/materials/subscriptions`, icon: IconRepeat },
+      { label: "eBook Orders",       href: `${HUB}/materials/ebooks`,        icon: IconBook },
     ] },
     // Its own tab rather than buried under My Workspace — "Move content calendar
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
