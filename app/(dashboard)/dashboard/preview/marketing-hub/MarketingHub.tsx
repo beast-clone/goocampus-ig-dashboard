@@ -1,6 +1,7 @@
 "use client";
 import { onDayPlan } from "@/lib/my-day-task";
 import { useDraft } from "@/lib/use-draft";
+import { openRefPreview } from "@/components/RefPreview";
 import { Fragment, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SyncFromAirtable } from "./SyncFromAirtable";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
@@ -4278,6 +4279,16 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   ];
   const refImages = (detail?.attachments || []).filter((a) => a.kind === "reference").map(attMap);
   const workFiles = (detail?.attachments || []).filter((a) => a.kind === "attachment").map(attMap);
+  // A task with attachments opens with the first one already showing, small, between
+  // the content and History (Praveen, 26 Oct). Once per task opening.
+  const contentCol = useRef<HTMLDivElement | null>(null);
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || !detail || !contentCol.current) return;
+    autoOpened.current = true;
+    const items = workFiles.filter((f) => f.url).map((f) => ({ url: f.url, title: f.name, from: "Attachments" }));
+    if (items.length) openRefPreview(items, 0, contentCol.current);
+  }, [detail]); // eslint-disable-line react-hooks/exhaustive-deps
   const refLinks = detail?.referenceLinks ?? [];
 
   // One upload queue per section (22 Oct): tiles/progress show at once, files go up in
@@ -4397,7 +4408,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         <div className="flex-1 flex min-h-0 bg-white">
           {/* A file opened from here previews between the content and History &
               comments (Praveen, 26 Oct) — the content column is the dock. */}
-          <div className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4" data-ref-dock>
+          <div ref={contentCol} className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4" data-ref-dock data-ref-ratio="0.22">
             <div>
               {/* Content and Caption come FIRST.
                   "The entire content should appear in full when I open it" (Manya, 5 Oct,

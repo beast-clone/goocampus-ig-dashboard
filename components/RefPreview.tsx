@@ -25,11 +25,13 @@ const dockOf = (el: Element | null) => el?.closest<HTMLElement>("[data-ref-dock]
 export const refPreviewAvailable = () => !!setOpenState;
 
 /** Open one link/file, or a set (with ‹ › between them) at `index`. */
-export function openRefPreview(items: RefItem | RefItem[], index = 0): boolean {
+// `dock` — open inside that box instead of the one last clicked (a task opening
+// with its attachments already showing).
+export function openRefPreview(items: RefItem | RefItem[], index = 0, dock?: HTMLElement | null): boolean {
   if (!setOpenState) return false;   // no host on this page — the caller opens a tab
   const list = Array.isArray(items) ? items : [items];
   if (!list.length) return false;
-  setOpenState({ items: list, index: Math.min(Math.max(0, index), list.length - 1), dock: dockOf(lastDown) });
+  setOpenState({ items: list, index: Math.min(Math.max(0, index), list.length - 1), dock: dock ?? dockOf(lastDown) });
   return true;
 }
 
@@ -118,8 +120,10 @@ export function RefPreviewHost() {
         top0 = Math.max(top0, c.top); bot0 = Math.min(bot0, c.bottom);
       }
       const r = { top: top0, bottom: bot0, height: Math.max(bot0 - top0, 0), width: d.width, right: d.right };
-      // 60 / 40 — the content keeps most of the room (Praveen, 26 Oct).
-      const width = Math.min(r.width, Math.max(280, Math.round(r.width * 0.4)));
+      // Share of the box the preview takes: 40% by default (My Day, 60/40). A box can
+      // set its own with data-ref-ratio — the task window uses 70/20/10 (Praveen, 26 Oct).
+      const ratio = Number(dock.dataset.refRatio) || 0.4;
+      const width = Math.min(r.width, Math.max(220, Math.round(r.width * ratio)));
       const height = Math.min(r.height, window.innerHeight - 16);
       const top = Math.min(Math.max(r.top, 8), r.bottom - height);
       setBox({ top, height, left: r.right - width, width });
@@ -237,7 +241,7 @@ const CSS = `
 .rfp-zoomable{cursor:zoom-in}
 [data-ref-open] .mh-prow{flex-direction:column;align-items:stretch}
 [data-ref-open] .mh-plabel{width:auto;padding-bottom:6px}
-[data-ref-open] ~ .mh-hist{width:240px}
+[data-ref-open] ~ .mh-hist{width:10%;min-width:150px}
 .rfp-big{position:fixed;inset:0;z-index:400;background:rgba(12,14,26,.86);display:flex;align-items:center;justify-content:center;padding:56px 72px;cursor:zoom-out}
 .rfp-big img{width:100%;height:100%;object-fit:contain;cursor:default}
 .rfp-big-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;border:none;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
