@@ -163,7 +163,7 @@ export function PendingAssets({ title, drop, oneLink, noLinks, value, onChange }
   // The shared files card (components/FilesCard) — the same look as My Day and the task
   // window. Nothing uploads until the task is saved; these are local previews.
   return (
-    <FilesCard title={title} drop={drop} numbered={drop}
+    <FilesCard title={title} drop={drop} numbered={drop} confirmRemove={false}
       count={`${value.files.length} file${value.files.length === 1 ? "" : "s"}${value.links.length ? ` · ${value.links.length} link${value.links.length === 1 ? "" : "s"}` : ""}`}
       accept={noLinks ? "image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv" : "image/*,.pdf,application/pdf"} onFiles={addFiles}
       tiles={value.files.map((f, i): FileTile => ({ key: f.url, name: f.file.name, url: f.url, preview: f.url,

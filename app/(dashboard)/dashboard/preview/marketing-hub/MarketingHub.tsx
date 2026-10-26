@@ -4879,7 +4879,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     } : undefined}
                     links={(detail?.outputLink ?? row.outputLink) ? [String(detail?.outputLink ?? row.outputLink)] : []} singleLink
                     linkPlaceholder="Paste the output link (Drive / Canva)…"
-                    onAddLink={(v) => { saveOne("output_link", v); }} onRemoveLink={async () => { if (await confirmDialog({ title: "Remove the output link?", body: "The link is taken off the task (it stays in the task's history).", action: "Remove", danger: true })) saveOne("output_link", null); }} />
+                    onAddLink={(v) => { saveOne("output_link", v); }} onRemoveLink={() => saveOne("output_link", null)} />
                 </div>
                 <div onMouseOver={() => { pasteKind.current = "reference"; }}>
                   <FilesCard icon={<IconBookmark size={15} stroke={1.8} />} title="References"
@@ -4893,7 +4893,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     })}
                     pending={qRef.pending} onDismiss={qRef.dismiss}
                     links={refLinks} linkPlaceholder="Paste a reference link…"
-                    onAddLink={(v) => { saveOne("reference_links", [...refLinks, v]); }} onRemoveLink={async (l) => { if (await confirmDialog({ title: "Remove this reference link?", body: "The link is taken off the task (it stays in the task's history).", action: "Remove", danger: true })) removeRefLink(l); }} />
+                    onAddLink={(v) => { saveOne("reference_links", [...refLinks, v]); }} onRemoveLink={(l) => removeRefLink(l)} />
                 </div>
                 {/* Working files that are never published — "references are different and
                     attachments are different" (Manya, 10 Oct). Same card, own section. */}

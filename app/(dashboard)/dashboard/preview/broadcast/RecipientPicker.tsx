@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { IconSearch, IconUser, IconUsers, IconSpeakerphone, IconPlus, IconX, IconCheck, IconUpload } from "@tabler/icons-react";
 import { chatDisplay, chatKind, normalizeChatId, parseWaRows, type ChatKind } from "@/lib/whatsapp";
 
@@ -150,6 +151,7 @@ export function RecipientPicker({ selected, onChange, session }: {
   };
 
   const forget = async (id: string) => {
+    if (!(await confirmDialog({ title: "Remove this saved contact?", body: "It comes off the saved list. Messages already sent are not affected.", action: "Remove", cancel: "Cancel", danger: true }))) return;
     await fetch(`/api/scheduler/whatsapp/recipients?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
     load();
   };

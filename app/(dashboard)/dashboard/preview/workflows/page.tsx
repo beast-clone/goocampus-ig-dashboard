@@ -1,6 +1,7 @@
 "use client";
 
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import {
@@ -86,6 +87,7 @@ function Workflows() {
   };
 
   const untrack = async (id: string) => {
+    if (!(await confirmDialog({ title: "Stop tracking this workflow?", body: "It comes off this page. The workflow itself in n8n is not touched.", action: "Remove", cancel: "Cancel", danger: true }))) return;
     setBusy(true);
     await fetch(`/api/n8n/workflows?workflowId=${encodeURIComponent(id)}`, { method: "DELETE" });
     setBusy(false);

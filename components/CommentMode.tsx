@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 
@@ -282,7 +283,8 @@ export function CommentMode() {
     setEditingId(null);
   };
 
-  const removeComment = (id: string) => {
+  const removeComment = async (id: string) => {
+    if (!(await confirmDialog({ title: "Delete this comment?", action: "Delete", cancel: "Cancel", danger: true }))) return;
     persist(all.filter((c) => c.id !== id));
     setOpenId(null);
   };

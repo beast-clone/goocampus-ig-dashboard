@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { IconArrowLeft, IconRefresh, IconAlertTriangle, IconExternalLink, IconUserPlus, IconPlus, IconCheck, IconSearch, IconGripVertical, IconX, IconChevronDown } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LoadingBlock } from "@/components/LoadingBlock";
@@ -158,6 +159,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
   // rewriting 172 cells are different things, and only one of them is reversible.
   const hideStatus = async (value: string) => {
     if (!data) return;
+    if (!(await confirmDialog({ title: `Remove the status "${value}" from this list?`, body: "Leads keep their status; it just stops being offered here.", action: "Remove", cancel: "Cancel", danger: true }))) return;
     setFailed(null);
     const hiddenStatuses = [...new Set([...(data.campaign.hiddenStatuses || []), value])];
     const r = await fetch("/api/campaigns", {
@@ -175,6 +177,7 @@ export function CampaignLeads({ id, onBack }: { id: string; onBack: () => void }
 
   const removeLink = async (name: string) => {
     if (!data) return;
+    if (!(await confirmDialog({ title: `Remove the link "${name}"?`, action: "Remove", cancel: "Cancel", danger: true }))) return;
     const links = (data.campaign.links || []).filter((l) => l.name !== name);
     setData((prev) => prev && ({ ...prev, campaign: { ...prev.campaign, links } }));
     await fetch("/api/campaigns", {

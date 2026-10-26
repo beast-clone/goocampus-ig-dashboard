@@ -4,6 +4,7 @@ import { IconUpload, IconLink, IconFileText } from "@tabler/icons-react";
 import { PdfThumb } from "@/components/PdfThumb";
 import type { PendingUpload } from "@/lib/use-upload-queue";
 import { openRefPreview } from "@/components/RefPreview";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 // One files card for every place a task takes files — My Day, the task window and the
 // New task form (Praveen, 22 Oct: "do it like how we did it for My Day"). A header
@@ -44,7 +45,7 @@ const linkHref = (s: string) => s.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 
 export function FilesCard({
   icon, title, count, drop, accept, onFiles, busyText, tiles, numbered, pending = [], onDismiss,
-  links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, addLabel = "+ Add file", addSub = "drop or paste here", hint, onReorder,
+  links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, confirmRemove = true, addLabel = "+ Add file", addSub = "drop or paste here", hint, onReorder,
 }: {
   icon?: React.ReactNode; title: string; count?: string;
   /** Big drop zone under the header (Creatives). Otherwise a dashed Add tile ends the row. */
@@ -53,6 +54,8 @@ export function FilesCard({
   tiles: FileTile[]; numbered?: boolean;
   pending?: PendingUpload[]; onDismiss?: (key: string) => void;
   links?: string[]; onAddLink?: (href: string) => void; onRemoveLink?: (href: string) => void;
+  /** Ask "Delete or Cancel" before a file or link is removed (off for files not uploaded yet). */
+  confirmRemove?: boolean;
   linkPlaceholder?: string; singleLink?: boolean;
   addLabel?: string; addSub?: string; hint?: string;
   /** Turns on drag-to-reorder; gets the tile keys in their new order. */
@@ -138,6 +141,11 @@ export function FilesCard({
   // A file or link opens in the side panel (components/RefPreview), next to the task,
   // with ‹ › through this card's other files. Ctrl/Cmd-click still opens a tab.
   const plain = (e: React.MouseEvent) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0);
+  // Every delete on the dashboard asks first (Praveen, 26 Oct) — a stray click on ✕
+  // shouldn't take a file off a task.
+  const askRemove = async (title: string, body: string, go: () => void) => {
+    if (!confirmRemove || await confirmDialog({ title, body, action: "Delete", cancel: "Cancel", danger: true })) go();
+  };
   const openTile = (e: React.MouseEvent, t: FileTile) => {
     if (justDragged.current) { e.preventDefault(); return; }
     if (!plain(e)) return;
@@ -183,7 +191,7 @@ export function FilesCard({
                     : <div className={`gcf-im${t.onOpen ? " clk" : ""}`} style={style} onClick={t.onOpen ? () => { if (!justDragged.current) t.onOpen!(); } : undefined}>{inner}</div>}
                   {numbered && <span className="gcf-n">{i + 1}</span>}
                   <div className="gcf-nm">{t.name}</div>
-                  {t.onRemove && <button type="button" className="gcf-x" onClick={t.onRemove} title="Remove">✕</button>}
+                  {t.onRemove && <button type="button" className="gcf-x" onClick={() => askRemove(`Delete "${t.name}"?`, "It goes to the Recycle bin, where it can be restored.", t.onRemove!)} title="Delete">✕</button>}
                 </div>
               );
             })}
@@ -217,7 +225,7 @@ export function FilesCard({
             <span className="gcf-host">{host(l)}</span>
             <a className="gcf-u" href={linkHref(l)} target="_blank" rel="noreferrer" title={l} onClick={(e) => openLink(e, l)}>{l}</a>
             <a className="gcf-act" href={linkHref(l)} target="_blank" rel="noreferrer" title="Open in a new tab" data-ref-preview-skip>Open ↗</a>
-            {onRemoveLink && <button type="button" className="gcf-act red" onClick={() => onRemoveLink(l)}>Remove</button>}
+            {onRemoveLink && <button type="button" className="gcf-act red" onClick={() => askRemove("Remove this link?", l, () => onRemoveLink(l))}>Remove</button>}
           </div>
         ))}
         {onAddLink && !(singleLink && links && links.length) && (

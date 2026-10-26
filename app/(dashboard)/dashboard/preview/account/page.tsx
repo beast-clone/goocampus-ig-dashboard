@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { ThemeToggle } from "@/components/Theme";
 import {
@@ -162,6 +163,7 @@ function PhotoPicker({ person, forUser, onChanged }: { person: Me; forUser?: str
   };
   const remove = async () => {
     setBusy(true); setErr(null);
+    if (!(await confirmDialog({ title: "Remove the profile photo?", action: "Remove", cancel: "Cancel", danger: true }))) { setBusy(false); return; }
     const r = await fetch("/api/account/photo", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: forUser }) });
     setBusy(false);
     if (r.ok) onChanged(null); else setErr("Couldn't remove it.");

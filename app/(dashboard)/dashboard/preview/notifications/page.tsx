@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { useRouter } from "next/navigation";
 import { IconBell, IconBellOff, IconBellRinging, IconCheck, IconChecks, IconExternalLink, IconTrash, IconPin } from "@tabler/icons-react";
 import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
@@ -190,14 +191,14 @@ function NotificationsList() {
         <>
           {showPinned && (
             <Section title="Needs you" sub="Pinned until the action is done — opening it doesn't clear it." icon={<IconPin size={18} stroke={1.8} className="text-[#C2410C]" />} accent>
-              {pinned.map((n) => <Row key={n.id} n={n} busy={busy} onOpen={open} onRead={(x) => run(() => patchNotifs({ op: "read", ids: [x.id] }))} onDelete={(x) => run(() => patchNotifs({ op: "delete", ids: [x.id] }))} />)}
+              {pinned.map((n) => <Row key={n.id} n={n} busy={busy} onOpen={open} onRead={(x) => run(() => patchNotifs({ op: "read", ids: [x.id] }))} onDelete={async (x) => { if (await confirmDialog({ title: "Delete this notification?", action: "Delete", cancel: "Cancel", danger: true })) run(() => patchNotifs({ op: "delete", ids: [x.id] })); }} />)}
             </Section>
           )}
           {sections.map((s) => (
             <Section key={s.key} title={s.label}>
               {s.rows.map(({ n, also }) => <Row key={n.id} n={n} also={also} busy={busy} onOpen={open} onOpenGroup={openGroup}
                 onRead={(x) => run(() => patchNotifs({ op: "read", ids: [x.id, ...also.map((a) => a.id)] }))}
-                onDelete={(x) => run(() => patchNotifs({ op: "delete", ids: [x.id, ...also.map((a) => a.id)] }))} />)}
+                onDelete={async (x) => { if (await confirmDialog({ title: also.length ? `Delete these ${also.length + 1} notifications?` : "Delete this notification?", action: "Delete", cancel: "Cancel", danger: true })) run(() => patchNotifs({ op: "delete", ids: [x.id, ...also.map((a) => a.id)] })); }} />)}
             </Section>
           ))}
           {!showPinned && sections.length === 0 && (
