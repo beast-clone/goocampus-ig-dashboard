@@ -3491,9 +3491,10 @@ function Panel({ icon: Ic, title, right, accent, children }: {
   icon?: typeof IconPhoto; title: string; right?: React.ReactNode; accent?: boolean; children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start py-2">
-      {/* Airtable's field row: 16px icon, 13px label in a 174px column, value beside it. */}
-      <div className="w-[174px] flex-shrink-0 flex items-center gap-1.5 pt-[3px] pl-2">
+    <div className="mh-prow flex items-start py-2">
+      {/* Airtable's field row: 16px icon, 13px label in a 174px column, value beside it.
+          With a file preview open the label goes on top (components/RefPreview). */}
+      <div className="mh-plabel w-[174px] flex-shrink-0 flex items-center gap-1.5 pt-[3px] pl-2">
         {Ic && <Ic size={16} stroke={1.6} className="text-[#616670] flex-shrink-0" />}
         <span className="text-[13px] text-[#565A62] truncate">{title}</span>
       </div>
@@ -4621,7 +4622,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                 )}
               </Panel>
           </div>
-          <div className="w-[287px] flex-shrink-0 border-l border-gray-100 overflow-auto px-2 py-4">
+          <div className="mh-hist w-[287px] flex-shrink-0 border-l border-gray-100 overflow-auto px-2 py-4">
 
               <TaskActivityFeed postId={row.id} detail={detail} loading={loadingDetail} reload={loadDetail}
                 author={activeAuthor} authorLabel={authorLabel} onError={(message) => setFailure({ kind: "error", message })} />

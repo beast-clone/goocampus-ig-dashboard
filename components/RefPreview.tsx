@@ -127,6 +127,7 @@ export function RefPreviewHost() {
       // instead of the panel covering half of every line (Praveen, 26 Oct).
       const pad = `${width + 16}px`;
       if (dock.style.paddingRight !== pad) dock.style.paddingRight = pad;
+      dock.dataset.refOpen = "1";
     };
     const before = dock.style.paddingRight;
     const later = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
@@ -134,7 +135,7 @@ export function RefPreviewHost() {
     window.addEventListener("scroll", later, true);
     window.addEventListener("resize", later);
     const ro = new ResizeObserver(later); ro.observe(dock);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", later, true); window.removeEventListener("resize", later); ro.disconnect(); dock.style.paddingRight = before; };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", later, true); window.removeEventListener("resize", later); ro.disconnect(); dock.style.paddingRight = before; delete dock.dataset.refOpen; };
   }, [dock]);
 
   // Links inside a task window (marked data-ref-preview) open here, not in a new tab.
@@ -234,6 +235,9 @@ const CSS = `
 .rfp.docked .rfp-t{flex-basis:100%}
 .rfp.docked .rfp-body{padding:10px}
 .rfp-zoomable{cursor:zoom-in}
+[data-ref-open] .mh-prow{flex-direction:column;align-items:stretch}
+[data-ref-open] .mh-plabel{width:auto;padding-bottom:6px}
+[data-ref-open] ~ .mh-hist{width:240px}
 .rfp-big{position:fixed;inset:0;z-index:400;background:rgba(12,14,26,.86);display:flex;align-items:center;justify-content:center;padding:56px 72px;cursor:zoom-out}
 .rfp-big img{width:100%;height:100%;object-fit:contain;cursor:default}
 .rfp-big-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;border:none;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
