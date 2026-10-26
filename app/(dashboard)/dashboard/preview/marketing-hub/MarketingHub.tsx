@@ -2080,6 +2080,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
 // only to their creator; collaborative/locked ones to the whole team.
 type CalFilters = { channel: CalChannel; brands: string[]; statuses: string[] };
 const CAL_VIEW_KEY = "mh-cal-view";
+const CAL_ACCOUNT_SECTION = "By account";   // mh_views.section for views filed under By account
 const calCfg = (v: SavedView) => v.config as unknown as Partial<CalFilters>;
 const sameFilters = (a: CalFilters, b: Partial<CalFilters>) =>
   a.channel === (b.channel || "all") &&
@@ -2090,11 +2091,95 @@ const matchCal = (r: Row, f: Partial<CalFilters>) =>
   (!f.brands?.length || f.brands.includes(r.sbu)) &&
   (!f.statuses?.length || f.statuses.includes(r.status));
 
+// "+ New view" — one form: name, where it shows (Saved views / By account), the
+// account, brands and statuses, and who sees it (Praveen, 26 Oct). Starts from the
+// filters on screen, with a live count of what the view will show.
+function NewCalViewDialog({ rows, initial, onClose, onSave }: {
+  rows: Row[]; initial: CalFilters; onClose: () => void;
+  onSave: (d: { name: string; group: "saved" | "account"; access: "personal" | "collaborative"; f: CalFilters }) => Promise<void>;
+}) {
+  const sbus = useSbus();
+  const [name, setName] = useState("");
+  const [group, setGroup] = useState<"saved" | "account">("saved");
+  const [access, setAccess] = useState<"personal" | "collaborative">("personal");
+  const [f, setF] = useState<CalFilters>(initial);
+  const [busy, setBusy] = useState(false);
+  const accRows = f.channel === "all" ? rows : rows.filter((r) => channelOfSbu(r.sbu) === f.channel);
+  const brandOpts = Array.from(new Set([...rows.map((r) => r.sbu).filter(Boolean), ...sbus])).sort((a, b) => a.localeCompare(b))
+    .map((x) => ({ value: x, count: accRows.filter((r) => r.sbu === x).length }));
+  const n = rows.filter((r) => matchCal(r, f)).length;
+  const Choice = <T extends string>({ value, set, opts }: { value: T; set: (v: T) => void; opts: [T, string, string][] }) => (
+    <div className="grid grid-cols-2 gap-2">
+      {opts.map(([v, label, hint]) => (
+        <button key={v} type="button" onClick={() => set(v)}
+          className={`text-left rounded-xl border px-3 py-2.5 transition ${value === v ? "border-brand bg-brand-light" : "border-gray-200 hover:border-gray-300"}`}>
+          <div className={`text-[13px] font-medium ${value === v ? "text-brand" : "text-[#232D42]"}`}>{label}</div>
+          <div className="text-[11.5px] text-[#8A92A6]">{hint}</div>
+        </button>
+      ))}
+    </div>
+  );
+  const Label = ({ t }: { t: string }) => <div className="text-[12px] font-medium text-[#8A92A6] mb-1.5">{t}</div>;
+  const submit = async () => { if (!name.trim() || busy) return; setBusy(true); await onSave({ name: name.trim(), group, access, f }); setBusy(false); };
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl border border-gray-100 w-full max-w-[520px]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 pt-5 pb-3 border-b border-gray-100">
+          <div className="text-[17px] font-medium text-[#232D42]">New calendar view</div>
+          <div className="text-[12.5px] text-[#8A92A6]">Pick what this calendar shows. It opens from the left rail.</div>
+        </div>
+        <div className="px-6 py-4 space-y-4">
+          <div>
+            <Label t="Name" />
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") onClose(); }}
+              placeholder="e.g. Australia, NEET PG, GooCampus UK"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-[14px] outline-none focus:border-brand" />
+          </div>
+          <div>
+            <Label t="Show it under" />
+            <Choice value={group} set={setGroup} opts={[["saved", "Saved views", "A filter you use often"], ["account", "By account", "A page / account of its own"]]} />
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <Label t="Account" />
+              <div className="w-full [&>*]:w-full"><PreviewSelect value={f.channel} onChange={(v) => setF({ ...f, channel: v as CalChannel, brands: [] })} options={CAL_CHANNELS} /></div>
+            </div>
+            <div>
+              <Label t="Brands (SBUs)" />
+              <MultiPick label="SBUs" selected={f.brands} total={accRows.length} onChange={(next) => setF({ ...f, brands: next, channel: next.length ? "all" : f.channel })} options={brandOpts} />
+            </div>
+            <div>
+              <Label t="Statuses" />
+              <MultiPick label="statuses" selected={f.statuses} total={accRows.length} onChange={(next) => setF({ ...f, statuses: next })}
+                options={ALL_STATUSES.map((st) => ({ value: st.key, count: accRows.filter((r) => r.status === st.key).length, swatch: statusPill(st.key).bg }))} />
+            </div>
+          </div>
+          <div>
+            <Label t="Who can see it" />
+            <Choice value={access} set={setAccess} opts={[["personal", "Just me", "Only you see this view"], ["collaborative", "Whole team", "Everyone sees and can use it"]]} />
+          </div>
+        </div>
+        <div className="px-6 py-3.5 border-t border-gray-100 flex items-center gap-3">
+          <span className="text-[12.5px] text-[#8A92A6]">{fmtInt(n)} task{n === 1 ? "" : "s"} match</span>
+          <button onClick={onClose} className="ml-auto text-[13px] font-medium text-[#4A5468] px-3 py-2 rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={submit} disabled={!name.trim() || busy}
+            className="text-[13px] font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50">{busy ? "Saving…" : "Save view"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: CalFilters; apply: (f: CalFilters) => void }) {
   const { data, refresh } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const me = data?.me ?? null;
   // Newest first — a view you just made lands at the top, not under the others (Praveen, 26 Oct).
   const saved = (data?.views || []).filter((v) => (v.config as { kind?: string }).kind === "calendar" && (v.access !== "personal" || v.created_by === me)).reverse();
+  // A view can be filed under "By account" (a new page/account) or "Saved views".
+  const isAccount = (v: SavedView) => v.section === CAL_ACCOUNT_SECTION;
+  const savedViews = saved.filter((v) => !isAccount(v));
+  const accountViews = saved.filter(isAccount);
+  const [creating, setCreating] = useState(false);
   const [active, setActive] = useState("all");
   useEffect(() => { try { const v = localStorage.getItem(CAL_VIEW_KEY); if (v) setActive(v); } catch { /* private mode */ } }, []);
   const choose = (id: string, f: CalFilters) => { setActive(id); apply(f); try { localStorage.setItem(CAL_VIEW_KEY, id); } catch { /* private mode */ } };
@@ -2114,18 +2199,16 @@ function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: Cal
     await refresh();
     return j.view as SavedView | undefined;
   };
-  const newView = async () => {
-    const name = await promptDialog({ title: "New calendar view", defaultValue: "" });
-    if (!name || !name.trim()) return;
-    const v = await save({ name: name.trim(), section: "Calendar", access: "personal", config: { kind: "calendar", ...current } }, "POST");
-    if (v) { setActive(v.id); try { localStorage.setItem(CAL_VIEW_KEY, v.id); } catch { /* private mode */ } }
+  const createView = async (d: { name: string; group: "saved" | "account"; access: "personal" | "collaborative"; f: CalFilters }) => {
+    const v = await save({ name: d.name, section: d.group === "account" ? CAL_ACCOUNT_SECTION : "Calendar", access: d.access, config: { kind: "calendar", ...d.f } }, "POST");
+    if (v) { setCreating(false); choose(v.id, d.f); }
   };
   const onAction = async (action: string, v: SavedView, payload?: string) => {
     switch (action) {
       case "access": await save({ id: v.id, access: payload }, "PATCH"); break;
       case "rename": { const n = await promptDialog({ title: "Rename view", defaultValue: v.name }); if (n && n.trim()) await save({ id: v.id, name: n.trim() }, "PATCH"); break; }
       case "description": { const d = await promptDialog({ title: "View description", defaultValue: v.description || "" }); if (d !== null) await save({ id: v.id, description: d }, "PATCH"); break; }
-      case "duplicate": await save({ name: `${v.name} copy`, section: "Calendar", access: "personal", config: v.config }, "POST"); break;
+      case "duplicate": await save({ name: `${v.name} copy`, section: v.section, access: "personal", config: v.config }, "POST"); break;
       case "copyConfig": { const src = saved.find((c) => c.id === payload); if (src) await save({ id: v.id, config: src.config }, "PATCH"); break; }
       case "reassign": await save({ id: v.id, createdBy: payload }, "PATCH"); break;
       case "csv": downloadText(`${v.name.replace(/[^a-z0-9]+/gi, "-")}.csv`, viewRowsToCsv(rows.filter((r) => matchCal(r, calCfg(v))))); break;
@@ -2154,14 +2237,26 @@ function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: Cal
   const ACC_COLOR: Record<string, string> = { "acc-goocampus": "#3A57E8", "acc-goocampusworld": "#06B6D4", "acc-12thplusdotcom": "#E11D48" };
   return (
     <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
-      <button onClick={newView} title="Save the account, brands and statuses picked now as a view"
+      <button onClick={() => setCreating(true)} title="Make a calendar view — pick its account, brands and statuses"
         className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[14px] font-medium hover:brightness-105">
         <IconPlus size={15} stroke={2} />New view
       </button>
-      {saved.length > 0 && (
+      {savedViews.length > 0 && (
         <div className="mb-2">
           <Head t="Saved views" />
-          {saved.map((v) => {
+          {savedViews.map((v) => <SavedItem key={v.id} v={v} />)}
+        </div>
+      )}
+      <Head t="Default" />
+      <Item id="all" label="All tasks" f={ALL} color="#94A3B8" />
+      <div className="mt-2" />
+      <Head t="By account" />
+      {builtIn.map((b) => <Item key={b.id} id={b.id} label={b.label} f={b.f} color={ACC_COLOR[b.id] || "#94A3B8"} />)}
+      {accountViews.map((v) => <SavedItem key={v.id} v={v} />)}
+      {creating && <NewCalViewDialog rows={rows} initial={current} onClose={() => setCreating(false)} onSave={createView} />}
+    </div>
+  );
+  function SavedItem({ v }: { v: SavedView }) {
             const on = v.id === active;
             const AccessIcon = ACCESS_META[v.access].icon;
             const f = { ...ALL, ...calCfg(v) } as CalFilters;
@@ -2184,16 +2279,7 @@ function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: Cal
                 )}
               </div>
             );
-          })}
-        </div>
-      )}
-      <Head t="Default" />
-      <Item id="all" label="All tasks" f={ALL} color="#94A3B8" />
-      <div className="mt-2" />
-      <Head t="By account" />
-      {builtIn.map((b) => <Item key={b.id} id={b.id} label={b.label} f={b.f} color={ACC_COLOR[b.id] || "#94A3B8"} />)}
-    </div>
-  );
+  }
 }
 
 
