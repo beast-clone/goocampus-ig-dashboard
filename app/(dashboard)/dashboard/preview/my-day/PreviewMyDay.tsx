@@ -882,14 +882,18 @@ const asksWhyOnDateMove = () => (askWhyOnce ||= fetch("/api/me", { cache: "no-st
   .then((r) => r.json()).then((d) => needsDateReason(d?.user)).catch(() => true));
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
-  // A task with attachments opens with the first one already showing beside the
-  // content, the same as the task window (Praveen, 26 Oct). Once per task.
+  // A task opens with its files already showing beside the content, the same as the
+  // task window (Praveen, 26 Oct): creatives once the output is ready, else the
+  // attachments. Neither → no column. Once per task.
   const dockRef = useRef<HTMLDivElement | null>(null);
   const autoOpenedFor = useRef<string | null>(null);
   useEffect(() => {
     if (autoOpenedFor.current === task.id || !dockRef.current) return;
     autoOpenedFor.current = task.id;
-    const items = (task.detail.attachments || []).filter((f) => f.url).map((f) => ({ url: f.url!, title: f.name, from: "Attachments" }));
+    const asItems = (fs: { url?: string; name: string }[], from: string) => fs.filter((f) => f.url).map((f) => ({ url: f.url!, title: f.name, from }));
+    const outputStage = ["Output - Ready", "Ready to Publish", "Published/Scheduled"].includes(String(task.status));
+    const cre = outputStage ? asItems(task.detail.creatives || [], "Creatives") : [];
+    const items = cre.length ? cre : asItems(task.detail.attachments || [], "Attachments");
     // Another task's file must not stay open over this one.
     if (items.length) openRefPreview(items, 0, dockRef.current); else closeRefPreview(dockRef.current);
   }, [task.id]); // eslint-disable-line react-hooks/exhaustive-deps

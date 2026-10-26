@@ -3936,6 +3936,9 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
   );
 }
 
+// From here on the creative is the thing to look at — the file preview opens on it.
+const OUTPUT_STAGES = new Set(["Output - Ready", "Ready to Publish", "Published/Scheduled"]);
+
 export function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   // Refused save → the shared missing-fields popup (422) or a visible toast.
@@ -4279,14 +4282,17 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   ];
   const refImages = (detail?.attachments || []).filter((a) => a.kind === "reference").map(attMap);
   const workFiles = (detail?.attachments || []).filter((a) => a.kind === "attachment").map(attMap);
-  // A task with attachments opens with the first one already showing, small, between
-  // the content and History (Praveen, 26 Oct). Once per task opening.
+  // A task opens with its files already showing, small, between the content and
+  // History (Praveen, 26 Oct): the CREATIVES once the output is ready (that's what
+  // people open it to look at), else the attachments. Neither → no column.
   const contentCol = useRef<HTMLDivElement | null>(null);
   const autoOpened = useRef(false);
   useEffect(() => {
     if (autoOpened.current || !detail || !contentCol.current) return;
     autoOpened.current = true;
-    const items = workFiles.filter((f) => f.url).map((f) => ({ url: f.url, title: f.name, from: "Attachments" }));
+    const asItems = (fs: { url: string; name: string }[], from: string) => fs.filter((f) => f.url).map((f) => ({ url: f.url, title: f.name, from }));
+    const cre = OUTPUT_STAGES.has(String(statusCur)) ? asItems(creatives, "Creatives") : [];
+    const items = cre.length ? cre : asItems(workFiles, "Attachments");
     if (items.length) openRefPreview(items, 0, contentCol.current);
   }, [detail]); // eslint-disable-line react-hooks/exhaustive-deps
   const refLinks = detail?.referenceLinks ?? [];
