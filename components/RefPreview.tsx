@@ -187,6 +187,10 @@ export function RefPreviewHost() {
   const v = failed === cur.url ? { kind: "outside" as const } : viewFor(cur.url);
   const many = st.items.length > 1;
   const go = (d: number) => setSt({ ...st, index: (st.index + d + st.items.length) % st.items.length });
+  // A box marked data-ref-stack (My Day) lists EVERY file at once, one under another,
+  // instead of one with ‹ › (Praveen, 26 Oct). A click opens that one full size.
+  const stack = !!box && st.dock?.dataset.refStack === "1" && many;
+  const openBig = (i: number) => { setSt({ ...st, index: i }); setBig(true); };
 
   return (
     <aside className={`rfp${box ? " docked" : ""}`} style={box ?? undefined} role="dialog" aria-label="Preview">
@@ -205,6 +209,15 @@ export function RefPreviewHost() {
           <div className="rfp-big-name">{nameOf(cur)}{many ? ` · ${st.index + 1} of ${st.items.length}` : ""}</div>
         </div>
       )}
+      {stack ? (
+        <div className="rfp-bar rfp-sbar">
+          <div className="rfp-t">
+            <div className="rfp-name">{cur.from || "Files"}</div>
+            <div className="rfp-from">{st.items.length} files · click one for full size</div>
+          </div>
+          <button type="button" className="rfp-btn ic" onClick={() => setSt(null)} aria-label="Close"><IconX size={15} stroke={2} /></button>
+        </div>
+      ) : (<>
       <div className="rfp-bar">
         <div className="rfp-t">
           <div className="rfp-name" title={nameOf(cur)}>{nameOf(cur)}</div>
@@ -234,6 +247,23 @@ export function RefPreviewHost() {
           </div>
         )}
       </div>
+      </>)}
+      {stack && (
+        <div className="rfp-body rfp-stack">
+          {st.items.map((it, i) => {
+            const iv = viewFor(it.url);
+            return (
+              <div key={it.url + i} className="rfp-si">
+                {iv.kind === "image"
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={iv.src} alt={nameOf(it)} loading="lazy" className="rfp-zoomable" title="Click to view full size" onClick={() => openBig(i)} />
+                  : <a className="rfp-sfile" href={it.url} target="_blank" rel="noreferrer">{nameOf(it)} <IconExternalLink size={12} stroke={2} /></a>}
+                <div className="rfp-sname" title={nameOf(it)}>{i + 1}. {nameOf(it)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </aside>
   );
 }
@@ -247,6 +277,13 @@ const CSS = `
 .rfp.docked .rfp-t{flex-basis:100%}
 .rfp.docked .rfp-body{padding:10px}
 .rfp-zoomable{cursor:zoom-in}
+.rfp-body.rfp-stack{flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;overflow-x:hidden}
+.rfp.docked .rfp-sbar{flex-wrap:nowrap}
+.rfp.docked .rfp-sbar .rfp-t{flex:1;flex-basis:auto}
+.rfp-si{min-width:0}
+.rfp-si img{width:100%;max-height:none;display:block;border:1px solid #EEF0F4;background:#fff}
+.rfp-sname{font-size:11.5px;color:#8A92A6;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rfp-sfile{display:flex;align-items:center;gap:5px;padding:10px;border:1px solid #EEF0F4;border-radius:10px;background:#fff;color:#4A5468;font-size:12.5px;text-decoration:none;word-break:break-all}
 [data-ref-open] .mh-prow{flex-direction:column;align-items:stretch}
 [data-ref-open] .mh-plabel{width:auto;padding-bottom:6px}
 /* The task window widens for the preview, so History keeps its full width. */
