@@ -2093,7 +2093,8 @@ const matchCal = (r: Row, f: Partial<CalFilters>) =>
 function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: CalFilters; apply: (f: CalFilters) => void }) {
   const { data, refresh } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const me = data?.me ?? null;
-  const saved = (data?.views || []).filter((v) => (v.config as { kind?: string }).kind === "calendar" && (v.access !== "personal" || v.created_by === me));
+  // Newest first — a view you just made lands at the top, not under the others (Praveen, 26 Oct).
+  const saved = (data?.views || []).filter((v) => (v.config as { kind?: string }).kind === "calendar" && (v.access !== "personal" || v.created_by === me)).reverse();
   const [active, setActive] = useState("all");
   useEffect(() => { try { const v = localStorage.getItem(CAL_VIEW_KEY); if (v) setActive(v); } catch { /* private mode */ } }, []);
   const choose = (id: string, f: CalFilters) => { setActive(id); apply(f); try { localStorage.setItem(CAL_VIEW_KEY, id); } catch { /* private mode */ } };
