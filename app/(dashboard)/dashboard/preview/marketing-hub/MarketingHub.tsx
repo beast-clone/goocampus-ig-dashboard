@@ -3716,6 +3716,78 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
   // at the top. A history you have to read bottom-up is a history nobody reads — this
   // runs the way the events happened, like a delivery tracker.
   const feedShown = useMemo(() => feed.slice(0, feedLimit).slice().reverse(), [feed, feedLimit]);
+  // Group a run of 4+ similar changes by the same person, each within 30 minutes of the
+  // last (Praveen, 26 Oct: five screenshots pasted and removed filled the whole history).
+  // Files of one kind group together, edits to one text field, changes to one link field.
+  const groupedFeed = useMemo(() => {
+    type Act = Extract<FeedItem, { kind: "activity" }>;
+    const fam = (it: FeedItem) => it.kind !== "activity" ? null : FILE_EVENT.test(it.action) ? `file:${it.action.split("_")[0]}` : (DIFF_FIELDS.has(it.action) || LINK_FIELDS.has(it.action)) ? it.action : null;
+    const out: ({ type: "one"; it: FeedItem } | { type: "group"; id: string; fam: string; items: Act[] })[] = [];
+    let i = 0;
+    while (i < feedShown.length) {
+      const f = fam(feedShown[i]);
+      let j = i + 1;
+      while (f && j < feedShown.length && fam(feedShown[j]) === f && feedShown[j].key === feedShown[i].key
+        && new Date(feedShown[j].at).getTime() - new Date(feedShown[j - 1].at).getTime() <= 30 * 60_000) j++;
+      if (f && j - i >= 4) { out.push({ type: "group", id: `g${feedShown[i].id}`, fam: f, items: feedShown.slice(i, j) as Act[] }); i = j; }
+      else { out.push({ type: "one", it: feedShown[i] }); i++; }
+    }
+    return out;
+  }, [feedShown]);
+  const fileOf = (name: string) => (detail?.attachments || []).find((x) => x.filename === name) || (detail?.trashedFiles || []).find((x) => x.filename === name);
+  const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+  const renderGroup = (g: { id: string; fam: string; items: Extract<FeedItem, { kind: "activity" }>[] }, isLatest: boolean) => {
+    const first = g.items[0], last = g.items[g.items.length - 1];
+    const av = feedAvatar(first.key, first.name);
+    let verb: string;
+    let body: React.ReactNode;
+    if (g.fam.startsWith("file:")) {
+      const noun = g.fam.slice(5);
+      const added = g.items.filter((x) => x.action.endsWith("_added")).length, removed = g.items.length - added;
+      verb = [added && `added ${added}`, removed && `removed ${removed}`].filter(Boolean).join(" and ") + ` ${noun}${g.items.length === 1 ? "" : "s"}`;
+      body = (
+        <div className="mt-1.5 flex flex-wrap gap-1.5" data-ref-preview data-ref-from="History">
+          {g.items.map((x) => {
+            const name = x.to || x.from || ""; const fl = fileOf(name); const rm = x.action.endsWith("_removed");
+            const tile = (
+              <span className={`relative block w-11 h-11 rounded-md overflow-hidden border-2 ${rm ? "border-red-300" : "border-emerald-300"} bg-white`}>
+                {fl?.storage_path && isImg(name, fl.mime_type || undefined)
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={smallThumb(fl.storage_path)} alt="" className={`w-full h-full object-cover ${rm ? "opacity-40 grayscale" : ""}`} />
+                  : <span className="w-full h-full flex items-center justify-center text-gray-400"><IconFileText size={16} /></span>}
+                <span className={`absolute bottom-0 right-0 text-[10px] leading-none font-semibold text-white px-1 py-0.5 rounded-tl ${rm ? "bg-red-500" : "bg-emerald-600"}`}>{rm ? "−" : "+"}</span>
+              </span>
+            );
+            return <span key={x.id} title={`${rm ? "Removed" : "Added"} ${name} · ${hhmm(x.at)}`}>{fl?.storage_path ? <a href={fl.storage_path} target="_blank" rel="noreferrer" data-ref-title={name}>{tile}</a> : tile}</span>;
+          })}
+        </div>
+      );
+    } else if (DIFF_FIELDS.has(g.fam)) {
+      verb = `${ACT_VERB[g.fam] || g.fam} ${g.items.length} times`;
+      body = (
+        <div className="mt-1">
+          {expandedDiffs.has(g.id) && <div className="text-[14px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(first.from || "", last.to || "")}</div>}
+          <button onClick={() => setExpandedDiffs((st) => { const n = new Set(st); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n; })} className="text-[11px] text-brand hover:underline">{expandedDiffs.has(g.id) ? "Hide changes" : "Show what changed overall"}</button>
+        </div>
+      );
+    } else {
+      verb = `${ACT_VERB[g.fam] || g.fam} ${g.items.length} times`;
+      body = <LinkChange from={first.from || null} to={last.to || null} />;
+    }
+    return (
+      <div key={g.id} className="flex gap-2.5">
+        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0 mt-0.5 ring-[3px] ring-white relative z-10" style={{ background: av.bg, color: av.fg }} title={properName(first.name)}>{av.system ? <IconHistory size={11} /> : av.initials}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] text-gray-700">
+            <span className="font-medium text-[#232D42]">{av.system ? "System" : properName(first.name)}</span>{" "}{verb}
+            <span className="text-gray-400" title={`${new Date(first.at).toLocaleString("en-IN")} – ${new Date(last.at).toLocaleString("en-IN")}`}> · {hhmm(first.at)}–{hhmm(last.at)} · {relTime(last.at)}</span>
+            {isLatest && <span className="ml-1.5 text-[10px] bg-brand-light text-[#2138B0] px-1.5 py-0.5 rounded-full font-medium">latest</span>}
+          </div>
+          {body}
+        </div>
+      </div>
+    );
+  };
 
   // Post a comment as the selected author (the "acting as" picker).
   const [commentText, setCommentText] = useState("");
@@ -3776,9 +3848,11 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
             <div className="relative">
               <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-300" aria-hidden />
               <div className="space-y-5 relative">
-            {feedShown.map((it, idx) => {
+            {groupedFeed.map((entry, gIdx) => {
+              if (entry.type === "group") return renderGroup(entry, gIdx === groupedFeed.length - 1);
+              const it = entry.it;
               const av = feedAvatar(it.key, it.name);
-              const isLatest = idx === feedShown.length - 1;
+              const isLatest = gIdx === groupedFeed.length - 1;
               const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
               const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
               return (
