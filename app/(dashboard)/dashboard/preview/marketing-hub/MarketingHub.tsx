@@ -4214,6 +4214,10 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const onPasteFiles = (e: React.ClipboardEvent) => {
     const files = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith("image/") || pasteKind.current === "attachment");
     if (!files.length) return;   // ordinary text paste — leave it alone
+    // Pasting while typing in the brief, caption or a comment belongs to that field —
+    // a screenshot pasted into the brief was silently uploaded as an attachment (26 Oct).
+    const tgt = e.target as HTMLElement;
+    if (tgt.isContentEditable || tgt.closest?.("[contenteditable=true], input, textarea")) return;
     e.preventDefault();
     // A screenshot pastes as "image.png" every time; give it a name worth keeping.
     const d = new Date(), p2 = (x: number) => String(x).padStart(2, "0");
