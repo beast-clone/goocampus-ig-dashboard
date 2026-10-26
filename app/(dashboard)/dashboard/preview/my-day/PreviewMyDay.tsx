@@ -1082,13 +1082,13 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
               {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
             </div>
-        <CopyTaskLink id={task.id} />
         <button type="button" className={`btn sm hist-btn ${histOpen ? "on" : ""}`} onClick={() => setHistOpen((v) => !v)}><IconHistory size={14} stroke={1.8} /> History &amp; comments</button>
       </div>
       <div className="d-head-main">
         {label && <div className="lbl" style={{ marginBottom: ".35rem" }}>{label}</div>}
         <div className="d-sub">{task.detail.typeLine && <span className="type-chip lg">{task.detail.typeLine}</span>}{task.detail.brand && <span className="sbu-chip lg">{task.detail.brand}</span>}</div>
-        <div className="d-title">{task.title}</div>
+        {/* Copy link sits beside the title, as in the task window, so the button row doesn't wrap. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div className="d-title" style={{ flex: 1, minWidth: 0 }}>{task.title}</div><CopyTaskLink id={task.id} /></div>
       </div>
 
       <>
@@ -4771,9 +4771,8 @@ function CopyTaskLink({ id }: { id: string }) {
     setDone(true); setTimeout(() => setDone(false), 2000);
   };
   return (
-    // Icon only, so the header row doesn't wrap; the tooltip says what it does.
-    <button type="button" className={`btn sm hist-btn ${done ? "on" : ""}`} onClick={copy} title={done ? "Link copied" : "Copy link to this task"} aria-label="Copy link to this task" style={{ padding: "0 .55rem" }}>
-      {done ? <IconCheck size={15} stroke={2} /> : <IconLink size={15} stroke={1.8} />}
+    <button type="button" className={`btn sm hist-btn ${done ? "on" : ""}`} onClick={copy} title="Copy a link to this task — paste it in WhatsApp or Slack">
+      {done ? <IconCheck size={14} stroke={2} /> : <IconLink size={14} stroke={1.8} />} {done ? "Copied" : "Copy link"}
     </button>
   );
 }
