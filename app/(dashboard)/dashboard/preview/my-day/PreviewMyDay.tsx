@@ -2,7 +2,7 @@
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport, IconCheck } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
@@ -1082,6 +1082,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               {canAssign && <button className="btn sm" onClick={() => { setAssigning((a) => !a); setEditing(false); setConfirmDel(false); }}><IconArrowsExchange size={14} stroke={1.8} /> Reassign</button>}
               {canDelete && <button className="btn sm" style={{ color: "#C0392B", borderColor: "#F3C6CE" }} onClick={() => { setConfirmDel((c) => !c); setEditing(false); setAssigning(false); }}><IconTrash size={14} stroke={1.8} /> Delete</button>}
             </div>
+        <CopyTaskLink id={task.id} />
         <button type="button" className={`btn sm hist-btn ${histOpen ? "on" : ""}`} onClick={() => setHistOpen((v) => !v)}><IconHistory size={14} stroke={1.8} /> History &amp; comments</button>
       </div>
       <div className="d-head-main">
@@ -4756,3 +4757,22 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   );
 }
 
+// Copy a link to the task (Praveen, 26 Oct): paste it to a teammate — "the attachment
+// is missing here" — instead of sending a screenshot. Same link as the task window's
+// Copy link: it opens the task in the Master sheet.
+function CopyTaskLink({ id }: { id: string }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    const href = `${window.location.origin}/dashboard/preview/marketing-hub?tab=master&open=${id}`;
+    try { await navigator.clipboard.writeText(href); } catch {
+      const t = document.createElement("textarea"); t.value = href; t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch { /* copied by hand */ } document.body.removeChild(t);
+    }
+    setDone(true); setTimeout(() => setDone(false), 2000);
+  };
+  return (
+    <button type="button" className={`btn sm hist-btn ${done ? "on" : ""}`} onClick={copy} title="Copy a link to this task — paste it in WhatsApp or Slack">
+      {done ? <IconCheck size={14} stroke={2} /> : <IconLink size={14} stroke={1.8} />} {done ? "Copied" : "Copy link"}
+    </button>
+  );
+}

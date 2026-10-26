@@ -24,13 +24,16 @@ export async function GET(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
 
-    const [collabsRes, attachRes, commentsRes, activityRes, ownerRes, teamRes] = await Promise.all([
+    const [collabsRes, attachRes, commentsRes, activityRes, ownerRes, teamRes, trashRes] = await Promise.all([
       sb.from("mh_post_collaborators").select("member_key, added_at").eq("post_id", id),
       sb.from("mh_attachments").select("id, filename, storage_path, mime_type, size_bytes, uploaded_by, uploaded_at, kind, sort_order").eq("post_id", id).order("sort_order", { ascending: true, nullsFirst: false }).order("uploaded_at", { ascending: true }),   // first uploaded first (22 Oct)
       sb.from("mh_comments").select("id, author_key, body, resolved, created_at").eq("post_id", id).order("created_at", { ascending: false }).limit(20),
       sb.from("mh_activity").select("id, actor_key, action, from_value, to_value, detail, created_at").eq("post_id", id).gte("created_at", new Date(Date.now() - 366 * 86_400_000).toISOString()).order("created_at", { ascending: false }).limit(400),
       sb.from("mh_posts").select("owner_key, start_at, synced_to_scheduler, airtable_record_id, status, content, caption, additional_info, instagram_url, facebook_url, linkedin_url, output_link, platforms, reference_links").eq("id", id).single(),
       sb.from("mh_team_members").select("key, display_name, role"),
+      // Files taken off the task (still in the recycle bin) — the history shows what
+      // was removed, not just a file name (Praveen, 26 Oct).
+      sb.from("mh_attachments_trash").select("row").eq("row->>post_id", id).limit(200),
     ]);
 
     if (collabsRes.error) throw new Error(collabsRes.error.message);
@@ -88,6 +91,8 @@ export async function GET(req: Request) {
       referenceLinks: (ownerRes.data?.reference_links as string[] | null) || [],
       collaborators,
       attachments: attachRes.data || [],
+      trashedFiles: ((trashRes.data || []) as { row: { filename?: string; storage_path?: string; mime_type?: string } }[])
+        .map((t) => ({ filename: t.row?.filename || "", storage_path: t.row?.storage_path || "", mime_type: t.row?.mime_type || "" })).filter((f) => f.filename && f.storage_path),
       comments: (commentsRes.data || []).map((c: { author_key: string; body: string; resolved: boolean; created_at: string; id: string }) => ({
         ...c,
         authorName: nameOf(c.author_key),

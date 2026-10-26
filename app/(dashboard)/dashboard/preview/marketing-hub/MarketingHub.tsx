@@ -3383,6 +3383,7 @@ type TaskDetail = {
   status?: string | null;
   collaborators: { key: string; name: string; role: string | null }[];
   attachments: DetailAttachment[];
+  trashedFiles?: { filename: string; storage_path: string; mime_type: string }[];
   comments: { id: string; body: string; resolved: boolean; created_at: string; authorName: string; author_key: string }[];
   activity: { id: string; action: string; from_value: string | null; to_value: string | null; created_at: string; actorName: string; actor_key: string | null }[];
   scheduler: { syncedToScheduler: boolean; startAt: string | null };
@@ -3587,6 +3588,38 @@ export function properName(n: string): string {
 }
 
 const DIFF_FIELDS = new Set(["content_edited", "caption_edited", "notes_edited"]);
+// File and link changes show the thing itself (Praveen, 26 Oct): an added file as a green
+// tile with its preview, a removed one in red and struck through — still viewable from the
+// recycle bin — and links one by one, added in green, removed struck through in red.
+const FILE_EVENT = /^(creative|reference|attachment)_(added|removed)$/;
+const LINK_FIELDS = new Set(["reference_links_changed", "output_link_changed", "instagram_url_changed", "facebook_url_changed", "linkedin_url_changed"]);
+const splitLinks = (v: string | null | undefined) => (v || "").split(/,\s+(?=https?:\/\/|www\.)/).map((x) => x.trim()).filter(Boolean);
+const isImg = (name: string, mime?: string) => (mime || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(name);
+const smallThumb = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=120&resize=contain&quality=70` : u);
+function FileChange({ name, url, mime, removed }: { name: string; url?: string; mime?: string; removed: boolean }) {
+  const body = (
+    <span className={`inline-flex items-center gap-2 max-w-full rounded-lg border px-1.5 py-1 ${removed ? "border-red-200 bg-red-50/60" : "border-emerald-200 bg-emerald-50/60"}`}>
+      {url && isImg(name, mime)
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={smallThumb(url)} alt="" className={`w-10 h-10 rounded-md object-cover bg-white flex-shrink-0 ${removed ? "opacity-50 grayscale" : ""}`} />
+        : <span className={`w-10 h-10 rounded-md bg-white flex items-center justify-center flex-shrink-0 ${removed ? "text-red-400" : "text-emerald-600"}`}><IconFileText size={18} stroke={1.6} /></span>}
+      <span className={`text-[12px] truncate ${removed ? "line-through text-red-500" : "text-emerald-700"}`}>{removed ? "− " : "+ "}{name}</span>
+    </span>
+  );
+  return <div className="mt-1" data-ref-preview data-ref-from={removed ? "Removed file" : "Added file"}>{url ? <a href={url} target="_blank" rel="noreferrer" data-ref-title={name} className="inline-block max-w-full hover:opacity-90">{body}</a> : body}</div>;
+}
+function LinkChange({ from, to }: { from: string | null; to: string | null }) {
+  const before = splitLinks(from), after = splitLinks(to);
+  const removed = before.filter((l) => !after.includes(l)), added = after.filter((l) => !before.includes(l));
+  if (!removed.length && !added.length) return null;
+  const href = (l: string) => (/^https?:\/\//i.test(l) ? l : `https://${l}`);
+  return (
+    <div className="mt-1 space-y-1" data-ref-preview data-ref-from="Link in history">
+      {removed.map((l) => <a key={`r-${l}`} href={href(l)} target="_blank" rel="noreferrer" className="block text-[12px] truncate rounded-md px-2 py-1 bg-red-50/70 text-red-500 line-through hover:opacity-90">− {l}</a>)}
+      {added.map((l) => <a key={`a-${l}`} href={href(l)} target="_blank" rel="noreferrer" className="block text-[12px] truncate rounded-md px-2 py-1 bg-emerald-50/70 text-emerald-700 hover:opacity-90">+ {l}</a>)}
+    </div>
+  );
+}
 const PILL_FIELDS = new Set(["status_changed"]);
 type FeedItem =
   | { id: string; kind: "activity"; at: string; name: string; key: string | null; action: string; from: string | null; to: string | null; note?: string | null }
@@ -3637,7 +3670,7 @@ function CopyTaskLink({ id }: { id: string }) {
 // (/api/marketing-hub/task-detail) and says who is commenting.
 export function TaskActivityFeed({ postId, detail, loading, reload, author, authorLabel, onError }: {
   postId: string;
-  detail: Pick<TaskDetail, "activity" | "comments"> | null;
+  detail: (Pick<TaskDetail, "activity" | "comments"> & Partial<Pick<TaskDetail, "attachments" | "trashedFiles">>) | null;
   loading: boolean;
   reload: () => void | Promise<void>;
   author: string;
@@ -3756,6 +3789,12 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                         {it.from && it.to && <IconChevronRight size={12} className="text-gray-400" />}
                         {it.to && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: stTo!.bg, color: stTo!.text }}>{it.to}</span>}
                       </div>
+                    ) : it.kind === "activity" && FILE_EVENT.test(it.action) ? (() => {
+                      const name = it.to || it.from || "";
+                      const f = (detail?.attachments || []).find((x) => x.filename === name) || (detail?.trashedFiles || []).find((x) => x.filename === name);
+                      return <FileChange name={name} url={f?.storage_path || undefined} mime={f?.mime_type || undefined} removed={it.action.endsWith("_removed")} />;
+                    })() : it.kind === "activity" && LINK_FIELDS.has(it.action) ? (
+                      <LinkChange from={it.from || null} to={it.to || null} />
                     ) : DIFF_FIELDS.has(it.action) ? (
                       <div className="mt-1">
                         {expandedDiffs.has(it.id) && <div className="text-[14px] border border-gray-100 rounded-lg p-2 bg-gray-50/60 mb-1">{wordDiff(it.from || "", it.to || "")}</div>}
