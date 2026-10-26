@@ -2099,6 +2099,10 @@ function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: Cal
   const choose = (id: string, f: CalFilters) => { setActive(id); apply(f); try { localStorage.setItem(CAL_VIEW_KEY, id); } catch { /* private mode */ } };
   const ALL: CalFilters = { channel: "all", brands: [], statuses: [] };
   const builtIn = CAL_CHANNELS.filter((c) => c.value !== "all").map((c) => ({ id: `acc-${c.value}`, label: c.label, f: { ...ALL, channel: c.value } as CalFilters }));
+  // A remembered view that has since been deleted falls back to All tasks.
+  useEffect(() => {
+    if (data && active !== "all" && !active.startsWith("acc-") && !saved.some((v) => v.id === active)) setActive("all");
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeSaved = saved.find((v) => v.id === active);
   const changed = !!activeSaved && !sameFilters(current, calCfg(activeSaved));
 
