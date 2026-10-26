@@ -2102,7 +2102,7 @@ function NewCalViewDialog({ rows, initial, onClose, onSave }: {
   const [name, setName] = useState("");
   const [group, setGroup] = useState<"saved" | "account">("saved");
   const [access, setAccess] = useState<"personal" | "collaborative">("personal");
-  const [f, setF] = useState<CalFilters>(initial);
+  const [f, setF] = useState<CalFilters>({ ...initial, brands: [] });   // brands start unticked
   const [busy, setBusy] = useState(false);
   const accRows = f.channel === "all" ? rows : rows.filter((r) => channelOfSbu(r.sbu) === f.channel);
   const brandOpts = Array.from(new Set([...rows.map((r) => r.sbu).filter(Boolean), ...sbus])).sort((a, b) => a.localeCompare(b))
@@ -2146,7 +2146,23 @@ function NewCalViewDialog({ rows, initial, onClose, onSave }: {
             </div>
             <div>
               <Label t="Brands (SBUs)" />
-              <MultiPick label="SBUs" selected={f.brands} total={accRows.length} onChange={(next) => setF({ ...f, brands: next, channel: next.length ? "all" : f.channel })} options={brandOpts} />
+              {/* Starts with nothing ticked; tick the brands this view is for (Praveen, 26
+                  Oct). The calendar's own picker starts all-ticked, so clicking there
+                  REMOVES a brand — the wrong way round for building a view. */}
+              <div className="border border-gray-200 rounded-lg max-h-[168px] overflow-auto py-1">
+                {brandOpts.map((o) => {
+                  const on = f.brands.includes(o.value);
+                  return (
+                    <label key={o.value} className={`flex items-center gap-2 px-3 py-1.5 text-[13px] cursor-pointer hover:bg-gray-50 ${on ? "text-[#232D42] font-medium" : "text-[#4A5468]"}`}>
+                      <input type="checkbox" checked={on} className="w-4 h-4 accent-[#3A57E8]"
+                        onChange={() => { const next = on ? f.brands.filter((b) => b !== o.value) : [...f.brands, o.value]; setF({ ...f, brands: next, channel: next.length ? "all" : f.channel }); }} />
+                      <span className="flex-1 truncate">{o.value}</span>
+                      <span className="text-[11px] text-[#8A92A6]">{o.count}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="text-[11.5px] text-[#8A92A6] mt-1">{f.brands.length ? `${f.brands.length} picked` : "None ticked = every brand"}</div>
             </div>
             <div>
               <Label t="Statuses" />
