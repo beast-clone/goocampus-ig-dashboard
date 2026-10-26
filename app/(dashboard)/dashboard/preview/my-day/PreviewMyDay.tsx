@@ -14,6 +14,7 @@ import { confirmDialog, promptDialog } from "../ConfirmDialog";
 import { showToast } from "../Toast";
 import { uploadTaskFile, removeTaskFile, reorderTaskFiles } from "@/lib/upload-task-file";
 import { useUploadQueue } from "@/lib/use-upload-queue";
+import { openRefPreview, closeRefPreview } from "@/components/RefPreview";
 import { FilesCard, type FileTile } from "@/components/FilesCard";
 import { useDraft } from "@/lib/use-draft";
 import { isPdf } from "@/components/PdfThumb";
@@ -881,6 +882,17 @@ const asksWhyOnDateMove = () => (askWhyOnce ||= fetch("/api/me", { cache: "no-st
   .then((r) => r.json()).then((d) => needsDateReason(d?.user)).catch(() => true));
 
 function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSaved, timing, canEdit, canDelete, canAssign, onDeleted }: { task: Task; label?: string; onStatusChange?: (s: CCStatus) => void; onSetDuration?: (mins: number, reason?: string, undoOf?: string) => void; canSchedule?: boolean; uploadedBy?: string; onSaved?: () => void; timing?: { planned: number; elapsed: number }; canEdit?: boolean; canDelete?: boolean; canAssign?: boolean; onDeleted?: () => void }) {
+  // A task with attachments opens with the first one already showing beside the
+  // content, the same as the task window (Praveen, 26 Oct). Once per task.
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const autoOpenedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoOpenedFor.current === task.id || !dockRef.current) return;
+    autoOpenedFor.current = task.id;
+    const items = (task.detail.attachments || []).filter((f) => f.url).map((f) => ({ url: f.url!, title: f.name, from: "Attachments" }));
+    // Another task's file must not stay open over this one.
+    if (items.length) openRefPreview(items, 0, dockRef.current); else closeRefPreview(dockRef.current);
+  }, [task.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Start with no time set opens Set duration first (#23).
   const [durOpen, setDurOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
@@ -1040,7 +1052,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
   return (
     // One column (prototype D, 22 Oct): History & comments slide in from the right
     // only when asked for, so the brief and files get the whole width.
-    <div className={`tb-d ${histOpen ? "hopen" : ""}`} data-ref-dock>
+    <div ref={dockRef} className={`tb-d ${histOpen ? "hopen" : ""}`} data-ref-dock>
     <div style={{ minWidth: 0 }}>
       {/* One line on top (Praveen, 22 Oct): status, duration, Start, then Edit /
           Reassign / Delete, with History & comments at the far right — every control the

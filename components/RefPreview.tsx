@@ -35,6 +35,13 @@ export function openRefPreview(items: RefItem | RefItem[], index = 0, dock?: HTM
   return true;
 }
 
+/** Close the panel — only when it sits in `dock`, if one is given. */
+let currentDock: HTMLElement | null = null;
+export function closeRefPreview(dock?: HTMLElement | null) {
+  if (!setOpenState || (dock && currentDock !== dock)) return;
+  setOpenState(null);
+}
+
 type View =
   | { kind: "frame"; src: string; narrow?: boolean }
   | { kind: "image" | "video" | "pdf"; src: string }
@@ -101,6 +108,7 @@ export function RefPreviewHost() {
   // Docked: follow the task box as the page scrolls or resizes, kept on screen. The
   // panel closes if the box goes away (another task opened, window closed).
   const dock = st?.dock ?? null;
+  currentDock = dock;
   useLayoutEffect(() => {
     if (!dock) { setBox(null); return; }
     let raf = 0;
