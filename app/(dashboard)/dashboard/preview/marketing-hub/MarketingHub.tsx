@@ -595,6 +595,9 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
           </>
         )}
         <div className="ml-auto flex-shrink-0 flex items-center gap-2">
+          {/* Up here with the page's other actions — a floating button at the bottom
+              was easy to miss (Praveen, 26 Oct). */}
+          <HubNewTaskButton onCreated={refresh} />
           {/* The plan lives in Airtable; this is how a window of it gets here. */}
           {tab === "master" && <SyncFromAirtable onImported={refresh} />}
           {/* Not on the Master sheet (it refreshes itself after every edit) — except the
@@ -624,8 +627,6 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
       )}
 
       {openRow && <DetailModal key={openRow.id} row={openRow} onClose={() => setOpenId(null)} />}
-
-      <HubNewTaskButton onCreated={refresh} />
 
       {data && (
         <div className="text-xs text-gray-400 text-right">
@@ -3714,9 +3715,9 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
     // below flips it to read top-to-bottom.
     return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [detail, feedFilter, showResolved]);
-  // What the timeline actually renders: the most recent `feedLimit` entries, oldest
-  // at the top. A history you have to read bottom-up is a history nobody reads — this
-  // runs the way the events happened, like a delivery tracker.
+  // What the timeline works on: the most recent `feedLimit` entries in the order they
+  // happened (grouping and "what changed overall" need that order). It is SHOWN newest
+  // first — "the latest change on top, older ones below" (Praveen, 26 Oct).
   const feedShown = useMemo(() => feed.slice(0, feedLimit).slice().reverse(), [feed, feedLimit]);
   // Group a run of 4+ similar changes by the same person, each within 30 minutes of the
   // last (Praveen, 26 Oct: five screenshots pasted and removed filled the whole history).
@@ -3836,25 +3837,17 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
         : feed.length === 0 ? <div className="text-sm text-gray-400 italic py-2">No activity yet.</div>
         : (
           <div>
-            {/* Older entries live ABOVE, so the button that reveals them
-                belongs at the top — otherwise it scrolls the list away from
-                what it just added. */}
-            {feed.length > feedLimit && (
-              <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline mb-4">
-                Show earlier activity ({feed.length - feedLimit})
-              </button>
-            )}
             {/* The rail. It sits under the avatars, which each carry a white
                 ring so the line reads as a series of stops rather than one
                 unbroken stroke. */}
             <div className="relative">
               <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-300" aria-hidden />
               <div className="space-y-5 relative">
-            {groupedFeed.map((entry, gIdx) => {
-              if (entry.type === "group") return renderGroup(entry, gIdx === groupedFeed.length - 1);
+            {[...groupedFeed].reverse().map((entry, gIdx) => {
+              if (entry.type === "group") return renderGroup(entry, gIdx === 0);
               const it = entry.it;
               const av = feedAvatar(it.key, it.name);
-              const isLatest = gIdx === groupedFeed.length - 1;
+              const isLatest = gIdx === 0;
               const stFrom = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.from || "") : null;
               const stTo = it.kind === "activity" && PILL_FIELDS.has(it.action) ? calStatusStyle(it.to || "") : null;
               return (
@@ -3865,9 +3858,8 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
                       <span className="font-medium text-[#232D42]">{av.system ? (it.kind === "activity" && PUBLISHER_ACTIONS.has(it.action) ? "Publisher" : "System") : properName(it.name)}</span>{" "}
                       {it.kind === "comment" ? "commented" : (ACT_VERB[it.action] || it.action.replace(/_/g, " "))}
                       <span className="text-gray-400" title={new Date(it.at).toLocaleString("en-IN")}> · {relTime(it.at)}</span>
-                      {/* The bottom of a top-to-bottom timeline is where it
-                          is up to, so say so rather than making people work
-                          it out from the timestamps. */}
+                      {/* The top of the timeline is where it is up to, so say
+                          so rather than making people work it out from the times. */}
                       {isLatest && <span className="ml-1.5 text-[10px] bg-brand-light text-[#2138B0] px-1.5 py-0.5 rounded-full font-medium">latest</span>}
                       {it.kind === "comment" && it.resolved && <span className="ml-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">resolved</span>}
                     </div>
@@ -3905,6 +3897,12 @@ export function TaskActivityFeed({ postId, detail, loading, reload, author, auth
             })}
               </div>
             </div>
+            {/* Older entries are BELOW now, so the button that reveals them is too. */}
+            {feed.length > feedLimit && (
+              <button onClick={() => setFeedLimit((l) => l + 25)} className="text-[12px] text-brand hover:underline mt-4">
+                Show earlier activity ({feed.length - feedLimit})
+              </button>
+            )}
           </div>
         )}
 
@@ -4700,7 +4698,7 @@ function HubNewTaskButton({ onCreated }: { onCreated?: () => void }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-5 z-40 bg-brand text-white rounded-full shadow-lg hover:shadow-xl transition px-6 py-3 text-sm font-medium flex items-center gap-2"
+        className="bg-brand text-white rounded-lg hover:bg-brand-dark transition px-4 py-2 text-sm font-medium flex items-center gap-1.5"
       >
         <span className="text-lg leading-none">+</span> New task
       </button>
