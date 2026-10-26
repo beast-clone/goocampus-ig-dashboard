@@ -3672,7 +3672,7 @@ function CopyTaskLink({ id }: { id: string }) {
         done ? "border-[#BFE6CD] bg-[#E3F5EA] text-[#0F6E3C]"
              : "border-gray-200 text-[#4A5468] hover:border-brand hover:text-brand"}`}>
       {done ? <IconCheck size={14} stroke={2} /> : <IconLink size={14} stroke={1.8} />}
-      {done ? "Copied" : "Copy link"}
+      {done ? "Copied" : "Copy task link"}
     </button>
   );
 }
