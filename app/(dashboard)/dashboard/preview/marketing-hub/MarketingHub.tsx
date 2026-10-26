@@ -1872,7 +1872,12 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   );
 
   return (
-    <div className="mhcal">
+    <div className="flex gap-4 items-start">
+    {/* An old "Mentorship calendar" link (?channel=goocampusworld) still opens its
+        locked view; everywhere else the rail of views replaces separate calendars. */}
+    {!worldOnly && <CalendarViewsRail rows={rows} current={{ channel, brands: brandSel, statuses: statusSel }}
+      apply={(c) => { setChannel(c.channel); setBrandSel(c.brands); setStatusSel(c.statuses); }} />}
+    <div className="mhcal flex-1 min-w-0">
       <style dangerouslySetInnerHTML={{ __html: MHCAL_CSS }} />
 
       {/* Header card — the page already shows the "Marketing Hub › Content Calendar"
@@ -2062,6 +2067,126 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
           onCreated={() => { setExpandedDay(createDate); onSaved(); }}
           initial={{ publishDate: createDate, sbu: (brandSel.length === 1 ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : channel === "goocampusworld" ? "Mentorship Platform" : undefined) }} />
       )}
+    </div>
+    </div>
+  );
+}
+
+// ── Calendar views rail (26 Oct) ──
+// Saved views for the Content calendar, the same idea as the Master sheet's rail:
+// "one content calendar, and they create the calendars they need inside it" instead
+// of a new sidebar page each time (Praveen). A view is the account + brands +
+// statuses; it lives in mh_views with config.kind = "calendar". Personal views show
+// only to their creator; collaborative/locked ones to the whole team.
+type CalFilters = { channel: CalChannel; brands: string[]; statuses: string[] };
+const CAL_VIEW_KEY = "mh-cal-view";
+const calCfg = (v: SavedView) => v.config as unknown as Partial<CalFilters>;
+const sameFilters = (a: CalFilters, b: Partial<CalFilters>) =>
+  a.channel === (b.channel || "all") &&
+  [...a.brands].sort().join("|") === [...(b.brands || [])].sort().join("|") &&
+  [...a.statuses].sort().join("|") === [...(b.statuses || [])].sort().join("|");
+const matchCal = (r: Row, f: Partial<CalFilters>) =>
+  (!f.channel || f.channel === "all" || channelOfSbu(r.sbu) === f.channel) &&
+  (!f.brands?.length || f.brands.includes(r.sbu)) &&
+  (!f.statuses?.length || f.statuses.includes(r.status));
+
+function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: CalFilters; apply: (f: CalFilters) => void }) {
+  const { data, refresh } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
+  const me = data?.me ?? null;
+  const saved = (data?.views || []).filter((v) => (v.config as { kind?: string }).kind === "calendar" && (v.access !== "personal" || v.created_by === me));
+  const [active, setActive] = useState("all");
+  useEffect(() => { try { const v = localStorage.getItem(CAL_VIEW_KEY); if (v) setActive(v); } catch { /* private mode */ } }, []);
+  const choose = (id: string, f: CalFilters) => { setActive(id); apply(f); try { localStorage.setItem(CAL_VIEW_KEY, id); } catch { /* private mode */ } };
+  const ALL: CalFilters = { channel: "all", brands: [], statuses: [] };
+  const builtIn = CAL_CHANNELS.filter((c) => c.value !== "all").map((c) => ({ id: `acc-${c.value}`, label: c.label, f: { ...ALL, channel: c.value } as CalFilters }));
+  const activeSaved = saved.find((v) => v.id === active);
+  const changed = !!activeSaved && !sameFilters(current, calCfg(activeSaved));
+
+  const save = async (body: Record<string, unknown>, method: "POST" | "PATCH") => {
+    const res = await fetch("/api/marketing-hub/views", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { alertDialog(j.error || "Could not save the view."); return null; }
+    await refresh();
+    return j.view as SavedView | undefined;
+  };
+  const newView = async () => {
+    const name = await promptDialog({ title: "New calendar view", defaultValue: "" });
+    if (!name || !name.trim()) return;
+    const v = await save({ name: name.trim(), section: "Calendar", access: "personal", config: { kind: "calendar", ...current } }, "POST");
+    if (v) { setActive(v.id); try { localStorage.setItem(CAL_VIEW_KEY, v.id); } catch { /* private mode */ } }
+  };
+  const onAction = async (action: string, v: SavedView, payload?: string) => {
+    switch (action) {
+      case "access": await save({ id: v.id, access: payload }, "PATCH"); break;
+      case "rename": { const n = await promptDialog({ title: "Rename view", defaultValue: v.name }); if (n && n.trim()) await save({ id: v.id, name: n.trim() }, "PATCH"); break; }
+      case "description": { const d = await promptDialog({ title: "View description", defaultValue: v.description || "" }); if (d !== null) await save({ id: v.id, description: d }, "PATCH"); break; }
+      case "duplicate": await save({ name: `${v.name} copy`, section: "Calendar", access: "personal", config: v.config }, "POST"); break;
+      case "copyConfig": { const src = saved.find((c) => c.id === payload); if (src) await save({ id: v.id, config: src.config }, "PATCH"); break; }
+      case "reassign": await save({ id: v.id, createdBy: payload }, "PATCH"); break;
+      case "csv": downloadText(`${v.name.replace(/[^a-z0-9]+/gi, "-")}.csv`, viewRowsToCsv(rows.filter((r) => matchCal(r, calCfg(v))))); break;
+      case "print": choose(v.id, { ...ALL, ...calCfg(v) } as CalFilters); setTimeout(() => window.print(), 150); break;
+      case "delete":
+        if (!(await confirmDialog({ title: `Delete view "${v.name}"?`, action: "Delete view", danger: true }))) break;
+        { const res = await fetch(`/api/marketing-hub/views?id=${v.id}`, { method: "DELETE" });
+          if (!res.ok) { const j = await res.json().catch(() => ({})); alertDialog(j.error || "Could not delete the view."); break; } }
+        if (active === v.id) choose("all", ALL);
+        await refresh();
+        break;
+    }
+  };
+  const Item = ({ id, label, f, color }: { id: string; label: string; f: CalFilters; color: string }) => {
+    const on = active === id;
+    return (
+      <button onClick={() => choose(id, f)}
+        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
+        <span className="truncate flex-1 text-left">{label}</span>
+        <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"}`}>{fmtInt(rows.filter((r) => matchCal(r, f)).length)}</span>
+      </button>
+    );
+  };
+  const Head = ({ t }: { t: string }) => <div className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{t}</div>;
+  const ACC_COLOR: Record<string, string> = { "acc-goocampus": "#3A57E8", "acc-goocampusworld": "#06B6D4", "acc-12thplusdotcom": "#E11D48" };
+  return (
+    <div className="w-56 flex-shrink-0 bg-white border border-gray-100 rounded-xl p-2">
+      <button onClick={newView} title="Save the account, brands and statuses picked now as a view"
+        className="w-full flex items-center justify-center gap-1.5 mb-1 bg-brand text-white rounded-lg py-2 text-[14px] font-medium hover:brightness-105">
+        <IconPlus size={15} stroke={2} />New view
+      </button>
+      {saved.length > 0 && (
+        <div className="mb-2">
+          <Head t="Saved views" />
+          {saved.map((v) => {
+            const on = v.id === active;
+            const AccessIcon = ACCESS_META[v.access].icon;
+            const f = { ...ALL, ...calCfg(v) } as CalFilters;
+            return (
+              <div key={v.id}>
+                <div className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+                  <button onClick={() => choose(v.id, f)} className="flex items-center gap-2 flex-1 min-w-0 text-left" title={v.description || ACCESS_META[v.access].label}>
+                    <AccessIcon size={13} stroke={1.8} className="flex-shrink-0" />
+                    <span className="truncate flex-1">{v.name}</span>
+                  </button>
+                  <span className={`text-[11px] ${on ? "text-brand/70" : "text-gray-400"} group-hover:hidden`}>{fmtInt(rows.filter((r) => matchCal(r, f)).length)}</span>
+                  <ViewMenu view={v} otherViews={saved.filter((o) => o.id !== v.id)} onAction={(a, p) => onAction(a, v, p)} />
+                </div>
+                {/* The filters were changed while this view was open — keep or drop. */}
+                {on && changed && (
+                  <div className="flex items-center gap-2 px-2 pb-1 text-[11.5px]">
+                    {v.canEdit && <button className="text-brand hover:underline" onClick={() => save({ id: v.id, config: { kind: "calendar", ...current } }, "PATCH")}>Save changes</button>}
+                    <button className="text-gray-500 hover:underline" onClick={() => apply(f)}>Undo</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <Head t="Default" />
+      <Item id="all" label="All tasks" f={ALL} color="#94A3B8" />
+      <div className="mt-2" />
+      <Head t="By account" />
+      {builtIn.map((b) => <Item key={b.id} id={b.id} label={b.label} f={b.f} color={ACC_COLOR[b.id] || "#94A3B8"} />)}
     </div>
   );
 }
@@ -2668,7 +2793,8 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
   const [confirmDel, setConfirmDel] = useState(false);
   const onPick = (ids: string[], on: boolean) => setPicked((prev) => { const n = new Set(prev); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   const { data: viewsData, refresh: refreshViews } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
-  const custom = viewsData?.views || [];
+  // Calendar views live in the same table; they belong to the Content calendar's rail.
+  const custom = (viewsData?.views || []).filter((v) => (v.config as { kind?: string }).kind !== "calendar");
   const { data: colsData, refresh: refreshCols } = useApi<{ columns: CustomColumn[] }>("/api/marketing-hub/columns");
   const customCols = useMemo(() => colsData?.columns || [], [colsData]);
   const fields = useMemo(() => [...FILTER_FIELDS, ...customFieldDefs(customCols)], [customCols]);

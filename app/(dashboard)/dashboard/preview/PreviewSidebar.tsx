@@ -7,7 +7,7 @@ import Link from "next/link";
 import { NOTIF_COUNT } from "./NotificationHost";
 import { playChime } from "./notifChime";
 import {
-  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconSchool, IconRadar2, IconSparkles, IconBell, IconPlugConnected,
+  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
   IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
@@ -78,8 +78,8 @@ const GROUPS: Group[] = [
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
     // calendar view of the Marketing Hub; only where you reach it from changed.
     { label: "Content calendar",    href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
-    // The same calendar, Mentorship Platform + 10K Mentorship only (Manya, 10 Oct).
-    { label: "Mentorship calendar", href: `${HUB}/marketing-hub?tab=calendar&channel=goocampusworld`, icon: IconSchool },
+    // No separate "Mentorship calendar" any more (26 Oct): the Content calendar has a
+    // rail of saved views — "Mentorship" is one of them, and anyone can add their own.
     { label: "Content Radar",       href: `${HUB}/radar`,        icon: IconRadar2 },
     { label: "Content Studio",      href: `${HUB}/content-studio`, icon: IconSparkles },
     // Web pages we follow for news — KEA / MCC counselling notices first (1 Oct).
