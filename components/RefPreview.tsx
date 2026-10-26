@@ -116,17 +116,23 @@ export function RefPreviewHost() {
         top0 = Math.max(top0, c.top); bot0 = Math.min(bot0, c.bottom);
       }
       const r = { top: top0, bottom: bot0, height: Math.max(bot0 - top0, 0), width: d.width, right: d.right };
-      const width = Math.min(r.width, Math.max(360, Math.min(520, r.width * 0.55)));
+      // 70 / 30 — the content keeps most of the room; the preview is a glance.
+      const width = Math.min(r.width, Math.max(260, Math.round(r.width * 0.3)));
       const height = Math.min(r.height, window.innerHeight - 16);
       const top = Math.min(Math.max(r.top, 8), r.bottom - height);
       setBox({ top, height, left: r.right - width, width });
+      // Make room: the task's own content moves left and rewraps beside the panel,
+      // instead of the panel covering half of every line (Praveen, 26 Oct).
+      const pad = `${width + 16}px`;
+      if (dock.style.paddingRight !== pad) dock.style.paddingRight = pad;
     };
+    const before = dock.style.paddingRight;
     const later = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
     place();
     window.addEventListener("scroll", later, true);
     window.addEventListener("resize", later);
     const ro = new ResizeObserver(later); ro.observe(dock);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", later, true); window.removeEventListener("resize", later); ro.disconnect(); };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", later, true); window.removeEventListener("resize", later); ro.disconnect(); dock.style.paddingRight = before; };
   }, [dock]);
 
   // Links inside a task window (marked data-ref-preview) open here, not in a new tab.
@@ -208,6 +214,9 @@ export function RefPreviewHost() {
 const CSS = `
 .rfp{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:310;display:flex;flex-direction:column;background:#F7F8FC;border-left:1px solid #E5E8F0;box-shadow:-12px 0 32px rgba(35,45,66,.12)}
 .rfp.docked{bottom:auto;right:auto;box-shadow:none;border:1px solid #E5E8F0;border-radius:12px;overflow:hidden}
+.rfp.docked .rfp-bar{flex-wrap:wrap;row-gap:8px}
+.rfp.docked .rfp-t{flex-basis:100%}
+.rfp.docked .rfp-body{padding:10px}
 .rfp-bar{display:flex;align-items:center;gap:6px;padding:12px 14px;background:#fff;border-bottom:1px solid #EEF0F4}
 .rfp-t{flex:1;min-width:0}
 .rfp-name{font-size:13.5px;font-weight:500;color:#232D42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
