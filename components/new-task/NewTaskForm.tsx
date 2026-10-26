@@ -155,6 +155,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   const [publishDate, setPublishDate] = useState(initial?.publishDate || "");
   const [refs, setRefs] = useState<PendingAsset>(EMPTY_ASSET);       // input references (many links + images)
   const [output, setOutput] = useState<PendingAsset>(EMPTY_ASSET);   // finished creative if the writer does it herself
+  const [att, setAtt] = useState<PendingAsset>(EMPTY_ASSET);         // working files, never published
   // People added by hand, on top of whoever the routing rule attaches.
   // "Does this also need a thumbnail?" — only offered for the eligible video types.
   const [wantsThumb, setWantsThumb] = useState(false);
@@ -198,7 +199,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   const canSubmit = missing.length === 0;
   const [gate, setGate] = useState(false);
   // Tell the panel whether there is anything worth warning about before discarding.
-  const dirty = !!(title.trim() || content.trim() || publishDate || refs.links.length || refs.files.length || output.links.length || output.files.length || extraCollabs.length || wantsThumb);
+  const dirty = !!(title.trim() || content.trim() || publishDate || refs.links.length || refs.files.length || output.links.length || output.files.length || att.files.length || extraCollabs.length || wantsThumb);
   useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
 
   function create() {
@@ -219,6 +220,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
         refFiles: refs.files.map((f) => f.file),
         outLink: output.links[0] || "",
         outFiles: output.files.map((f) => f.file),
+        attFiles: att.files.map((f) => f.file),
       },
       route,
       thumbnail: thumbOn
@@ -375,6 +377,9 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
       <div className="nt-field">
         <PendingAssets title="Creatives & files" drop oneLink value={output} onChange={setOutput} />
         <span className="nt-hint" style={{ display: "block", marginTop: ".35rem" }}>Finishing it yourself? Drop the ready creative here — otherwise leave it for the designer.</span>
+      </div>
+      <div className="nt-field">
+        <PendingAssets title="Attachments" noLinks value={att} onChange={setAtt} />
       </div>
       <div className="nt-actions">
         <button className="btn" onClick={onClose}>Cancel</button>

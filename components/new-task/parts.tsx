@@ -139,10 +139,11 @@ export function MenuDropdown({ value, options, onChange, placeholder = "Select�
 // output_link is singular). Mirrors the detail-view ReferencesSection UI + classes.
 export type PendingFile = { file: File; url: string };
 export type PendingAsset = { links: string[]; files: PendingFile[] };
-export type NewTaskAssets = { refLinks: string[]; refFiles: File[]; outLink: string; outFiles: File[] };
+export type NewTaskAssets = { refLinks: string[]; refFiles: File[]; outLink: string; outFiles: File[]; attFiles?: File[] };
 export const EMPTY_ASSET: PendingAsset = { links: [], files: [] };
 
-export function PendingAssets({ title, drop, oneLink, value, onChange }: { title: string; drop?: boolean; oneLink?: boolean; value: PendingAsset; onChange: (p: PendingAsset) => void }) {
+// noLinks = the Attachments box: working files only, no link field (same as the task window).
+export function PendingAssets({ title, drop, oneLink, noLinks, value, onChange }: { title: string; drop?: boolean; oneLink?: boolean; noLinks?: boolean; value: PendingAsset; onChange: (p: PendingAsset) => void }) {
   const addFiles = async (files: FileList | File[]) => {
     let list = inNumberOrder(files);
     // Same as an uploaded task: a name that's already here is called out first (22 Oct).
@@ -164,12 +165,12 @@ export function PendingAssets({ title, drop, oneLink, value, onChange }: { title
   return (
     <FilesCard title={title} drop={drop} numbered={drop}
       count={`${value.files.length} file${value.files.length === 1 ? "" : "s"}${value.links.length ? ` · ${value.links.length} link${value.links.length === 1 ? "" : "s"}` : ""}`}
-      accept="image/*,.pdf,application/pdf" onFiles={addFiles}
+      accept={noLinks ? "image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv" : "image/*,.pdf,application/pdf"} onFiles={addFiles}
       tiles={value.files.map((f, i): FileTile => ({ key: f.url, name: f.file.name, url: f.url, preview: f.url,
         kind: f.file.type.startsWith("image/") ? "image" : /pdf/i.test(f.file.type) ? "pdf" : "file", onRemove: () => rmFile(i) }))}
-      links={value.links} singleLink={oneLink}
+      links={noLinks ? undefined : value.links} singleLink={oneLink}
       linkPlaceholder={oneLink ? "Paste the final creative link (Drive / Canva)…" : "Paste a reference link…"}
-      onAddLink={(href) => onChange({ ...value, links: oneLink ? [href] : [...value.links, href] })}
+      onAddLink={noLinks ? undefined : (href) => onChange({ ...value, links: oneLink ? [href] : [...value.links, href] })}
       onRemoveLink={(l) => onChange({ ...value, links: value.links.filter((x) => x !== l) })} />
   );
 }

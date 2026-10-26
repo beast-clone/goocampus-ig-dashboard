@@ -3298,12 +3298,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
           if (Object.keys(fields).length) {
             await fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: postId, actor: person, fields }) }).catch(() => {});
           }
-          const upload = async (file: File, kind: "reference" | "creative") => {
+          const upload = async (file: File, kind: "reference" | "creative" | "attachment") => {
             const r = await uploadTaskFile(postId, file, kind, person);
             if (!r.ok) showToast({ who: `Couldn't add ${file.name}`, body: r.error, color: "#C03221", av: "!" });
           };
           for (const f of assets.refFiles) await upload(f, "reference");
           for (const f of assets.outFiles) await upload(f, "creative");
+          for (const f of assets.attFiles || []) await upload(f, "attachment");
         }
         // Hand-picked collaborators go on BEFORE the status move, so a Content-Approved
         // handoff never lands on a half-built team.
@@ -3327,7 +3328,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             statusNote = `created, but it stayed at Content - Pending — move it to ${STATUS[status].label} from the task`;
           }
         }
-        const extras = assets ? [assets.refFiles.length + assets.refLinks.length ? "references" : "", assets.outFiles.length + (assets.outLink ? 1 : 0) ? "output" : ""].filter(Boolean).join(" + ") : "";
+        const extras = assets ? [assets.refFiles.length + assets.refLinks.length ? "references" : "", assets.outFiles.length + (assets.outLink ? 1 : 0) ? "output" : "", assets.attFiles?.length ? "attachments" : ""].filter(Boolean).join(" + ") : "";
         setToast({ who: "Created", color: "#3A57E8", av: PPL[person]?.av || me.av, body: `“${t.title}” added — ${statusNote}${extras ? ` · ${extras} attached` : ""}.` });
         load();
         loadCreated(); // the new row belongs in "Tasks I created" straight away
