@@ -168,7 +168,7 @@ const GROUPS: Group[] = [
     // ADMIN-ONLY — canAccessSection() refuses "system" for everyone else — so the
     // content team can no longer reach Automations from the nav. The rules API is
     // still guarded as "content", so the page itself works for anyone with the link.
-    { label: "Automations",  href: `${HUB}/marketing-hub/automations`, icon: IconRouteAltLeft },
+    { label: "Rules",        href: `${HUB}/marketing-hub/automations`, icon: IconRouteAltLeft },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },
     { label: "Team",         href: `${HUB}/team`,         icon: IconUsersGroup },
     { label: "Comments",     href: `${HUB}/comments`,     icon: IconMessageCircle },

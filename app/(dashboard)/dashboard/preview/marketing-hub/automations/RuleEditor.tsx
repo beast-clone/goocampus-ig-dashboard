@@ -174,18 +174,18 @@ export function RuleEditor() {
       {/* No overflow-hidden: it clipped the pickers' menus. */}
       <section className="bg-white border border-gray-100 rounded-xl">
         <div className="px-4 py-3.5 border-b border-gray-100">
-          <h2 className="text-[16px] font-semibold text-[#232D42]">Rules</h2>
+          <h2 className="text-[16px] font-medium text-[#232D42]">Who gets the task — you can change these</h2>
           <div className="text-[12.5px] text-[#8A92A6] mt-0.5 leading-relaxed">
-            <b className="font-medium text-[#4A5468]">Owner</b> — who the task is handed to once its content is approved.{" "}
-            <b className="font-medium text-[#4A5468]">Collaborator</b> — who is added to the task when it is created.{" "}
+            <b className="font-medium text-[#4A5468]">Handed to</b> — who owns the task once its content is approved.{" "}
+            <b className="font-medium text-[#4A5468]">Added as collaborator</b> — who is put on the task when it is created.{" "}
             The most exact rule wins: a named brand first, then an exact type like &ldquo;Carousel&rdquo;, then design/video; &ldquo;Not set&rdquo; means the broader rule applies. Nobody is ever both owner and collaborator.
           </div>
         </div>
 
         <div className="hidden md:flex items-center gap-3 px-4 pt-2.5 pb-1 text-[12px] text-[#8A92A6] font-semibold">
           <span className="flex-1">Which tasks</span>
-          <span className="w-[178px]">Owner</span>
-          <span className="w-[160px]">Collaborator</span>
+          <span className="w-[178px]">Handed to (when approved)</span>
+          <span className="w-[160px]">Added as collaborator</span>
           <span className="w-[62px]" />
         </div>
 

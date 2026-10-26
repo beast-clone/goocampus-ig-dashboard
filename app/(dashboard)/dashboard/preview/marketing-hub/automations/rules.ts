@@ -1,238 +1,136 @@
-// Every rule the Marketing Hub actually runs on, written down in one place.
+// Every rule the dashboard runs on, written for people, grouped by the tab it
+// affects (Praveen, 26 Oct: "it should be easily readable … break it down tab-wise").
 //
-// This is a READ of the system as it stands on 28 Sep 2026, not a second copy of
-// it: each entry says where the real rule lives, so a reader can go and check.
-// Nothing here changes behaviour — the point is that Praveen asked to see the
-// whole set before deciding which ones should become editable rows.
+// This is a READ of the system, not a second copy of it: `where` says which file
+// or table really decides, so anyone can check. Nothing here changes behaviour.
+// The rules the team CAN change (who gets new and approved tasks) are rows in
+// mh_rules and are edited on the My Day tab of the Rules page, not listed here.
 //
-// `where` is the file or table that decides. `editable` is the honest answer to
-// "can the team change this today, without me?" — today almost nothing is, which
-// is exactly the problem this list is meant to make obvious.
+// `editable`: "team" = changed on the dashboard (Rules page or Team & access);
+// "airtable" = set in Airtable; "code" = ask a developer.
 
-export type RuleEditability = "team" | "airtable" | "code" | "database";
-
-// NOTE: the owner and collaborator rules people actually change are NOT in this
-// list — they are rows in mh_rules, edited at the top of the page. Describing them
-// here as well meant reading the same rule twice, once as a control and once as
-// prose (Praveen, 28 Sep).
+export type RuleEditability = "team" | "airtable" | "code";
 
 export type Rule = {
   id: string;
-  /** What it does, in the words someone would use to describe it out loud. */
+  /** The moment it applies — shown as the tag ("Content - Approved", "Moving a date"). */
+  when: string;
+  /** What happens, in the words someone would use to describe it out loud. */
   what: string;
-  /** Why it exists, when that is not obvious. */
   why?: string;
   where: string;
   editable: RuleEditability;
 };
 
-export type RuleGroup = {
+export type RuleTab = {
   key: string;
   title: string;
   blurb: string;
   rules: Rule[];
 };
 
-export const RULE_GROUPS: RuleGroup[] = [
+// The path every task takes, drawn as steps at the top of the My Day tab.
+export const TASK_FLOW: { step: string; status: string; who: string }[] = [
+  { step: "1 · Writing", status: "Content - Pending", who: "With the writer — Manya by default" },
+  { step: "2 · Approved", status: "Content - Approved", who: "Design → Praveen · Video → editors' pool (Nikhil, Nandu claim it)" },
+  { step: "3 · Producing", status: "Output - In Progress", who: "With whoever is designing or editing" },
+  { step: "4 · Review", status: "Output - Ready", who: "Goes to Content Review" },
+  { step: "5 · Publish", status: "Ready to Publish", who: "Picked up by the Scheduler" },
+];
+
+export const RULE_TABS: RuleTab[] = [
   {
-    key: "owner",
-    title: "Who gets the task",
-    blurb: "What happens to a task's owner as it moves through the pipeline. These are the ones that go wrong when somebody joins or leaves.",
+    key: "my-day",
+    title: "My Day",
+    blurb: "How a task travels from idea to published, and who holds it at each step.",
     rules: [
-      {
-        id: "owner-writer",
-        what: "Below Content - Approved, the task stays with whoever is writing it.",
-        why: "Nothing is handed over while the content is still being written.",
-        where: "NewTaskForm.tsx · routeFor()",
-        editable: "code",
-      },
-      {
-        id: "owner-claim",
-        what: "Claiming a task makes the claimer the owner, and the previous owner stays on as a collaborator — unless they are the other editor, who is released.",
-        where: "/api/marketing-hub/takeover",
-        editable: "code",
-      },
-      {
-        id: "owner-video-types",
-        what: "“Video” means: Reel - Original, Reel - Cut, YouTube Long-Form, YouTube Shorts, Story (Video), Meta Ads - Video. Everything else is design.",
-        why: "This list decides which of the two rules above applies, so it has to match the trigger's own list exactly.",
-        where: "lib/mh-content-types.ts · VIDEO_TYPES, and again inside sql/013",
-        editable: "code",
-      },
+      { id: "owner-writer", when: "Content - Pending", what: "The task stays with whoever is writing it. Nothing is handed over until the content is approved.", where: "NewTaskForm.tsx · routeFor()", editable: "code" },
+      { id: "approve-gate", when: "Approving", what: "A task can only be approved once it has the brief, the SBU, a priority and a publishing date.", where: "/api/marketing-hub/update · approve gate", editable: "code" },
+      { id: "video-types", when: "Design or video?", what: "Video means Reel - Original, Reel - Cut, YouTube Long-Form, YouTube Shorts, Story (Video) and Meta Ads - Video. Everything else is design work.", where: "lib/mh-content-types.ts · VIDEO_TYPES (and sql/013)", editable: "code" },
+      { id: "pipeline-hold", when: "Producer's day is full", what: "The task waits in their Pipeline until they press Accept. It is never forced onto a full day.", where: "/api/marketing-hub/update · deferHandoff", editable: "code" },
+      { id: "claim", when: "Claiming a task", what: "Whoever claims it becomes the owner. The person who shot a video stays on as collaborator.", where: "/api/marketing-hub/takeover", editable: "code" },
+      { id: "collab-never-owner", when: "Collaborators", what: "Nobody is ever both owner and collaborator. Any collaborator can be taken off with the × on their chip.", where: "lib/task-create.ts · My Day task detail", editable: "code" },
+      { id: "swap", when: "Packed producer", what: "They can't push work away themselves — they offer their not-started tasks and Manya picks which one moves (Swap).", where: "/api/my-day/swap-request", editable: "code" },
+      { id: "time-up", when: "Time runs out", what: "The owner is asked: Task completed, or Extend with a reason. The rest of the team sees the extension.", where: "PreviewMyDay.tsx · time-up alert", editable: "code" },
+      { id: "date-approval", when: "Publishing date moved", what: "Only Maheen moves a publishing date directly. Anyone else's change becomes a request she approves or declines.", where: "lib/date-approvals.ts · APPROVER_KEY", editable: "code" },
+      { id: "date-why", when: "Moving a date", what: "Asks why the date moved — switched on or off for each person on Team & access.", where: "Team & access · Ask why when a date moves", editable: "team" },
+      { id: "day", when: "Your day", what: "8 hours from when you sign in, never before your shift (Manya, Praveen and Nikhil at 9; Nandu later). Lunch 1–2 PM is protected and the last hour stays free for urgent work.", where: "PreviewMyDay.tsx · shiftStartOf()", editable: "code" },
+      { id: "order", when: "Order of today's plan", what: "Overdue first, then Urgent/High, then by publishing date — until you drag it; your order then holds until you press Rearrange.", where: "PreviewMyDay.tsx", editable: "team" },
+      { id: "spill", when: "Too much for today", what: "Only what fits the shift is drawn on the timeline; the rest is listed separately instead of being crammed in.", where: "PreviewMyDay.tsx · fitPlan / spillPlan", editable: "code" },
+      { id: "estimates", when: "No time set", what: "Thumbnail 30m · Carousel 60m · Reel - Cut 60m · Meta Ads 45m · Reel / Short / Story 90m · YouTube Long-Form 120m · anything else 30m.", why: "Used only when nobody has set a duration by hand.", where: "lib/task-estimate.ts", editable: "code" },
+      { id: "samvaya", when: "Samvaya work", what: "Shown only in Nandu's own Samvaya section, never mixed with GooCampus work.", where: "/api/my-day · isSamvayaRow", editable: "code" },
     ],
   },
   {
-    key: "collab",
-    title: "Who else is attached",
-    blurb: "Collaborators are added automatically so the right person keeps an eye on the work.",
+    key: "review",
+    title: "Content Review",
+    blurb: "The check between finished output and the Scheduler.",
     rules: [
-      {
-        id: "collab-never-owner",
-        what: "Nobody is ever both owner and collaborator. If the default collaborator already owns the task, it simply starts with none.",
-        where: "lib/task-create.ts",
-        editable: "code",
-      },
-      {
-        id: "collab-presenter",
-        what: "When one person shot a video and another is cutting it, the person who shot it is kept on as a collaborator.",
-        where: "/api/marketing-hub/takeover · custom.presenter_key",
-        editable: "code",
-      },
-      {
-        id: "collab-remove",
-        what: "Any collaborator can be taken off by hand, from the × on their chip.",
-        where: "My Day task detail",
-        editable: "team",
-      },
+      { id: "output-gate", when: "Output - Ready", what: "A task can only be marked Ready once a creative file or an output link is attached.", where: "/api/marketing-hub/update · output gate", editable: "code" },
+      { id: "push", when: "Push to Schedule", what: "Moves it to Ready to Publish — only if it has a creative, a caption and a publishing date.", where: "/api/marketing-hub/update · publish gate", editable: "code" },
+      { id: "send-back", when: "Send back", what: "Moves it to Incorporating Feedback with your note; the note is highlighted on the producer's task.", where: "content-review/page.tsx", editable: "code" },
+      { id: "changed", when: "Creative changed", what: "If the creative is swapped after approval, the card says “Changed after approval” so it is checked again.", where: "content-review/page.tsx", editable: "code" },
     ],
   },
   {
-    key: "status",
-    title: "Statuses",
-    blurb: "The vocabulary a task can move through. Airtable owns this list; the dashboard follows it.",
+    key: "scheduler",
+    title: "Scheduler",
+    blurb: "What is checked before anything goes out.",
     rules: [
-      {
-        id: "status-list",
-        what: "Eleven statuses: Content - Pending, In Progress, Needs Approval, Approved · Output - In Progress, Ready · Incorporating Feedback · Ready to Publish · Published/Scheduled · Rejected/Not Published · Failed.",
-        why: "Added to the database on 28 Sep. Before that the dashboard held eight and quietly rewrote the other three, so thirteen tasks showed a status Airtable disagreed with.",
-        where: "Airtable Content Calendar · Status field, mirrored by the mh_status database type",
-        editable: "airtable",
-      },
-      {
-        id: "status-board",
-        what: "The Pipeline board shows seven of them as columns. The Master sheet's By status list shows all eleven.",
-        why: "A status with no column is exactly the one you go looking for and cannot find.",
-        where: "MarketingHub.tsx · PIPELINE_STAGES and ALL_STATUSES",
-        editable: "code",
-      },
+      { id: "pick-page", when: "Choosing the page", what: "Nothing is pre-ticked — the social media person picks the page(s) every time.", where: "scheduler/page.tsx", editable: "code" },
+      { id: "review-step", when: "Before posting", what: "A review shows the page(s), the networks and the time. Nothing goes out until you press Yes.", where: "scheduler/page.tsx · submit()", editable: "code" },
+      { id: "per-day", when: "Posts per day", what: "GooCampus Main 2–4 · GooCampus World 1–2 · 12th Plus 1–2. Going over warns first.", where: "scheduler/page.tsx · DAILY_POST_LIMITS", editable: "code" },
+      { id: "gap", when: "Gap between posts", what: "At least 60 min apart on GooCampus Main and 90 min on World and 12th Plus; it offers the next free slot.", where: "scheduler/page.tsx · MIN_GAP_MINUTES", editable: "code" },
+      { id: "big-reel", when: "Big reels", what: "Instagram rejects reels over 300 MB from here, so you are warned before posting.", where: "scheduler/page.tsx", editable: "code" },
+      { id: "linkedin", when: "LinkedIn", what: "Ticked by itself when the page has a LinkedIn page. A PDF goes to LinkedIn as a carousel.", where: "scheduler/page.tsx", editable: "code" },
+      { id: "send-ahead", when: "Scheduled posts", what: "Files are sent about 30 minutes early and published on time, even when nobody is online.", where: "n8n Publisher v3", editable: "code" },
     ],
   },
   {
-    key: "sync",
-    title: "Airtable sync",
-    blurb: "What comes in from Airtable, how often, and what it is allowed to touch.",
+    key: "calendar",
+    title: "Content calendar",
+    blurb: "Which posts show where.",
     rules: [
-      {
-        id: "sync-view",
-        what: "Only the tasks in Airtable's “Task Dashboard” view are imported. Change that view's filters in Airtable to change what arrives.",
-        where: "Airtable view · Content Calendar",
-        editable: "airtable",
-      },
-      {
-        id: "sync-hourly",
-        what: "The hourly sync only ADDS. It never touches a task already in the dashboard.",
-        why: "On a timer it would quietly revert the team's own edits — change a status here and get Airtable's old one back within the hour.",
-        where: "/api/cron/import-airtable",
-        editable: "code",
-      },
-      {
-        id: "sync-button",
-        what: "Pressing Sync from Airtable does a full import: it copies every Airtable field over the dashboard's row.",
-        why: "Safe when a person presses it and watches; not safe on a timer.",
-        where: "Master sheet · Sync from Airtable",
-        editable: "team",
-      },
-      {
-        id: "sync-notitle",
-        what: "A record with no title is skipped rather than imported as “(untitled)”.",
-        where: "lib/airtable-import.ts",
-        editable: "code",
-      },
-      {
-        id: "sync-match",
-        what: "Tasks are matched on Airtable's record id, so importing twice updates rather than duplicates.",
-        where: "lib/airtable-import.ts",
-        editable: "code",
-      },
-    ],
-  },
-  {
-    key: "time",
-    title: "How long work takes",
-    blurb: "The day's shape, and what each kind of content is assumed to cost. Everything about capacity is derived from these.",
-    rules: [
-      {
-        id: "time-estimates",
-        what: "Thumbnail 30m · Carousel 60m · Reel - Cut 60m · Meta Ads 45m · Reel / Short / Story 90m · YouTube Long-Form 120m · anything else 30m.",
-        why: "Used only when nobody has set a duration by hand.",
-        where: "lib/task-estimate.ts",
-        editable: "code",
-      },
-      {
-        id: "time-day",
-        what: "An 8-hour day, a protected lunch from 1 to 2 PM, and the last hour kept free for urgent work.",
-        where: "PreviewMyDay.tsx",
-        editable: "code",
-      },
-      {
-        id: "time-start",
-        what: "The day's plan starts when the person signed in, never before their shift. Manya, Praveen and Nikhil start at 9; Nandu is the late shift.",
-        where: "PreviewMyDay.tsx · shiftStartOf()",
-        editable: "code",
-      },
-      {
-        id: "time-order",
-        what: "Today's plan is ordered overdue first, then Urgent/High, then by publishing date — until somebody drags it, and then their order wins until they press Rearrange.",
-        where: "PreviewMyDay.tsx",
-        editable: "team",
-      },
-      {
-        id: "time-spill",
-        what: "Only what fits the shift is drawn on the timeline. The rest is shown separately as spill rather than crammed in.",
-        where: "PreviewMyDay.tsx · fitPlan / spillPlan",
-        editable: "code",
-      },
+      { id: "account", when: "Which account", what: "Mentorship Platform → GooCampus World. 12thPlus.com and India NEET UG → 12th Plus. 10K Mentorship and everything else → GooCampus Main. Samvaya → none of ours.", where: "lib/sbu-pages.ts", editable: "code" },
+      { id: "drag", when: "Dragging a post", what: "Only people with “Edit calendar” switched on can drag a post to another day.", where: "Team & access · Edit calendar", editable: "team" },
+      { id: "views", when: "Calendar views", what: "Anyone can save a calendar view for themselves or the whole team — for example Mentorship.", where: "Content calendar · + New view", editable: "team" },
     ],
   },
   {
     key: "notify",
-    title: "Who hears about what",
-    blurb: "Notifications are aimed at a person by a rule, not broadcast.",
+    title: "Notifications & Slack",
+    blurb: "Who hears about what, and where.",
     rules: [
-      {
-        id: "notify-creator",
-        what: "Whoever CREATED a task is told each time it changes stage in someone else's hands.",
-        why: "This is why the person who files the most tasks gets the most notifications — 20 tasks passing 6 stages is 120 of them.",
-        where: "lib/notifications.ts",
-        editable: "code",
-      },
-      {
-        id: "notify-owner",
-        what: "Whoever OWNS a task is told when it is handed to them, sent back for changes, or waiting in their pipeline.",
-        where: "lib/notifications.ts",
-        editable: "code",
-      },
-      {
-        id: "notify-pop",
-        what: "Only a notification that needs a decision interrupts with a pop-up. Everything else goes to the bell and the unread count.",
-        where: "NotificationHost.tsx",
-        editable: "code",
-      },
-      {
-        id: "notify-reminder",
-        what: "A task due TODAY is nudged in the last three hours of the shift — while there is still time to finish it.",
-        where: "PreviewMyDay.tsx",
-        editable: "code",
-      },
-      {
-        id: "notify-quiet",
-        what: "No pop-ups during quiet hours. The server decides that, in IST.",
-        where: "/api/notifications",
-        editable: "code",
-      },
+      { id: "notify-creator", when: "Task changes stage", what: "Whoever created it is told each time it moves on in someone else's hands.", where: "lib/notifications.ts", editable: "code" },
+      { id: "notify-owner", when: "Handed to you", what: "The owner is told when a task is handed to them, sent back, or waiting in their Pipeline.", where: "lib/notifications.ts", editable: "code" },
+      { id: "pop", when: "Pop-ups", what: "Only things that need a decision pop up. Everything else goes to the bell (it shakes) and the unread count.", where: "NotificationHost.tsx", editable: "code" },
+      { id: "quiet", when: "Quiet hours", what: "No pop-ups at weekends, outside your shift, or after you press End day.", where: "/api/notifications · isQuiet()", editable: "code" },
+      { id: "due-today", when: "Due today", what: "Nudged in the last three hours of the shift, while there is still time.", where: "PreviewMyDay.tsx", editable: "code" },
+      { id: "slack", when: "Slack — #marketing-os-updates", what: "Posted when content needs approval, is approved, output is ready for review, work is sent back, a swap is asked for, or a publishing-date change is asked, approved or declined.", where: "lib/slack.ts", editable: "code" },
+      { id: "messages", when: "Messages tab", what: "Only what people type. Automatic updates go to Notifications, not the chat.", where: "/api/my-day/chat", editable: "code" },
     ],
   },
   {
-    key: "publish",
-    title: "Publishing",
-    blurb: "Which page a task goes out on, decided by its brand.",
+    key: "access",
+    title: "Team & access",
+    blurb: "Who can see and do what.",
     rules: [
-      {
-        id: "publish-page",
-        what: "Mentorship Platform and 10K Mentorship → GooCampus World. 12thPlus.com and India NEET UG → GooCampus India. Samvaya → none of ours. Everything else → GooCampus Main.",
-        where: "lib/sbu-pages.ts",
-        editable: "code",
-      },
+      { id: "toggles", when: "Every permission", what: "Is an on/off switch for each person on Team & access — nothing is wired to a name.", where: "Team & access", editable: "team" },
+      { id: "tabs", when: "Tabs", what: "Each sidebar tab shows only for people who have it switched on.", where: "lib/permissions.ts · Team & access", editable: "team" },
+      { id: "create", when: "Creating tasks", what: "Only people with “Create tasks” switched on see + New task.", where: "Team & access · Create tasks", editable: "team" },
+      { id: "admins", when: "Admins", what: "Admins see everything and can edit any view. Who is an admin is set on Team & access.", where: "Team & access", editable: "team" },
+    ],
+  },
+  {
+    key: "data",
+    title: "Deleting & Airtable",
+    blurb: "Safety nets, and what comes in from Airtable.",
+    rules: [
+      { id: "confirm", when: "Deleting anything", what: "Always asks Delete or Cancel first.", where: "ConfirmDialog · every delete", editable: "code" },
+      { id: "bin", when: "Deleted tasks and files", what: "Go to the Recycle bin and can be restored from there.", where: "lib/task-trash.ts", editable: "code" },
+      { id: "sync-hourly", when: "Hourly Airtable sync", what: "Only adds new tasks from Airtable's “Task Dashboard” view. It never overwrites the team's own edits.", why: "On a timer it would quietly undo changes made here.", where: "/api/cron/import-airtable", editable: "airtable" },
+      { id: "sync-button", when: "Sync from Airtable button", what: "Copies every Airtable field over the dashboard's row — press it on purpose, not by habit.", where: "Master sheet · Sync from Airtable", editable: "team" },
+      { id: "statuses", when: "Statuses", what: "The eleven statuses come from Airtable's Status field: Content - Pending, In Progress, Needs Approval, Approved · Output - In Progress, Ready · Incorporating Feedback · Ready to Publish · Published/Scheduled · Rejected/Not Published · Failed.", where: "Airtable · Status field", editable: "airtable" },
     ],
   },
 ];
