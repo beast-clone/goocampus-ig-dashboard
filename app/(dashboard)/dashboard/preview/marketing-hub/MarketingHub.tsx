@@ -4408,7 +4408,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         <div className="flex-1 flex min-h-0 bg-white">
           {/* A file opened from here previews between the content and History &
               comments (Praveen, 26 Oct) — the content column is the dock. */}
-          <div ref={contentCol} className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4" data-ref-dock data-ref-ratio="0.22">
+          <div ref={contentCol} className="flex-1 min-w-0 overflow-auto pl-[66px] pr-6 py-4" data-ref-dock data-ref-ratio="0.25">
             <div>
               {/* Content and Caption come FIRST.
                   "The entire content should appear in full when I open it" (Manya, 5 Oct,

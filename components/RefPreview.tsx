@@ -121,7 +121,7 @@ export function RefPreviewHost() {
       }
       const r = { top: top0, bottom: bot0, height: Math.max(bot0 - top0, 0), width: d.width, right: d.right };
       // Share of the box the preview takes: 40% by default (My Day, 60/40). A box can
-      // set its own with data-ref-ratio — the task window uses 70/20/10 (Praveen, 26 Oct).
+      // set its own with data-ref-ratio — the task window widens and gives the preview about a fifth (Praveen, 26 Oct).
       const ratio = Number(dock.dataset.refRatio) || 0.4;
       const width = Math.min(r.width, Math.max(220, Math.round(r.width * ratio)));
       const height = Math.min(r.height, window.innerHeight - 16);
@@ -241,7 +241,8 @@ const CSS = `
 .rfp-zoomable{cursor:zoom-in}
 [data-ref-open] .mh-prow{flex-direction:column;align-items:stretch}
 [data-ref-open] .mh-plabel{width:auto;padding-bottom:6px}
-[data-ref-open] ~ .mh-hist{width:10%;min-width:150px}
+/* The task window widens for the preview, so History keeps its full width. */
+.hub-airtable:has([data-ref-open]){max-width:min(1500px,96vw)}
 .rfp-big{position:fixed;inset:0;z-index:400;background:rgba(12,14,26,.86);display:flex;align-items:center;justify-content:center;padding:56px 72px;cursor:zoom-out}
 .rfp-big img{width:100%;height:100%;object-fit:contain;cursor:default}
 .rfp-big-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;border:none;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
