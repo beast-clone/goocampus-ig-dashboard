@@ -24,7 +24,7 @@ import { ClampBox } from "@/components/ClampBox";
 import { PdfThumb } from "@/components/PdfThumb";
 import { FilesCard, type FileTile } from "@/components/FilesCard";
 import { linkify } from "@/components/Markdown";
-import { EMPTY_FILTER, OPS_BY_TYPE, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
+import { EMPTY_FILTER, OPS_BY_TYPE, countConditions, evalFilter as evalFilterShared, summarizeFilter as summarizeFilterShared,
   type FieldType, type FilterCondition, type FilterFieldDef, type FilterModel, type FilterOp } from "@/lib/filter-model";
 import { useApi } from "@/lib/use-api";
 import type { TrashItem } from "@/lib/task-trash";
@@ -3298,9 +3298,11 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
 
         {/* Toolbar — Airtable-style Filter / Sort / Columns / Colour; save the result as a view */}
         <div className="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 flex-wrap">
-          <ToolButton icon={IconFilter} active={hasFilter} label={hasFilter ? `Filtered · ${draft.conditions.length}` : "Filter"} open={openTool === "filter"} onToggle={() => setOpenTool(openTool === "filter" ? null : "filter")}>
+          <ToolButton icon={IconFilter} active={hasFilter} label={hasFilter ? `Filtered · ${countConditions(draft)}` : "Filter"} open={openTool === "filter"} onToggle={() => setOpenTool(openTool === "filter" ? null : "filter")}>
             <FilterBuilder<Row> filter={draft} fields={fields} optionsFor={hubOptionsFor(fields, facets)}
-              onChange={setFilter} emptyNote="No conditions — showing every task. Add one below." />
+              onChange={setFilter} title="In this view, show tasks" emptyNote="No conditions — showing every task. Add one below."
+              colorFor={(field, v) => field === "status" ? statusPill(v) : field === "sbu" ? { bg: sbuColor(v, facets?.sbu || []) + "26", text: "#232D42" } : null}
+              copyFrom={custom.filter((c) => c.id !== activeId).map((c) => ({ name: c.name, filter: c.config.filter || legacyToFilter(c.config.filters) })).filter((v) => v.filter.conditions.length)} />
           </ToolButton>
           <ToolButton icon={IconArrowsSort} active={sorts.length > 0} label={sorts.length ? `Sorted · ${sorts.length}` : "Sort"} open={openTool === "sort"} onToggle={() => setOpenTool(openTool === "sort" ? null : "sort")}>
             <SortBuilder sorts={sorts} fields={fields} onChange={setSorts} />
