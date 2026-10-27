@@ -747,7 +747,45 @@ export const MY_DAY_CSS = `
 /* approve-gate mini timeline (reuses tcp-blk block styles, absolute layout) */
 .hmd .ag-track{position:relative;height:104px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2)}
 /* live task timer strip + inline finished/extend prompt */
-.hmd .timer-strip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;background:var(--brand-soft);border:1px solid var(--cD5DCF8);border-radius:10px;padding:.55rem .85rem;margin:.7rem 0 .2rem;font-size:14px;color:var(--brand-ink)}
+.hmd .timer-strip{display:flex;align-items:center;gap:.75rem;white-space:nowrap;background:var(--brand-soft);border:1px solid var(--cD5DCF8);border-radius:12px;padding:.4rem .45rem .4rem .85rem;margin:.7rem 0 .2rem;font-size:13.5px;color:var(--brand-ink)}
+.hmd .timer-strip .timer-num{display:inline-flex;align-items:center;gap:.35rem}
+.hmd .timer-strip .timer-num b{font-weight:500}
+.hmd .timer-track{flex:1;min-width:48px;height:6px;border-radius:999px;background:rgba(58,87,232,.15);overflow:hidden}
+.hmd .timer-fill{display:block;height:100%;background:var(--brand);border-radius:999px;transition:width .4s}
+.hmd .timer-strip.over .timer-track{background:rgba(217,119,6,.18)}
+.hmd .timer-strip.over .timer-fill{background:var(--warn)}
+.hmd .timer-msg{color:var(--ink-soft)}
+.hmd .timer-strip.over .timer-msg{color:var(--c8A5A00);font-weight:500}
+@media (max-width:900px){.hmd .timer-strip{flex-wrap:wrap;white-space:normal}}
+/* Start / Output ready moves (27 Oct) — the card shows where it goes. */
+.hmd .task{position:relative}
+.hmd .fx-badge{position:absolute;top:-9px;right:10px;font-size:11px;font-weight:500;color:#fff;background:var(--tone-info-fg,#079AA2);border-radius:999px;padding:2px 9px;animation:fxIn .25s ease;z-index:2}
+.hmd .task.fx-output .fx-badge{background:var(--good)}
+.hmd .task.fx-start.fx-lift{border-color:var(--tone-info-fg,#079AA2);transform:translateY(-2px);transition:all .3s}
+.hmd .task.fx-output.fx-lift{border-color:var(--good);background:var(--good-soft);transition:all .3s}
+.hmd .task.fx-output.fx-fold{border-color:var(--good);background:var(--good-soft);max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;overflow:hidden;transform:translateX(30px);transition:all .4s ease}
+.hmd .task.fx-start.fx-landed{animation:fxLand 1.6s ease}
+.hmd .task.fx-now{animation:fxNow 1.8s ease}
+.hmd .fx-pop{animation:fxPop .45s ease}
+.hmd .fx-moved{display:flex;align-items:center;gap:.35rem;margin-top:.45rem;font-size:12px;color:var(--tone-info-fg,#079AA2);background:var(--tone-info-bg,#E1F4F5);border-radius:8px;padding:.3rem .5rem;animation:fxIn .35s ease}
+.hmd .fx-now-tag{background:var(--brand-soft);color:var(--brand-ink)}
+.hmd .fx-pane{animation:fxPane .35s ease}
+.hmd .fx-switched{font-size:12px;color:var(--ink-soft);margin:-.2rem 0 .6rem;animation:fxIn .35s ease}
+.hmd .fx-switched b{font-weight:500;color:var(--tone-info-fg,#079AA2)}
+.hmd .fx-switched button,.hmd .fx-receipt button{border:0;background:none;padding:0;font:inherit;cursor:pointer;color:var(--brand);text-decoration:underline}
+.hmd .fx-receipt{display:flex;align-items:center;gap:.5rem;border:1px dashed var(--good);background:var(--good-soft);color:var(--good);border-radius:11px;padding:.5rem .65rem;margin-bottom:.5rem;font-size:12.5px;animation:fxIn .35s ease}
+.hmd .fx-receipt b{font-weight:500}
+.hmd .fx-receipt-acts{margin-left:auto;display:flex;gap:.7rem}
+.hmd .fx-receipt button{color:var(--good)}
+.hmd .fx-note{display:flex;align-items:center;gap:.6rem;border:1px solid var(--cD5DCF8);background:var(--brand-soft);color:var(--brand-ink);border-radius:12px;padding:.55rem .75rem;margin-bottom:.8rem;font-size:13px;animation:fxIn .35s ease}
+.hmd .fx-note b{font-weight:500}
+.hmd .fx-x{margin-left:auto;border:0;background:none;cursor:pointer;color:var(--muted);display:flex;padding:2px}
+@keyframes fxIn{from{opacity:0;transform:translateY(-4px)}}
+@keyframes fxPop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes fxPane{from{opacity:0;transform:translateX(14px)}}
+@keyframes fxLand{0%,55%{border-color:var(--tone-info-fg,#079AA2);background:var(--tone-info-bg,#E1F4F5)}}
+@keyframes fxNow{0%,55%{border-color:var(--brand);background:var(--brand-soft)}}
+@media (prefers-reduced-motion:reduce){.hmd .fx-pane,.hmd .fx-pop,.hmd .task.fx-start.fx-landed,.hmd .task.fx-now{animation:none}}
 .hmd .timer-strip.over{background:var(--warn-soft);border-color:var(--cF3D9AE);color:var(--c8A5A00)}
 .hmd .timer-strip.idle{background:var(--panel-2);border-color:var(--line);color:var(--ink-soft)}
 .hmd .timer-acts{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-weight:500}

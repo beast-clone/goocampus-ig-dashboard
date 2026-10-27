@@ -2,7 +2,7 @@
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPaperclip, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport, IconCheck } from "@tabler/icons-react";
+import { IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconWand, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook, IconUsers, IconSpeakerphone, IconSettings, IconPencil, IconArrowsExchange, IconTrash, IconLink, IconUpload, IconPaperclip, IconPin, IconBolt, IconFileText, IconHourglass, IconArrowsSort, IconX, IconHistory, IconReport, IconCheck, IconArrowRight, IconCircleCheck } from "@tabler/icons-react";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { MemberHub } from "./MemberHub";
@@ -1333,12 +1333,16 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           stamped then). Counts real time vs the planned duration; nearing/over it
           asks INLINE (no popup): finished, or extend? Extending reshuffles the day. */}
       {timing && (
+        // One line (Praveen, 27 Oct): planned · on the clock, a progress bar, what's
+        // left (or how far over), then Output ready and Extend — always there, not only
+        // in the last 15 minutes.
         <div className={`timer-strip ${timing.elapsed >= timing.planned ? "over" : ""}`}>
           <span className="timer-num">{ICLOCK} {fmtMins(timing.planned)} planned · <b>{fmtMins(timing.elapsed)}</b> on the clock</span>
-          {timing.elapsed >= timing.planned - 15 && onStatusChange && onSetDuration && (
+          <span className="timer-track"><span className="timer-fill" style={{ width: `${Math.min(100, timing.planned ? (timing.elapsed / timing.planned) * 100 : 0)}%` }} /></span>
+          <span className="timer-msg">{timing.elapsed >= timing.planned ? `Over by ${fmtMins(timing.elapsed - timing.planned)} — wrap up or add time?` : `${fmtMins(timing.planned - timing.elapsed)} left`}</span>
+          {onStatusChange && onSetDuration && (
             <span className="timer-acts">
-              <span>{timing.elapsed >= timing.planned ? `Over by ${fmtMins(timing.elapsed - timing.planned)} — wrap up or add time?` : `~${fmtMins(timing.planned - timing.elapsed)} left — done, or need more time?`}</span>
-              <button className="btn sm primary" onClick={() => onStatusChange("Output - Ready")}>✓ Output ready</button>
+              <button className="btn sm primary" onClick={() => onStatusChange("Output - Ready")}><IconCheck size={14} stroke={2.2} /> Output ready</button>
               <ExtendPicker onExtend={(m, why) => onSetDuration(timing.planned + m, why)} />
             </span>
           )}
@@ -2621,7 +2625,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Completeness-gate block (server 422): the move was refused because required fields
   // are missing. `gate` = which transition, `missing` = the human-readable list.
   const [gateBlock, setGateBlock] = useState<GateBlock | null>(null);
-  const setTaskStatus = (id: string, status: CCStatus) => {
+  const setTaskStatus = (id: string, status: CCStatus, quiet = false) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
     if (cur && status === "Content - Approved" && nameIsWriter(cur.detail.owner)) {
       const handoff = autoAssign(cur.detail.typeLine);
@@ -2630,9 +2634,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         return;
       }
     }
-    doSetTaskStatus(id, status);
+    doSetTaskStatus(id, status, false, quiet);
   };
-  const doSetTaskStatus = (id: string, status: CCStatus, deferHandoff = false) => {
+  const doSetTaskStatus = (id: string, status: CCStatus, deferHandoff = false, quiet = false) => {
     // Capture the before-status so this move can be undone (session history).
     const prev = [...tasks, ...claimedTasks].find((t) => t.id === id);
     const prevStatus = prev?.status;
@@ -2688,6 +2692,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setClaimedTasks((a) => a.map((t) => (t.id === id ? next : t)));
 
     if (next.detail.owner !== cur.detail.owner) setToast({ who: `Approved → ${next.detail.owner}`, color: "#3A57E8", av: (next.detail.owner[0] || "?").toUpperCase(), body: `${cur.detail.typeLine} handed off to ${next.detail.owner} (design).` });
+    else if (quiet) { /* the task list shows the move itself (moveTask below) */ }
     else if (status === "Output - Ready" || status === "Output - In Progress") setToast({ who: `${STATUS[status].label}`, color: "#3A57E8", av: me.av, body: "Moved to the Output tab." });
     else if (!STATUS[status].inView) setToast({ who: `${STATUS[status].label}`, color: "#3A57E8", av: me.av, body: "It's left your working view." });
   };
@@ -3746,6 +3751,65 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     try { const id = localStorage.getItem(OPEN_KEY); const i = id ? shownTasks.findIndex((t) => t.id === id) : -1; if (i >= 0) setSel(i); } catch { /* */ }
   }, [shownTasks]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!task) return; try { localStorage.setItem(OPEN_KEY, task.id); } catch { /* */ } }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start and Output ready MOVE a task to another view. It used to vanish from the
+  // list mid-click and the next task silently took its place in the panel (Praveen,
+  // 27 Oct). Now the move is shown: the card lifts and says where it's going, then
+  //  · Start → the list switches to In progress and the card lands there, with a
+  //    note on the task;
+  //  · Output ready → the card folds away leaving a receipt (Undo / View), and the
+  //    next task opens marked "Up next".
+  // The save waits for the animation (~1s) so the card is still there to animate.
+  type MoveFx = { id: string; kind: "start" | "output"; phase: "lift" | "fold" | "landed" };
+  const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);          // open this task once the list has it
+  const [startNote, setStartNote] = useState<string | null>(null);    // task id: "Timer started…" on the task
+  const [switchedTo, setSwitchedTo] = useState<{ from: string; label: string } | null>(null);
+  const [receipt, setReceipt] = useState<{ id: string; title: string; prev: CCStatus } | null>(null);
+  const [upNext, setUpNext] = useState<{ id: string; fromTitle: string } | null>(null);
+  const fxTimers = useRef<number[]>([]);
+  const later = (fn: () => void, ms: number) => { fxTimers.current.push(window.setTimeout(fn, ms)); };
+  useEffect(() => () => { fxTimers.current.forEach(clearTimeout); }, []);
+  useEffect(() => {
+    if (!openId) return;
+    const i = shownTasks.findIndex((t) => t.id === openId);
+    if (i >= 0) { setSel(i); setOpenId(null); }
+  }, [openId, shownTasks]);
+  const moveTask = (t: Task, status: CCStatus) => {
+    const starting = status === "Output - In Progress" && t.status === "Content - Approved";
+    const finishing = status === "Output - Ready" && t.status === "Output - In Progress";
+    if (moveFx || (!starting && !finishing)) { setTaskStatus(t.id, status); return; }
+    if (starting) {
+      setMoveFx({ id: t.id, kind: "start", phase: "lift" });
+      later(() => {
+        setTaskStatus(t.id, status, true);
+        const ip = myTabs.find((tb) => tb.statuses.includes("Output - In Progress"));
+        if (ip && taskTab !== ip.key) { setSwitchedTo({ from: taskTab, label: ip.label }); setTaskTab(ip.key); later(() => setSwitchedTo(null), 8000); }
+        setOpenId(t.id);
+        setMoveFx({ id: t.id, kind: "start", phase: "landed" });
+        setStartNote(t.id);
+        later(() => setMoveFx((m) => (m?.id === t.id ? null : m)), 6000);
+        later(() => setStartNote((n) => (n === t.id ? null : n)), 7000);
+      }, 900);
+      return;
+    }
+    // Output ready: the next task is whichever slides into this one's place.
+    const i = shownTasks.findIndex((x) => x.id === t.id);
+    const next = shownTasks[i + 1] || shownTasks[i - 1] || null;
+    setMoveFx({ id: t.id, kind: "output", phase: "lift" });
+    later(() => setMoveFx({ id: t.id, kind: "output", phase: "fold" }), 750);
+    later(() => {
+      setTaskStatus(t.id, status, true);
+      setMoveFx(null);
+      setReceipt({ id: t.id, title: t.title, prev: t.status });
+      later(() => setReceipt((r) => (r?.id === t.id ? null : r)), 6000);
+      if (next) {
+        setOpenId(next.id);
+        setUpNext({ id: next.id, fromTitle: t.title });
+        later(() => setUpNext((u) => (u?.id === next.id ? null : u)), 8000);
+      } else setSel(null);
+    }, 1150);
+  };
   const dueTodayN = workingTasks.filter((t) => t.due === todayStr).length;
   // Today / Tomorrow / Later group headings in the list (prototype D) — only when the
   // list is in date order, where the groups follow each other.
@@ -4152,7 +4216,23 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               onSave={(v) => { const id = String(Date.now()); saveMyViews([...myViews, { ...v, id }]); setTaskTab(`view:${id}`); }}
               onDelete={(id) => { saveMyViews(myViews.filter((v) => v.id !== id)); if (taskTab === `view:${id}`) setTaskTab(myTabs[0].key); }}
             />
-            <div className="tasklist">
+            {switchedTo && (
+              <div className="fx-switched">
+                Switched to <b>{switchedTo.label}</b> — your started task is here.{" "}
+                <button type="button" onClick={() => { setTaskTab(switchedTo.from); setSel(null); setSwitchedTo(null); }}>Back to {myTabs.find((tb) => tb.key === switchedTo.from)?.label || "the last view"}</button>
+              </div>
+            )}
+            <div className="tasklist fx-pane" key={`list-${taskTab}`}>
+              {receipt && (
+                <div className="fx-receipt">
+                  <IconCircleCheck size={16} stroke={1.8} />
+                  <span><b>{receipt.title}</b> sent to Output ready</span>
+                  <span className="fx-receipt-acts">
+                    <button type="button" onClick={() => { const r = receipt; setReceipt(null); setUpNext(null); setTaskStatus(r.id, r.prev, true); setOpenId(r.id); }}>Undo</button>
+                    <button type="button" onClick={() => { const r = receipt; setReceipt(null); setUpNext(null); const out = myTabs.find((tb) => tb.statuses.includes("Output - Ready")); if (out) setTaskTab(out.key); setOpenId(r.id); }}>View</button>
+                  </span>
+                </div>
+              )}
               {shownTasks.length === 0 && claimableHere.length === 0 && (
                 <div className="empty" style={{ padding: "1.6rem 0" }}>
                   {isEditor && curTab.key === "approved" && videoInHand.length > 0
@@ -4168,11 +4248,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 const st = STATUS[t.status];
                 const di = dueInfo(t.due, todayStr);
                 return (
-                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : di.today ? "duetoday" : di.tomorrow ? "duetomorrow" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
+                  <div key={t.id} className={`task ${task && t.id === task.id ? "sel" : ""} ${moveFx?.id === t.id ? `fx-${moveFx.kind} fx-${moveFx.phase}` : ""} ${upNext?.id === t.id ? "fx-now" : ""} ${claimed ? "just-claimed" : ""} ${di.overdue ? "overdue" : di.today ? "duetoday" : di.tomorrow ? "duetomorrow" : ""} ${isHot(t.detail.priority) ? "high" : ""}`} onClick={async () => { if (!(await leaveComposer())) return; setSel(i); setPeekId(null); }}>
                     {/* Two columns: the task on the left, its dates and state stacked on
                         the right. The status pill used to sit after the meta text, so it
                         landed at a different spot on every row — now due and status line
                         up in one straight right-hand column down the whole list. */}
+                    {moveFx?.id === t.id && moveFx.phase !== "landed" && (
+                      <span className="fx-badge">{moveFx.kind === "start" ? "Moving to In progress" : "Moving to Output ready"}</span>
+                    )}
                     <div className="task-row">
                       <div className="task-main">
                         <div className="tt">{t.title}</div>
@@ -4180,7 +4263,12 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                       <div className="task-side">
                         <DueChip due={t.due} today={todayStr} />
                         {/* The View picker already says the status; only "In progress" earns a pill. */}
-                        {t.status === "Output - In Progress" && <span className="pill xs" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>}
+                        {upNext?.id === t.id && <span className="pill xs fx-now-tag">Now open</span>}
+                        {moveFx?.id === t.id && moveFx.kind === "start" && moveFx.phase === "lift"
+                          ? <span className="pill xs fx-pop" style={{ background: TONE.info.bg, color: TONE.info.fg }}>In Progress</span>
+                          : moveFx?.id === t.id && moveFx.kind === "output"
+                            ? <span className="pill xs fx-pop" style={{ background: "var(--good-soft)", color: "var(--good)" }}>Output ready</span>
+                            : t.status === "Output - In Progress" && <span className="pill xs" style={{ background: TONE[st.tone].bg, color: TONE[st.tone].fg }}>{st.label}</span>}
                         {isHot(t.detail.priority) && <span className="pill xs" style={{ background: PRIO[t.detail.priority].bg, color: PRIO[t.detail.priority].fg, display: "inline-flex", alignItems: "center", gap: 3 }}><IconBolt size={11} stroke={1.9} /> {t.detail.priority}</span>}
                         {claimed && <span className="pill xs" style={{ background: "#E9ECFB", color: "#2138B0" }}>Claimed by you</span>}
                       </div>
@@ -4188,6 +4276,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                     {/* Type and brand chips run the full card width, under the date too,
                         so the brand isn't squeezed into the title column (Praveen, 23 Oct). */}
                     <div className="mm">{t.detail.typeLine ? <span className="type-chip">{t.detail.typeLine}</span> : t.meta}{t.detail.brand && <span className="sbu-chip">{t.detail.brand}</span>}</div>
+                    {moveFx?.id === t.id && moveFx.kind === "start" && moveFx.phase === "landed" && (
+                      <div className="fx-moved"><IconArrowRight size={13} stroke={2} /> Moved to In progress · timer running</div>
+                    )}
                   </div>
                 );
               })(rowTask, shownTasks.indexOf(rowTask)) : ((v: Task) => {
@@ -4245,7 +4336,25 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 <TaskBody key={`peek-${peek.id}`} task={peek} label="Up for grabs · preview" uploadedBy={person} onSaved={load} />
               </>
             ) : null; })() || (task ? (
-              <TaskBody key={`task-${task.id}`} task={task} label="Task · opened" onStatusChange={(s) => setTaskStatus(task.id, s)} onSetDuration={(m, why, undoOf) => setDuration(task.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
+              <>
+              {startNote === task.id && (
+                <div className="fx-note">
+                  <IconCircleCheck size={17} stroke={1.8} />
+                  <span><b>Timer started.</b> Content - Approved <IconArrowRight size={13} stroke={2} style={{ display: "inline", verticalAlign: "-2px" }} /> <b>In progress</b> · showing your In progress list.</span>
+                  <button type="button" className="fx-x" title="Close" onClick={() => setStartNote(null)}><IconX size={14} stroke={2} /></button>
+                </div>
+              )}
+              {upNext?.id === task.id && (
+                <div className="fx-note">
+                  <IconArrowRight size={17} stroke={1.8} />
+                  <span><b>Up next</b> · “{upNext.fromTitle}” went to Output ready. This is your next task.</span>
+                  <button type="button" className="fx-x" title="Close" onClick={() => setUpNext(null)}><IconX size={14} stroke={2} /></button>
+                </div>
+              )}
+              <div className={upNext?.id === task.id ? "fx-pane" : undefined} key={`body-${task.id}`}>
+              <TaskBody key={`task-${task.id}`} task={task} label="Task · opened" onStatusChange={(s) => moveTask(task, s)} onSetDuration={(m, why, undoOf) => setDuration(task.id, m, why, undoOf)} canSchedule={isAdmin} uploadedBy={person} onSaved={load} timing={taskTiming(task)} canEdit={canEditTasks} canDelete={canDeleteTasks} canAssign={canAssignTasks} onDeleted={() => { setSel(null); load(); }} />
+              </div>
+              </>
             ) : (
               // One entry point only: "+ New task" sits in the My tasks header, so the
               // resting panel stays empty rather than repeating the same button.
