@@ -20,8 +20,9 @@ export const dynamic = "force-dynamic";
 
 const FIELDS = new Set(["status", "previous_status", "sbu", "type", "kind", "priority", "owner", "owner_role", "owner_is_creator", "owner_changed"]);
 const OPS = new Set(["is", "isNot", "isAnyOf", "isNoneOf", "isEmpty", "isNotEmpty", "contains", "doesNotContain"]);
-const ON = new Set(["created", "status", "save"]);
+const ON = new Set(["created", "status", "save", "type"]);
 const POOL = "__pool__";
+const REMEMBERED = "__remembered__";   // back to the editor it was taken from, else the pool (sql/041)
 
 type Cond = { field: string; op: string; value?: string | string[] };
 type Group = { conjunction: "and" | "or"; conditions: (Cond | Group)[] };
@@ -45,7 +46,7 @@ function cleanConditions(g: unknown, depth = 0): Group {
 
 async function cleanRule(b: Record<string, unknown>) {
   const people = new Set((await fetchRoster()).filter((u) => u.active).map((u) => u.id));
-  const spec = (b.trigger_spec || {}) as { on?: string; statuses?: unknown };
+  const spec = (b.trigger_spec || {}) as { on?: string; statuses?: unknown; types?: unknown };
   const on = ON.has(String(spec.on)) ? String(spec.on) : "save";
   const statuses = Array.isArray(spec.statuses) ? spec.statuses.map(String).filter((s) => (TASK_STATUSES as readonly string[]).includes(s)) : [];
   const actions: Action[] = [];
@@ -53,14 +54,16 @@ async function cleanRule(b: Record<string, unknown>) {
     if (a?.type === "keep_previous_owner") { actions.push({ type: a.type }); continue; }
     if (a?.type !== "owner" && a?.type !== "collaborator") continue;
     const to = String(a.to || "").toLowerCase();
-    if (a.type === "owner" && to === POOL) { actions.push({ type: "owner", to: POOL }); continue; }
+    if (a.type === "owner" && (to === POOL || to === REMEMBERED)) { actions.push({ type: "owner", to }); continue; }
     if (!people.has(to)) throw new Error(`“${a.to}” is not someone on the team.`);
     actions.push({ type: a.type, to });
   }
   if (actions.filter((a) => a.type === "owner").length > 1) throw new Error("A rule can hand the task to only one person.");
   return {
     name: String(b.name || "").trim().slice(0, 120) || "Untitled rule",
-    trigger_spec: on === "status" ? { on, statuses } : { on },
+    trigger_spec: on === "status" ? { on, statuses }
+      : on === "type" ? { on, ...(Array.isArray(spec.types) && spec.types.length ? { types: spec.types.map(String).slice(0, 50) } : {}) }
+      : { on },
     conditions: cleanConditions(b.conditions),
     actions,
     note: typeof b.note === "string" ? b.note.slice(0, 300) || null : undefined,

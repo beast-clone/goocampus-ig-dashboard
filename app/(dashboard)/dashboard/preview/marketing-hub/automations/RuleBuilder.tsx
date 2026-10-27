@@ -22,13 +22,15 @@ import type { FilterCondition, FilterModel } from "@/lib/filter-model";
 // parts above and leaves any other condition a rule already has untouched (e.g. "only
 // if nobody owns it yet"), so editing a rule never quietly changes those.
 
-type Spec = { on: "created" | "status" | "save"; statuses?: string[] };
+type Spec = { on: "created" | "status" | "save" | "type"; statuses?: string[]; types?: string[] };
 type Action = { type: "owner" | "collaborator" | "keep_previous_owner"; to?: string };
 type Rule = { id: string; name: string; active: boolean; position: number; trigger_spec: Spec; conditions: FilterModel | null; actions: Action[]; note: string | null };
 type Person = { value: string; label: string; active: boolean };
 const POOL = "__pool__";
 const CREATED = "__created__";
 const HANDED = "__handed__";
+const TYPE_CHANGE = "__type__";        // "when the type changes to…" (sql/041)
+const REMEMBERED = "__remembered__";   // back to the editor it was taken from, else the pool
 
 // The simple reading of a stored rule.
 type Simple = { moment: string; types: string[]; brands: string[]; owner: string; collabs: string[] };
@@ -42,11 +44,11 @@ function toSimple(r: Rule, allBrands: string[]): Simple {
   const sp = r.trigger_spec || { on: "save" };
   const handed = cs.some((c) => c.field === "owner_changed" && vals(c)[0] === "yes");
   const statusCond = cs.find((c) => c.field === "status" && (c.op === "is" || c.op === "isAnyOf"));
-  const moment = sp.on === "created" ? CREATED : handed ? HANDED
+  const moment = sp.on === "created" ? CREATED : sp.on === "type" ? TYPE_CHANGE : handed ? HANDED
     : sp.on === "status" ? (sp.statuses || [])[0] || "Content - Approved"
     : statusCond ? vals(statusCond)[0] : "Content - Approved";
-  let types: string[] = [];
-  for (const c of cs) {
+  let types: string[] = sp.on === "type" && sp.types?.length ? [...sp.types] : [];
+  if (!types.length) for (const c of cs) {
     if (c.field === "type" && (c.op === "is" || c.op === "isAnyOf")) types = vals(c);
     if (c.field === "kind" && c.op === "is") types = ALL_TYPES.filter((t) => (vals(c)[0] === "video") === VIDEO_TYPES.has(t));
   }
@@ -66,17 +68,21 @@ function toSimple(r: Rule, allBrands: string[]): Simple {
 // Back to the stored shape. Conditions this screen doesn't show are kept as they were.
 function fromSimple(s: Simple, prev: Rule | null, allBrands: string[]) {
   const shown = new Set(["type", "kind", "sbu", "owner_changed"]);
-  const keep = (prev ? condsOf(prev) : []).filter((c) => !shown.has(c.field) && !(c.field === "status" && s.moment !== HANDED));
+  // Status checks on "handed over" and "type changes" rules aren't shown in the form; keep them.
+  const keep = (prev ? condsOf(prev) : []).filter((c) => !shown.has(c.field) && !(c.field === "status" && s.moment !== HANDED && s.moment !== TYPE_CHANGE));
   const conds: FilterCondition[] = [...keep];
   if (s.moment === HANDED) conds.push({ field: "owner_changed", op: "is", value: "yes" } as FilterCondition);
-  if (s.types.length && s.types.length < ALL_TYPES.length) conds.push({ field: "type", op: "isAnyOf", value: s.types } as FilterCondition);
+  const partialTypes = s.types.length && s.types.length < ALL_TYPES.length;
+  if (partialTypes && s.moment !== TYPE_CHANGE) conds.push({ field: "type", op: "isAnyOf", value: s.types } as FilterCondition);
   if (s.brands.length && s.brands.length < allBrands.length) conds.push({ field: "sbu", op: "isAnyOf", value: s.brands } as FilterCondition);
   const actions: Action[] = [
     ...(s.owner ? [{ type: "owner" as const, to: s.owner }] : []),
     ...s.collabs.filter((c) => c !== s.owner).map((to) => ({ type: "collaborator" as const, to })),
     ...(prev?.actions.some((a) => a.type === "keep_previous_owner") && s.owner ? [{ type: "keep_previous_owner" as const }] : []),
   ];
-  const trigger_spec: Spec = s.moment === CREATED ? { on: "created" } : s.moment === HANDED ? { on: "save" } : { on: "status", statuses: [s.moment] };
+  const trigger_spec: Spec = s.moment === CREATED ? { on: "created" } : s.moment === HANDED ? { on: "save" }
+    : s.moment === TYPE_CHANGE ? { on: "type", ...(partialTypes ? { types: s.types } : {}) }
+    : { on: "status", statuses: [s.moment] };
   return { trigger_spec, conditions: { conjunction: "and", conditions: conds } as FilterModel, actions };
 }
 
@@ -97,7 +103,7 @@ export function RuleBuilder() {
   }).catch(() => setRules([]));
   useEffect(() => { load(); }, []);
 
-  const nameOf = (k?: string) => (k === POOL ? "the editors’ claim pool" : people.find((p) => p.value === k)?.label || PPL[k || ""]?.name || k || "");
+  const nameOf = (k?: string) => (k === POOL ? "the editors’ claim pool" : k === REMEMBERED ? "the editor who had it before (or the claim pool)" : people.find((p) => p.value === k)?.label || PPL[k || ""]?.name || k || "");
   const call = async (method: string, body?: unknown, qs = "") => {
     setBusy(true);
     try {
@@ -132,8 +138,11 @@ export function RuleBuilder() {
   const extrasText = (r: Rule) => {
     const cs = condsOf(r);
     const out: string[] = [];
+    // A status check the form doesn't show (type-change and hand-over rules) still reads out.
+    if (r.trigger_spec?.on !== "status" && cs.some((c) => c.field === "status" && vals(c).includes("Content - Approved"))) out.push("it's already approved");
     if (cs.some((c) => c.field === "owner" && c.op === "isEmpty")) out.push("nobody owns it yet");
     if (cs.some((c) => c.field === "owner_is_creator" && vals(c)[0] === "yes")) out.push("an editor wrote it");
+    if (cs.some((c) => c.field === "owner_role" && vals(c)[0] === "designer")) out.push("the designer has it");
     return out.length ? ` and ${out.join(" and ")}` : "";
   };
   const describe = (r: Rule) => {
@@ -141,7 +150,9 @@ export function RuleBuilder() {
     const ts = typesShort(s.types);
     const subj = ts === "Any type" ? "a task" : ts === "All design types" ? "a design task" : ts === "All video types" ? "a video task" : ((t: string) => `${/^[AEIOU]/i.test(t) ? "an" : "a"} ${t}`)(s.types.length <= 3 ? list(s.types) : ts);
     const b = brandsText(s.brands);
-    const when = `When ${subj}${b ? ` for ${b}` : ""} ${momentText(s.moment)}${extrasText(r)}`;
+    const when = s.moment === TYPE_CHANGE
+      ? `When a task${b ? ` for ${b}` : ""} changes type to ${ts === "Any type" ? "anything else" : ts === "All design types" ? "design work" : ts === "All video types" ? "video work" : s.types.length <= 3 ? list(s.types) : ts}${extrasText(r)}`
+      : `When ${subj}${b ? ` for ${b}` : ""} ${momentText(s.moment)}${extrasText(r)}`;
     const parts: string[] = [];
     if (s.owner) parts.push(s.owner === POOL ? "it goes to the editors’ claim pool" : `it goes to ${nameOf(s.owner)}`);
     if (s.collabs.length) parts.push(`${list(s.collabs.map(nameOf), "and")} ${s.collabs.length > 1 ? "are" : "is"} added as ${s.collabs.length > 1 ? "collaborators" : "a collaborator"}`);
@@ -151,14 +162,14 @@ export function RuleBuilder() {
   const titleOf = (r: Rule) => {
     const s = toSimple(r, sbus);
     const b = brandsText(s.brands);
-    if (s.owner) return <>{typesShort(s.types)}{b ? ` · ${b}` : ""} <span className="text-[#8A92A6] font-normal">→</span> {s.owner === POOL ? "The editors’ claim pool" : nameOf(s.owner)}</>;
+    if (s.owner) return <>{s.moment === TYPE_CHANGE ? `Type changes to ${typesShort(s.types).replace(/^All /, "").replace(/^Any type$/, "anything")}` : typesShort(s.types)}{b ? ` · ${b}` : ""} <span className="text-[#8A92A6] font-normal">→</span> {s.owner === POOL ? "The editors’ claim pool" : s.owner === REMEMBERED ? "The editor who had it" : nameOf(s.owner)}</>;
     const who = list(s.collabs.map(nameOf), "and") || "Nobody";
     return <>{who} {s.collabs.length > 1 ? "follow" : "follows"} {s.moment === HANDED ? "tasks that change hands" : s.moment === CREATED ? (b ? `new tasks for ${b}` : "every new task") : `tasks that ${momentText(s.moment)}${b ? ` for ${b}` : ""}`}</>;
   };
   const avatar = (r: Rule) => {
     const s = toSimple(r, sbus);
     const k = s.owner || s.collabs[0] || "";
-    if (k === POOL || !k) return <span className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconUsers size={17} stroke={1.8} /></span>;
+    if (k === POOL || k === REMEMBERED || !k) return <span className="w-9 h-9 rounded-full bg-brand-light text-brand flex items-center justify-center flex-shrink-0"><IconUsers size={17} stroke={1.8} /></span>;
     return <span className="w-9 h-9 rounded-full text-white text-[13px] font-medium flex items-center justify-center flex-shrink-0" style={{ background: PPL[k]?.color || "#3A57E8" }}>{nameOf(k).charAt(0).toUpperCase()}</span>;
   };
 
@@ -281,9 +292,10 @@ function RuleForm({ initial, isNew, people, sbus, busy, onCancel, onSave }: {
   const momentOptions = [
     { value: CREATED, label: "(a new task is created)", head: "NEW TASK" },
     ...TASK_STATUSES.map((st, i) => ({ value: st, label: st, head: i === 0 ? "STATUS CHANGES TO" : undefined })),
+    { value: TYPE_CHANGE, label: "(the type changes — pick the new type below)", head: "TYPE CHANGES" },
     { value: HANDED, label: "(the task is handed to someone else)", head: "OWNER CHANGES" },
   ];
-  const ownerOptions = [{ value: "", label: "Nobody — only add collaborators" }, { value: POOL, label: "The editors’ claim pool" }, ...people.map((p) => ({ value: p.value, label: p.label }))];
+  const ownerOptions = [{ value: "", label: "Nobody — only add collaborators" }, { value: POOL, label: "The editors’ claim pool" }, { value: REMEMBERED, label: "The editor who had it before (else the claim pool)" }, ...people.map((p) => ({ value: p.value, label: p.label }))];
   const line = "grid grid-cols-1 sm:grid-cols-[132px_1fr] items-center gap-1.5 sm:gap-3";
   const kw = "text-[13.5px] text-[#4A5468]";
   const valid = !!s.owner || s.collabs.length > 0;
@@ -293,9 +305,9 @@ function RuleForm({ initial, isNew, people, sbus, busy, onCancel, onSave }: {
       <div className="w-full max-w-[560px] bg-white rounded-2xl border border-gray-100" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 pt-4 pb-1"><h2 className="text-[17px] font-medium text-[#232D42]">{isNew ? "New rule" : "Edit rule"}</h2></div>
         <div className="px-5 py-3 flex flex-col gap-2.5">
-          <div className={line}><span className={kw}>If status moves to</span>
+          <div className={line}><span className={kw}>{s.moment === CREATED || s.moment === HANDED || s.moment === TYPE_CHANGE ? "If" : "If status moves to"}</span>
             <Pick value={s.moment} options={momentOptions} onChange={(v) => set({ moment: v })} /></div>
-          <div className={line}><span className={kw}>and type is</span>
+          <div className={line}><span className={kw}>{s.moment === TYPE_CHANGE ? "new type is" : "and type is"}</span>
             <CheckList value={s.types} groups={[{ name: "DESIGN", items: design }, { name: "VIDEO", items: video }]} empty="Any type" onChange={(v) => set({ types: v })} /></div>
           <div className={line}><span className={kw}>and brand is</span>
             <CheckList value={s.brands} groups={[{ name: "BRANDS", items: sbus }]} empty="Any brand" onChange={(v) => set({ brands: v })} /></div>
