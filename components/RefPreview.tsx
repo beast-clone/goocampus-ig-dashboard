@@ -208,6 +208,10 @@ export function RefPreviewHost() {
   // A box marked data-ref-stack (My Day) lists EVERY file at once, one under another,
   // instead of one with ‹ › (Praveen, 26 Oct). A click opens that one full size.
   const stack = !!box && st.dock?.dataset.refStack === "1" && many;
+  const isPdfItem = (u: string) => /\.pdf(\?|#|$)/i.test(u.split("?")[0]) || viewFor(u).kind === "pdf";
+  const indexed = st.items.map((it, i) => ({ it, i }));
+  const stackSlides = indexed.filter((x) => !isPdfItem(x.it.url));
+  const stackPdfs = indexed.filter((x) => isPdfItem(x.it.url));
   const openBig = (i: number) => { setSt({ ...st, index: i }); setBig(true); };
   const copy = async (url: string) => {
     const ok = await copyImage(url);
@@ -241,7 +245,7 @@ export function RefPreviewHost() {
         <div className="rfp-bar rfp-sbar">
           <div className="rfp-t">
             <div className="rfp-name">{cur.from || "Files"}</div>
-            <div className="rfp-from">{st.items.length} files · click one for full size</div>
+            <div className="rfp-from">{stackPdfs.length ? `${stackSlides.length} slide${stackSlides.length === 1 ? "" : "s"} · ${stackPdfs.length} PDF for LinkedIn` : `${st.items.length} files`} · click one for full size</div>
           </div>
           <button type="button" className="rfp-btn ic" onClick={() => setSt(null)} aria-label="Close"><IconX size={15} stroke={2} /></button>
         </div>
@@ -279,7 +283,9 @@ export function RefPreviewHost() {
       </>)}
       {stack && (
         <div className="rfp-body rfp-stack">
-          {st.items.map((it, i) => {
+          {/* Slides first, numbered; the LinkedIn PDF after them under its own heading —
+              it is the whole carousel as one document, not slide 1 or 11 (27 Oct). */}
+          {stackSlides.map(({ it, i }, n) => {
             const iv = viewFor(it.url);
             return (
               <div key={it.url + i} className="rfp-si">
@@ -288,12 +294,21 @@ export function RefPreviewHost() {
                   ? <img src={iv.src} alt={nameOf(it)} loading="lazy" className="rfp-zoomable" title="Click to view full size" onClick={() => openBig(i)} />
                   : <a className="rfp-sfile" href={it.url} target="_blank" rel="noreferrer">{nameOf(it)} <IconExternalLink size={12} stroke={2} /></a>}
                 <div className="rfp-srow">
-                  <div className="rfp-sname" title={nameOf(it)}>{i + 1}. {nameOf(it)}</div>
+                  <div className="rfp-sname" title={nameOf(it)}>{n + 1}. {nameOf(it)}</div>
                   {iv.kind === "image" && <CopyBtn url={it.url} />}
                 </div>
               </div>
             );
           })}
+          {stackPdfs.length > 0 && (
+            <div className="rfp-pdfhead"><b>LinkedIn PDF</b><span>For LinkedIn</span></div>
+          )}
+          {stackPdfs.map(({ it, i }) => (
+            <div key={it.url + i} className="rfp-si rfp-pdf">
+              <a className="rfp-sfile" href={it.url} target="_blank" rel="noreferrer">{nameOf(it)} <IconExternalLink size={12} stroke={2} /></a>
+              <div className="rfp-srow"><div className="rfp-sname">The whole carousel as one document — not a slide.</div></div>
+            </div>
+          ))}
         </div>
       )}
     </aside>
@@ -313,6 +328,10 @@ const CSS = `
 .rfp.docked .rfp-sbar{flex-wrap:nowrap}
 .rfp.docked .rfp-sbar .rfp-t{flex:1;flex-basis:auto}
 .rfp-si{min-width:0}
+.rfp-pdfhead{display:flex;align-items:center;gap:6px;font-size:12px;color:#232D42;padding-top:8px;border-top:1px solid #EEF0F4}
+.rfp-pdfhead b{font-weight:500}
+.rfp-pdfhead span{font-size:10.5px;font-weight:500;border-radius:999px;padding:1px 7px;background:#E8F1FB;color:#0A66C2}
+.rfp-pdf .rfp-sfile{border-color:#F3C9C3;background:#FDECEA;color:#C0392B}
 .rfp-si img{width:100%;max-height:none;display:block;border:1px solid #EEF0F4;background:#fff}
 .rfp-srow{display:flex;align-items:center;gap:6px;margin-top:4px}
 .rfp-sname{flex:1;min-width:0;font-size:11.5px;color:#8A92A6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
