@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
 import { getClient } from "@/lib/oauth";
+import { canConnectClaude } from "@/lib/permissions";
 
 // The approval screen — the one thing in this flow a person actually sees.
 //
@@ -52,7 +53,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pa
   if (problem) return <Shell><Problem title="This sign-in request isn't valid" body={problem} /></Shell>;
 
   const me = await rosterById(userId!);
-  const allowed = !!me && me.active && (me.isAdmin || me.permissions.claude_connector === true);
+  const allowed = canConnectClaude(me);
   if (!allowed) {
     return (
       <Shell>

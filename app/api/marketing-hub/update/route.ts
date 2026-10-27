@@ -9,7 +9,7 @@ import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { postSlack, slackTaskLink } from "@/lib/slack";
 import { requireCapability, requireSection } from "@/lib/api-guard";
 import { requestDateChange, supersedeDateChange } from "@/lib/date-approvals";
-import { needsDateApproval, needsDateReason } from "@/lib/permissions";
+import { canEditCalendar, needsDateApproval, needsDateReason } from "@/lib/permissions";
 import { freshPublishState } from "@/lib/scheduler-lock";
 import { rosterById } from "@/lib/team-db";
 import { siblingOf } from "@/lib/notifications";
@@ -196,6 +196,11 @@ export async function PATCH(req: Request) {
       || ("due_date" in clean && "due_date" in body.fields && day(clean.due_date) !== day(preRow.due_date))) {
       const no = await requireCapability("reschedule");
       if (no) return no;
+      // A calendar drag also needs "Edit calendar" (Team & access) — checked here,
+      // not only by hiding the drag (27 Oct wiring audit, A4).
+      if ((body as { source?: string }).source === "calendar" && !canEditCalendar(await rosterById(me))) {
+        return NextResponse.json({ error: "Your access doesn't include \"Edit calendar\" — ask an admin to switch it on in Team & access." }, { status: 403 });
+      }
     }
     // "Ask why when a date moves" is enforced here, not only on screen, so no path
     // skips it — planner drag, the Claude connector, older pages (22 Oct review).

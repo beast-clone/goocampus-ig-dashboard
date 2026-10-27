@@ -6,7 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
-import { CAPABILITIES, DATE_APPROVAL_RULE, DATE_REASON_RULE, TABS, TASK_ACTIONS, needsDateApproval, needsDateReason, canEditCalendar, type Capability } from "@/lib/permissions";
+import { CAPABILITIES, DATE_APPROVAL_RULE, DATE_REASON_RULE, TABS, TASK_ACTIONS, canConnectClaude, hasCapability, needsDateApproval, needsDateReason, canEditCalendar, type Capability } from "@/lib/permissions";
 
 type Member = {
   id: string;
@@ -391,14 +391,14 @@ function PersonEditor({ m, team, busy, viewerId, onSave, onAction }: { m: Member
         ) : <div className="text-[12.5px] text-[#8A92A6]">{CAPABILITIES.filter((c) => TASK_ACTIONS.includes(c.key)).map((c) => c.label).join(" · ")}</div>}
         <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-gray-50">
           <div><div className="text-[13px] text-[#232D42]">Connect Claude</div><div className="text-[12px] text-[#8A92A6]">Create tasks from Claude with a personal key (My Account).</div></div>
-          <Toggle checked={d.permissions.claude_connector === true || (d.isAdmin && d.permissions.claude_connector !== false)} disabled={busy} label="Connect Claude" onChange={(v) => setPerm({ claude_connector: v })} />
+          <Toggle checked={canConnectClaude({ isAdmin: d.isAdmin, permissions: d.permissions as never })} disabled={busy} label="Connect Claude" onChange={(v) => setPerm({ claude_connector: v })} />
         </div>
       </Section>
 
       <Section icon={<IconCalendarEvent size={16} stroke={1.8} />} title="Calendar & dates">
         <div className="flex items-center justify-between gap-3 py-2">
-          <div><div className="text-[13px] text-[#232D42]">Edit calendar</div><div className="text-[12px] text-[#8A92A6]">Drag tasks and change dates in the Content and Mentorship calendars. Off = view only.</div></div>
-          <Toggle checked={canEditCalendar({ isAdmin: d.isAdmin, permissions: d.permissions as never })} disabled={busy} label="Edit calendar" onChange={(v) => setPerm({ calendar_edit: v })} />
+          <div><div className="text-[13px] text-[#232D42]">Edit calendar</div><div className="text-[12px] text-[#8A92A6]">{hasCapability({ isAdmin: d.isAdmin, permissions: d.permissions as never }, "reschedule") ? "Drag tasks and change dates in the Content and Mentorship calendars and the Post Planner. Off = view only." : "Needs Change dates (Task actions) to be on first."}</div></div>
+          <Toggle checked={canEditCalendar({ isAdmin: d.isAdmin, permissions: d.permissions as never })} disabled={busy || !hasCapability({ isAdmin: d.isAdmin, permissions: d.permissions as never }, "reschedule")} label="Edit calendar" onChange={(v) => setPerm({ calendar_edit: v })} />
         </div>
         <div className="flex items-center justify-between gap-3 py-2">
           <div><div className="text-[13px] text-[#232D42]">{DATE_APPROVAL_RULE.label}</div><div className="text-[12px] text-[#8A92A6]">{DATE_APPROVAL_RULE.desc}</div></div>

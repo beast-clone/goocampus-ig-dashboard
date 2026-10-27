@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
-import { CAPABILITIES, hasCapability, canAccessSection, maySchedulePage, type Capability, type Section } from "@/lib/permissions";
+import { CAPABILITIES, hasCapability, canAccessSection, canSeeTab, apiTabFor, maySchedulePage, type Capability, type Section } from "@/lib/permissions";
 import { getSupabase } from "@/lib/supabase";
 
 // Per-user (falls back to IP) rate-limit guard for expensive routes — the ones
@@ -54,6 +55,8 @@ export async function requireSchedulerPost(postId: string): Promise<NextResponse
 
 export async function requireCapability(cap: Capability): Promise<NextResponse | null> {
   const me = await rosterById(getSessionUserId());
+  // "Can sign in" off counts at once, not at their next login (A9).
+  if (me && !me.active) return NextResponse.json({ error: "This account is switched off." }, { status: 401 });
   if (!hasCapability(me, cap)) {
     const label = CAPABILITIES.find((c) => c.key === cap)?.label;
     return NextResponse.json({ error: label ? `Your access doesn't include "${label}" — ask an admin to switch it on in Team & access.` : "You don't have permission to do that." }, { status: 403 });
@@ -63,8 +66,15 @@ export async function requireCapability(cap: Capability): Promise<NextResponse |
 
 export async function requireSection(sec: Section): Promise<NextResponse | null> {
   const me = await rosterById(getSessionUserId());
+  if (me && !me.active) return NextResponse.json({ error: "This account is switched off." }, { status: 401 });
   if (!canAccessSection(me, sec)) {
     return NextResponse.json({ error: "You don't have access to this section." }, { status: 403 });
+  }
+  // A page switched off on Team & access also closes the data behind it, not just
+  // the sidebar link (A7). The middleware stamps the API path on every request.
+  const tab = apiTabFor(headers().get("x-gc-path"));
+  if (tab && !canSeeTab(me, tab.key)) {
+    return NextResponse.json({ error: `Your access doesn't include ${tab.label} — ask an admin to switch it on in Team & access.` }, { status: 403 });
   }
   return null;
 }

@@ -396,7 +396,7 @@ type PublishApprovalCtx = {
   isAdmin: boolean;
   // Change a task's publish date with the approval gate. `to` = new yyyy-mm-dd (or
   // null to clear). Returns what happened so the caller can refresh or revert.
-  changePublishDate: (args: { id: string; title: string; from: string | null; to: string | null }) => Promise<ApprovalOutcome>;
+  changePublishDate: (args: { id: string; title: string; from: string | null; to: string | null; source?: "calendar" }) => Promise<ApprovalOutcome>;
 };
 const PublishApprovalContext = createContext<PublishApprovalCtx | null>(null);
 const dayOf = (d: string | null) => (d ? String(d).slice(0, 10) : null);
@@ -417,11 +417,12 @@ export function PublishApprovalProvider({ children }: { children: React.ReactNod
   }, []);
 
 
-  const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null }): Promise<ApprovalOutcome> => {
+  const changePublishDate = useCallback(async (a: { id: string; title: string; from: string | null; to: string | null; source?: "calendar" }): Promise<ApprovalOutcome> => {
+    const src = a.source ? { source: a.source } : {};
     if (dayOf(a.from) === dayOf(a.to)) return "applied"; // no-op: same day
     // A dateless task getting its first date isn't a move — no popup (the server agrees).
     if (!a.from) {
-      const r = await saveField(a.id, { publishing_date: a.to });
+      const r = await saveField(a.id, { publishing_date: a.to }, src);
       if (!r.ok) return "error";
       if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
       return "applied";
@@ -432,12 +433,12 @@ export function PublishApprovalProvider({ children }: { children: React.ReactNod
     // the date just changes, and with approval needed the popup still confirms the
     // request but the reason is optional.
     if (!viewer.needsReason && !viewer.needsApproval) {
-      const r0 = await saveField(a.id, { publishing_date: a.to });
+      const r0 = await saveField(a.id, { publishing_date: a.to }, src);
       return r0.ok ? (r0.pendingApproval ? "pending" : "applied") : "error";
     }
     const reasonText = await new Promise<string | null>((resolve) => { setReason(""); setAsk({ ...a, resolve }); });
     if (reasonText === null) return "cancelled";
-    const r = await saveField(a.id, { publishing_date: a.to }, { reason: reasonText });
+    const r = await saveField(a.id, { publishing_date: a.to }, { reason: reasonText, ...src });
     if (!r.ok) return "error";
     if (r.pendingApproval) { setToast(`Sent for admin approval — “${a.title}” moves to ${fmtDateShort(a.to || "")} once it's approved.`); return "pending"; }
     return "applied";
@@ -1747,7 +1748,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     if (row && (movedTo.get(row.id)?.to ?? row.publishingDate?.slice(0, 10)) === dayKey) return; // no-op: same day
     // Non-admins get the reason popup → the drop is sent for Maheen's approval (the
     // card stays put until she approves); admins apply it immediately.
-    const outcome = await changePublishDate({ id, title: row?.particulars || "This task", from: row?.publishingDate || null, to: dayKey });
+    const outcome = await changePublishDate({ id, title: row?.particulars || "This task", from: row?.publishingDate || null, to: dayKey, source: "calendar" });
     if (outcome === "pending") {
       await pendingMoves.refresh();
       showToast({ who: "Moved — waiting for approval", body: "It shows on the new day now; an admin approves the date.", color: "#3A57E8", av: "✓" });
@@ -2336,12 +2337,12 @@ function PlatformIcons({ platforms }: { platforms: string[] }) {
 type PendingApproval = { from: string | null; to: string | null };
 type SaveResult = { ok: true; pendingApproval?: PendingApproval } | { ok: false; status: number; body: unknown; error: string };
 
-async function saveField(id: string, fields: Record<string, unknown>, opts?: { reason?: string }): Promise<SaveResult> {
+async function saveField(id: string, fields: Record<string, unknown>, opts?: { reason?: string; source?: "calendar" }): Promise<SaveResult> {
   try {
     const res = await fetch("/api/marketing-hub/update", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, fields, ...(opts?.reason !== undefined ? { reason: opts.reason } : {}) }),
+      body: JSON.stringify({ id, fields, ...(opts?.reason !== undefined ? { reason: opts.reason } : {}), ...(opts?.source ? { source: opts.source } : {}) }),
     });
     if (res.ok) {
       const okBody = await res.json().catch(() => ({}));

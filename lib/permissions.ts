@@ -93,10 +93,20 @@ export function hasCapability(user: { isAdmin?: boolean; permissions?: Permissio
   return user.permissions?.[cap] === true;
 }
 
-/** May they drag tasks / change dates in the calendars? Unset = whoever may change dates. */
+/** May they drag tasks / change dates in the calendars? Needs "Change dates" too —
+ *  the two switches used to disagree (drag shown, server refused). Unset = Change dates. */
 export function canEditCalendar(user: { isAdmin?: boolean; permissions?: Permissions } | null | undefined): boolean {
+  if (!hasCapability(user, "reschedule")) return false;
   const v = user?.permissions?.calendar_edit;
-  return typeof v === "boolean" ? v : hasCapability(user, "reschedule");
+  return typeof v === "boolean" ? v : true;
+}
+
+/** Connect Claude. Admins have it unless it's switched off for them; others only when on.
+ *  The "off" for an admin used to be dropped on save, so it couldn't be turned off. */
+export function canConnectClaude(user: { isAdmin?: boolean; active?: boolean; permissions?: Permissions } | null | undefined): boolean {
+  if (!user || user.active === false) return false;
+  const v = user.permissions?.claude_connector;
+  return user.isAdmin ? v !== false : v === true;
 }
 
 /** Brand pages they may schedule to; null = all of them. */
@@ -122,6 +132,7 @@ export function cleanPermissions(raw: unknown): Permissions {
     if (r.task_access === "full" || r.task_access === "partial") out.task_access = r.task_access;
     if (typeof r.calendar_edit === "boolean") out.calendar_edit = r.calendar_edit;
     if (typeof r.manage_access === "boolean") out.manage_access = r.manage_access;
+    if (r.claude_connector === false) out.claude_connector = false;
     if (Array.isArray(r.scheduler_pages)) out.scheduler_pages = r.scheduler_pages.filter((x): x is string => typeof x === "string");
     if (r.tabs && typeof r.tabs === "object") {
       const t: Record<string, boolean> = {};
@@ -249,6 +260,23 @@ export function canSeeTab(user: { isAdmin?: boolean; sections?: Sections; permis
   if (!canAccessSection(user, tab.sec)) return false;
   const v = user.permissions?.tabs?.[key];
   return typeof v === "boolean" ? v : !tab.adminDefault;
+}
+
+// Data routes that serve exactly one tab, so switching the tab off closes them too
+// (27 Oct audit, A7). Only routes no other page calls are listed — e.g. /api/radar
+// feeds My Day and /api/benchmark the Briefing, so those stay section-only.
+const API_TABS: [string, string][] = [
+  ["/api/sales-ops", "sales-hub"], ["/api/leads-crm", "sales-hub"],
+  ["/api/leads", "leads"], ["/api/dm-leads", "inbox"], ["/api/inbox", "inbox"],
+  ["/api/campaigns", "campaigns"], ["/api/organic-sales", "organic-sales"],
+  ["/api/ads", "ads"], ["/api/competitors", "competitor-ads"],
+  ["/api/ai-insights", "ai-insights"], ["/api/seo", "seo"],
+];
+/** The tab whose switch guards this API path, or null. */
+export function apiTabFor(pathname: string | null | undefined): TabDef | null {
+  if (!pathname) return null;
+  const hit = API_TABS.find(([p]) => pathname === p || pathname.startsWith(p + "/"));
+  return hit ? TABS.find((t) => t.key === hit[1]) ?? null : null;
 }
 
 /** Which tab a URL belongs to (pathname + its search string), or null if none. */

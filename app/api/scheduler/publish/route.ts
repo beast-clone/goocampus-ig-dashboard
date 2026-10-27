@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection, requireCapability } from "@/lib/api-guard";
+import { requireSection, requireCapability, requireSchedulerPages } from "@/lib/api-guard";
 import { getAccount } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
@@ -92,6 +92,10 @@ export async function POST(req: Request) {
       }
     }
     if (!accountIds.length) return NextResponse.json({ error: "accountId (or a post with target pages) is required" }, { status: 400 });
+    // The brand pages this person may schedule to (Team & access) apply here too (A8).
+    const PAGE_FOR_ACCOUNT: Record<string, string> = { goocampus: "GooCampus Main", goocampusworld: "GooCampus World", "12thplusdotcom": "12Plus / GC India" };
+    const __pages = await requireSchedulerPages(accountIds.map((a) => PAGE_FOR_ACCOUNT[a] || a));
+    if (__pages) return __pages;
     if (!imageUrl) return NextResponse.json({ error: "no media to publish (imageUrl / media_urls is empty)" }, { status: 400 });
 
     // Publish to every selected page.

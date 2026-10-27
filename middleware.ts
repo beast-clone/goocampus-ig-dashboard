@@ -202,6 +202,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Tell API routes which path they serve, so a tab switched off on Team & access
+  // can close its data too (lib/api-guard requireSection). Always overwritten, so a
+  // caller can't send their own.
+  if (pathname.startsWith("/api/")) {
+    const h = new Headers(req.headers);
+    h.set("x-gc-path", pathname);
+    return NextResponse.next({ request: { headers: h } });
+  }
   return NextResponse.next();
 }
 

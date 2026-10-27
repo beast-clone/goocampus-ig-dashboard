@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { getSupabase } from "@/lib/supabase";
 import { rosterById } from "@/lib/team-db";
+import { canConnectClaude } from "@/lib/permissions";
 
 // Personal keys for the Claude connector (/api/mcp). Nandu finalises content in Claude
 // Code, then tells Claude to create the task — Claude calls the dashboard with his key.
@@ -15,7 +16,7 @@ type KeyRow = { userId: string; createdAt: string; lastUsedAt?: string };
 
 export async function canUseConnector(userId: string): Promise<boolean> {
   const u = await rosterById(userId);
-  return !!u && u.active && (u.isAdmin || u.permissions.claude_connector === true);
+  return canConnectClaude(u);
 }
 
 export async function connectorStatus(userId: string): Promise<{ connected: boolean; createdAt?: string; lastUsedAt?: string }> {

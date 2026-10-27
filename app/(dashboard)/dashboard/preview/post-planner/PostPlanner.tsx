@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateShort, fmtDateTime } from "@/lib/date";
 import { BrandLoader } from "@/components/BrandLoader";
 import { alertDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { canEditCalendar } from "@/lib/permissions";
 
 // Moves a planner card's date through /api/post-planner/move. When the person's
 // "Ask why when a date moves" is on, the server answers gate:"reason" and we ask.
@@ -96,6 +97,11 @@ export function Planner() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<"plan" | "pub">("pub");
+  // Team & access → "Edit calendar": off = the Publishing tab is view only (A4, 27 Oct).
+  const [canMove, setCanMove] = useState(false);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setCanMove(canEditCalendar(d?.user))).catch(() => {});
+  }, []);
   const [view, setView] = useState<{ y: number; m: number } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [guard, setGuard] = useState<{ card: CalCard; targetISO: string } | null>(null);
@@ -253,13 +259,22 @@ export function Planner() {
     setApplying(true);
     try {
       const items = data.plan.map((p) => ({ id: p.id, dateISO: planOverride[p.id] || p.suggestedTime }));
-      const r = await fetch("/api/post-planner/apply", {
+      const send = (reason?: string) => fetch("/api/post-planner/apply", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      const d = await r.json();
+        body: JSON.stringify({ items, ...(reason ? { reason } : {}) }),
+      }).then(async (r) => ({ r, d: await r.json().catch(() => ({})) }));
+      let { r, d } = await send();
+      // Same as a single move: when dates already set would change, ask why once.
+      if (r.status === 422 && d.gate === "reason") {
+        const why = await promptDialog({ title: "Why are these dates changing?", body: "Some posts already have a date. Add a short reason — it's saved in each task's history.", placeholder: "e.g. Spreading the posts out for the launch week", action: "Apply plan" });
+        if (!why || !why.trim()) return;
+        ({ r, d } = await send(why.trim()));
+      }
       if (!r.ok || d.error) { alertDialog(`Apply failed: ${d.error || r.status}`); }
-      else { await load(); setTab("pub"); }
+      else {
+        if (d.pending) alertDialog("Sent for admin approval", `${d.pending} date change${d.pending === 1 ? "" : "s"} wait for an admin to approve. The rest are applied.`);
+        await load(); setTab("pub");
+      }
     } finally { setApplying(false); }
   }
 
@@ -336,7 +351,7 @@ export function Planner() {
           {view && (
             <MonthGrid
               view={view} byDay={byDay} mode={tab}
-              dragId={dragId} onDragStart={setDragId} onDrop={onDropDay} busy={busy}
+              dragId={dragId} onDragStart={setDragId} onDrop={onDropDay} busy={busy} canDrag={tab === "plan" || canMove}
               onOpen={setDetail} rankById={rankById} selectedId={detail?.id || null}
             />
           )}
@@ -546,7 +561,8 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
   );
 }
 
-function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpen, rankById, selectedId }: {
+function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpen, rankById, selectedId, canDrag }: {
+  canDrag: boolean;
   view: { y: number; m: number };
   byDay: Record<string, CalCard[]>;
   mode: "plan" | "pub";
@@ -591,7 +607,7 @@ function MonthGrid({ view, byDay, mode, dragId, onDragStart, onDrop, busy, onOpe
                   const chip = typeChip(c.type);
                   const oc = ownerColor(c.owner);
                   return (
-                    <div key={c.id} draggable onDragStart={() => onDragStart(c.id)} onDragEnd={() => onDragStart("")}
+                    <div key={c.id} draggable={canDrag} onDragStart={() => onDragStart(c.id)} onDragEnd={() => onDragStart("")}
                       onClick={() => onOpen(c)} title="Click for details · drag to reschedule"
                       className={`rounded-lg p-1.5 cursor-grab active:cursor-grabbing transition border ${selectedId === c.id ? "border-brand ring-2 ring-brand/30 bg-brand-light/20" : "bg-white border-gray-200 hover:border-brand"}`}>
                       <div className="flex items-center gap-1">

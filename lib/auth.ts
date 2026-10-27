@@ -6,6 +6,7 @@
 import { cookies } from "next/headers";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { buildPayload, readPayload } from "@/lib/session-payload";
+import { lastKnownRosterUser } from "@/lib/team-db";
 
 const COOKIE = "gc_session";
 // No fixed lifetime any more — a session ends with the IST day, so the next
@@ -86,9 +87,16 @@ export function getSessionUserId(): string | null {
 // Is the current session an admin? Reads the signed `:a:` flag in the cookie
 // payload (`<userId>:a:<token>`) — the same flag the Edge middleware trusts to
 // open /dashboard/*. Lets server components branch on admin without a DB lookup.
+//
+// The cookie's flag is only what was true at sign-in. When the roster has been read,
+// Team & access wins: making someone admin, taking it away, or switching off "Can
+// sign in" applies on their next request, not their next login (27 Oct audit, A9).
 export function getSessionIsAdmin(): boolean {
   const value = cookies().get(COOKIE)?.value;
-  if (!value || !parseVerified(value).valid) return false;
+  const v = value ? parseVerified(value) : null;
+  if (!value || !v?.valid) return false;
+  const u = lastKnownRosterUser(v.userId);
+  if (u) return u.isAdmin && u.active;
   return readPayload(value.slice(0, value.lastIndexOf(".")))?.isAdmin ?? false;
 }
 

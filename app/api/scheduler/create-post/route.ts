@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSection } from "@/lib/api-guard";
+import { requireSection, requireSchedulerPages } from "@/lib/api-guard";
 import { createContentCalendarRow, type CreatePostInput } from "@/lib/content-calendar";
 import { safeError } from "@/lib/errors";
 
@@ -34,6 +34,9 @@ export async function POST(req: Request) {
   if (!body.publishToPage || !ALLOWED_PUBLISH_TO_PAGE.has(body.publishToPage as never)) {
     return NextResponse.json({ error: "publishToPage must be GooCampus Main | GooCampus World | 12Plus / GC India" }, { status: 400 });
   }
+  // The brand pages this person may schedule to (Team & access) apply here too (A8).
+  const __pages = await requireSchedulerPages([body.publishToPage]);
+  if (__pages) return __pages;
   const mediaUrls = Array.isArray(body.mediaUrls) ? body.mediaUrls.filter((u) => typeof u === "string" && /^https?:\/\//.test(u)) : [];
   if (mediaUrls.length === 0) {
     return NextResponse.json({ error: "At least one media URL is required" }, { status: 400 });

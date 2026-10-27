@@ -62,6 +62,14 @@ function fromCode(u: TeamUser): RosterUser {
 
 // Small cache so /api/me etc. don't hit Supabase on every request.
 let cache: { at: number; rows: RosterUser[] } | null = null;
+// The last roster read, kept even when the cache is invalidated — lets the sync
+// session check (getSessionIsAdmin) follow Team & access without a DB call.
+let lastRows: RosterUser[] | null = null;
+/** The person as of the last roster read in this server, or null if never read. */
+export function lastKnownRosterUser(id: string | null | undefined): RosterUser | null {
+  if (!id || !lastRows) return null;
+  return lastRows.find((u) => u.id === id.toLowerCase()) ?? null;
+}
 const CACHE_MS = 30_000;
 
 export async function fetchRoster(fresh = false): Promise<RosterUser[]> {
@@ -75,6 +83,7 @@ export async function fetchRoster(fresh = false): Promise<RosterUser[]> {
     if (!error && data && data.length > 0) {
       const rows = (data as IndUserRow[]).map(fromRow);
       cache = { at: Date.now(), rows };
+      lastRows = rows;
       for (const u of rows) TEAM_NAMES[u.id] = u.first || u.name || u.id;
       // Workflow roles + shift starts (Team page, sql/038) — refreshed with the roster
       // so every server decision that asks "who is the editor" sees today's answer.

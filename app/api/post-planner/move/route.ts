@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
-import { needsDateApproval, needsDateReason } from "@/lib/permissions";
+import { canEditCalendar, needsDateApproval, needsDateReason } from "@/lib/permissions";
 import { requestDateChange, supersedeDateChange } from "@/lib/date-approvals";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
 
@@ -49,6 +49,10 @@ export async function POST(req: Request) {
     const who = await rosterById(me);
     const day = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : null);
     const moving = !!cur.publishing_date && day(cur.publishing_date) !== day(when.toISOString());
+    // Dragging on the planner calendar is a calendar move: "Edit calendar" applies (A4).
+    if (moving && !canEditCalendar(who)) {
+      return NextResponse.json({ error: "Your access doesn't include \"Edit calendar\" — ask an admin to switch it on in Team & access." }, { status: 403 });
+    }
     const reason = (body.reason || body.note || "").trim();
     if (moving && needsDateReason(who) && !reason) {
       return NextResponse.json({ error: "Add a short reason for moving the date.", gate: "reason" }, { status: 422 });
