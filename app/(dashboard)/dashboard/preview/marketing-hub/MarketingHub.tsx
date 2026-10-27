@@ -4817,7 +4817,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               <span className="text-gray-300">·</span>
               <PreviewSelect bare value={typeCur || ""} onChange={changeType} ariaLabel="Format" title="Change the format" placeholder="— format"
                 options={Array.from(new Set([...(typeCur ? [typeCur] : []), ...ALL_TYPES])).map((o) => ({ value: o, label: o }))} />
-              {typeCur && <span className="text-[11.5px] text-[#8A92A6]">({isVideoType(typeCur) ? "video work → editors" : "design work → Praveen"})</span>}
+              {typeCur && <span className="text-[11.5px] text-[#8A92A6]">({isVideoType(typeCur) ? "video work → editors" : "design work → Praveen when approved"})</span>}
               <button type="button" onClick={() => setGuideOpen((o) => !o)} title="How tasks are assigned"
                 className="w-[18px] h-[18px] rounded-full border border-gray-200 text-[11px] leading-none text-[#8A92A6] hover:text-brand hover:border-brand">?</button>
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
@@ -4954,7 +4954,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     : !isVideoType(typeCur)
                       ? (rememberedEditor
                         ? `Stays with Praveen while it's design work — goes to ${rememberedEditor} when the format is changed to a video type.`
-                        : handed ? "Design work stays with Praveen. To give it to Nikhil or Nandu, change the format to a video type (before or after picking them)."
+                        : handed ? "Went to Praveen when it was approved. You can still change the owner and it will stay."
                           : "Once approved, design work goes to Praveen.")
                       : handed ? "Video work: pick an editor, or leave it in the claim pool for Nikhil / Nandu."
                         : "Once approved, video work goes to the editors' claim pool.";
