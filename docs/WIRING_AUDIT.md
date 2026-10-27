@@ -59,5 +59,5 @@ actually follow, or a decision hard-coded to a person instead of a setting.
    Left as is: status names (they come from Airtable's Status field and match everywhere);
    Post Planner's 24 h spacing (a planning cadence, stricter than the Scheduler's minimum gap, not a conflict).
 5. D — mh_slack_queue trigger and function dropped; mh_enforce_owner_rules and mh_fn_spawn_thumbnail dropped (sql/040).
-   The mh_slack_queue table and its 187 old rows are kept until Praveen says they can go.
+   The 187 old queued rows were deleted with Praveen's OK (27 Oct); the empty table stays.
    RuleEditor.tsx (old Rules editor) is no longer used by any page.
