@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { setSbuPages } from "@/lib/sbu-pages";
 
 // The brand list for a picker in the browser. Starts with the built-in list so the
 // picker is never empty, then swaps in the live one from /api/sbus (sql/027), so a
@@ -15,7 +16,11 @@ function load(): Promise<string[]> {
   if (!shared) {
     shared = fetch("/api/sbus", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => (d && Array.isArray(d.sbus) && d.sbus.length ? (d.sbus as string[]) : [...SBU_OPTIONS]))
+      .then((d) => {
+        // Brand → page (sql/040), so pageForSbu in the browser follows the database.
+        if (d?.pages) setSbuPages(Object.entries(d.pages as Record<string, string>).map(([name, page]) => ({ name, page })));
+        return d && Array.isArray(d.sbus) && d.sbus.length ? (d.sbus as string[]) : [...SBU_OPTIONS];
+      })
       .catch(() => [...SBU_OPTIONS]);
   }
   return shared;
@@ -33,13 +38,14 @@ export function useSbus(): string[] {
 }
 
 /** Add a brand (admin only — the API refuses anyone else). Every picker on the page updates. */
-export async function addBrand(name: string): Promise<string> {
+export async function addBrand(name: string, page?: string): Promise<string> {
   const r = await fetch("/api/sbus", {
     method: "POST", credentials: "same-origin",
-    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }),
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ...(page ? { page } : {}) }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  if (d.pages) setSbuPages(Object.entries(d.pages as Record<string, string>).map(([n, p]) => ({ name: n, page: p })));
   shared = Promise.resolve(d.sbus as string[]);
   listeners.forEach((fn) => fn(d.sbus));
   return d.name as string;

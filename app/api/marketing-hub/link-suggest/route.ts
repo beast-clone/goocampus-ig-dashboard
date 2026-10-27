@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import { accountIdForSbu, matchPost, WINDOW_DAYS, shiftDate, type Candidate, type MatchTask } from "@/lib/post-match";
 import { fetchLivePosts, type LinkPlatform } from "@/lib/published-posts";
 import { fetchContentTypes } from "@/lib/content-types-db";
+import { fetchSbus } from "@/lib/sbus-db";
 
 // GET /api/marketing-hub/link-suggest?id=<mh_posts.id>
 //
@@ -45,6 +46,7 @@ const allNothing = (reason: string) => ({
 });
 
 export async function GET(req: Request) {
+  await fetchSbus();   // brand → page comes from the database (sql/040)
   await fetchContentTypes();   // registers dashboard-added types into VIDEO_TYPES (sql/028)
   const __denied = await requireSection("content");
   if (__denied) return __denied;

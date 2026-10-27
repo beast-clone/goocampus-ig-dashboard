@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { pageForSbu } from "@/lib/sbu-pages";
+import { fetchSbus } from "@/lib/sbus-db";
 
 // GET /api/scheduler/to-schedule
 // The "To schedule" tab: content that has cleared Content Review and is awaiting a
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 const READY_STATUSES = ["Ready to Publish"];
 
 export async function GET() {
+  await fetchSbus();   // brand → page comes from the database (sql/040)
   const __denied = await requireSection("content");
   if (__denied) return __denied;
 

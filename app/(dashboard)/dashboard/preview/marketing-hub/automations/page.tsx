@@ -4,6 +4,7 @@ import { IconArrowRight, IconBolt } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { RULE_TABS, TASK_FLOW, type RuleEditability } from "./rules";
 import { RuleBuilder } from "./RuleBuilder";
+import { BrandPages } from "./BrandPages";
 
 // Rules (was "Automations").
 //
@@ -76,6 +77,8 @@ export default function RulesPage() {
           )}
 
           {cur.key === "my-day" && <RuleBuilder />}
+
+          {cur.key === "calendar" && <BrandPages />}
 
           <section className="bg-white border border-gray-100 rounded-xl">
             <div className="px-4 py-3.5 border-b border-gray-100 flex items-center gap-2.5">

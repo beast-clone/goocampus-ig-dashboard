@@ -6,6 +6,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { TEAM_NAMES } from "@/lib/team-names";
 import { fetchRoster } from "@/lib/team-db";
 import { fetchContentTypes } from "@/lib/content-types-db";
+import { fetchSbus } from "@/lib/sbus-db";
 import { rulesEngineOn } from "@/lib/rules-engine";
 
 // Creates ONE task (mh_posts row) — shared by the New task form
@@ -58,6 +59,7 @@ export async function defaultCollaboratorFor(
   let key: string | null = null;
   try {
     await fetchContentTypes();   // so VIDEO_TYPES knows dashboard-added types
+    await fetchSbus();           // brand → page from the database (sql/040)
     const sb = getSupabase();
     if (sb) {
       const { data } = await sb

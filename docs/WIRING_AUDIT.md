@@ -49,3 +49,15 @@ actually follow, or a decision hard-coded to a person instead of a setting.
 2. Team page **role** (writer / designer / editor / approver) + **shift start** per person → replaces most of B.
 3. Team & access fixes A3–A9 (small, independent).
 4. One source for types / brands / statuses (C); switch off or wire the dead DB pieces (D).
+
+## Status (27 Oct, end of day)
+1. Rules engine — built, switched OFF until deploy (sql/037, 429522c).
+2. Roles + shift start — Team & access "Role in the workflow" / "Shift starts" (sql/038, 532b81e); on-camera pair = "edit partner" (sql/039, ffe33d8).
+3. A3–A9 — fixed (b9d56cd). A7 covers the data routes that serve exactly one tab.
+4. C — video/design list: the DB triggers now read mh_content_types + Team roles (sql/040).
+   Brand → page now lives on mh_sbus.page, edited on Rules → Content calendar (sql/040).
+   Left as is: status names (they come from Airtable's Status field and match everywhere);
+   Post Planner's 24 h spacing (a planning cadence, stricter than the Scheduler's minimum gap, not a conflict).
+5. D — mh_slack_queue trigger and function dropped; mh_enforce_owner_rules and mh_fn_spawn_thumbnail dropped (sql/040).
+   The mh_slack_queue table and its 187 old rows are kept until Praveen says they can go.
+   RuleEditor.tsx (old Rules editor) is no longer used by any page.
