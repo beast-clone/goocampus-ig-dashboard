@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isEditor } from "@/lib/team-roles";
+import { editPartnerOf, isEditor } from "@/lib/team-roles";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
@@ -12,8 +12,7 @@ import { getSessionUserId } from "@/lib/auth";
 // The video pair (Nikhil's comment, 5 Oct; "Nikhil and Nandu pair only"): when one
 // of them takes one half of a video, the other half goes to the other. Presenting is
 // recorded by /update (custom.presenter_key); this route then hands the edit to the
-// partner. Only this exact pair, only for "present".
-const VIDEO_PAIR: Record<string, string> = { nikhil: "nandu" };
+// partner. Only the pair set on the Team page (edit partner), only for "present".
 
 // POST /api/marketing-hub/takeover  { postId, newOwnerKey, role? }
 // Swaps ownership: the incoming person becomes the owner.
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
     // Claiming for yourself is part of Edit. Handing it to someone else is "Assign
     // to others" (Team & access) — except the video pair's automatic hand-off.
     const me = (getSessionUserId() || "").toLowerCase();
-    const pairHandoff = body.role === "present" && VIDEO_PAIR[me] === body.newOwnerKey;
+    const pairHandoff = body.role === "present" && editPartnerOf(me) === body.newOwnerKey;
     if (body.newOwnerKey !== me && !pairHandoff) {
       const no = await requireCapability("assign_tasks");
       if (no) return no;

@@ -67,6 +67,7 @@ export async function GET() {
       // Role in the workflow + shift start live on mh_team_members (sql/038).
       workRole: TEAM_ROLES[u.id]?.role ?? null,
       shiftStart: TEAM_ROLES[u.id]?.shiftStart ?? "09:00",
+      editPartner: TEAM_ROLES[u.id]?.editPartner ?? null,
     })),
   });
 }
@@ -88,7 +89,7 @@ export async function PATCH(req: Request) {
     if (k in raw) updates[k] = k === "permissions" ? cleanPermissions(raw[k]) : k === "sections" ? cleanSections(raw[k]) : raw[k];
   }
   // Role in the workflow and shift start are stored on mh_team_members, not ind_users.
-  const hub: Record<string, string> = {};
+  const hub: Record<string, string | null> = {};
   if ("workRole" in raw) {
     if (!["writer", "designer", "editor", "manager"].includes(String(raw.workRole))) {
       return NextResponse.json({ error: "Pick Writer, Designer, Editor or Manager." }, { status: 400 });
@@ -100,6 +101,14 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Shift start must be a time like 09:00." }, { status: 400 });
     }
     hub.shift_start = String(raw.shiftStart);
+  }
+  // The on-camera pair (sql/039): "" clears it; never yourself.
+  if ("editPartner" in raw) {
+    const p = String(raw.editPartner || "").toLowerCase();
+    if (p && (p === id || !(await rosterById(p)))) {
+      return NextResponse.json({ error: "Pick someone else on the team as the edit partner." }, { status: 400 });
+    }
+    hub.edit_partner = p || null;
   }
   if (id && Object.keys(hub).length && Object.keys(updates).length === 0) {
     const { error } = await sb.from("mh_team_members").update(hub).eq("key", id);

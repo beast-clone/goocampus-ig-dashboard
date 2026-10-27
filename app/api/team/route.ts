@@ -17,7 +17,7 @@ export async function GET() {
   const team = (await fetchRoster()).map((u) => ({
     id: u.id, first: u.first || u.name, name: u.name, initials: u.initials,
     role: u.role, active: u.active, photoUrl: u.photoUrl,
-    workRole: TEAM_ROLES[u.id]?.role ?? null, shiftStart: TEAM_ROLES[u.id]?.shiftStart ?? "09:00",
+    workRole: TEAM_ROLES[u.id]?.role ?? null, shiftStart: TEAM_ROLES[u.id]?.shiftStart ?? "09:00", editPartner: TEAM_ROLES[u.id]?.editPartner ?? null,
   }));
   return NextResponse.json({ team });
 }

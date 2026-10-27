@@ -13,7 +13,7 @@ import { setTeamRoles } from "@/lib/team-roles";
 export type TeamPerson = {
   id: string; first: string; name: string; initials: string;
   role: string; active: boolean; photoUrl: string | null;
-  workRole?: string | null; shiftStart?: string;
+  workRole?: string | null; shiftStart?: string; editPartner?: string | null;
 };
 
 let shared: Promise<TeamPerson[]> | null = null;
@@ -24,7 +24,7 @@ export function loadTeam(): Promise<TeamPerson[]> {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (d && Array.isArray(d.team) ? (d.team as TeamPerson[]) : []))
       // Fill the shared role/shift map (lib/team-roles.ts) for every screen.
-      .then((t) => { setTeamRoles(t.filter((p) => p.workRole).map((p) => ({ key: p.id, role: p.workRole!, shiftStart: p.shiftStart, active: p.active }))); return t; })
+      .then((t) => { setTeamRoles(t.filter((p) => p.workRole).map((p) => ({ key: p.id, role: p.workRole!, shiftStart: p.shiftStart, active: p.active, editPartner: p.editPartner }))); return t; })
       .catch(() => []);
   }
   return shared;

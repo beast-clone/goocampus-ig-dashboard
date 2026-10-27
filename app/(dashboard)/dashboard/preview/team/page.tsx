@@ -5,6 +5,7 @@ import {
   IconLayoutGrid, IconClockHour4, IconChecklist, IconCalendarEvent, IconIdBadge2, IconLock, IconSend,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { CAPABILITIES, DATE_APPROVAL_RULE, DATE_REASON_RULE, TABS, TASK_ACTIONS, needsDateApproval, needsDateReason, canEditCalendar, type Capability } from "@/lib/permissions";
 
 type Member = {
@@ -22,6 +23,7 @@ type Member = {
   photoUrl?: string | null;
   workRole?: WorkRole | null;
   shiftStart?: string;
+  editPartner?: string | null;
 };
 type WorkRole = "writer" | "designer" | "editor" | "manager";
 // Role in the workflow decides who gets approved design work, who claims videos, who
@@ -107,7 +109,7 @@ function Pill({ tone, children }: { tone: "good" | "mute" | "brand"; children: R
 // code (Praveen, 22 Oct): Admin, one switch per sidebar tab, Scheduler pages (full or
 // selected), task actions (full or partial), calendar editing, date approval.
 
-type Draft = { isAdmin: boolean; sections: Record<string, boolean>; permissions: Perm; name: string; email: string; role: string; active: boolean; workRole: WorkRole | null; shiftStart: string };
+type Draft = { isAdmin: boolean; sections: Record<string, boolean>; permissions: Perm; name: string; email: string; role: string; active: boolean; workRole: WorkRole | null; shiftStart: string; editPartner: string };
 const BRAND_PAGES: { value: string; label: string }[] = [
   { value: "GooCampus Main", label: "GooCampus" },
   { value: "GooCampus World", label: "GooCampus World" },
@@ -262,7 +264,7 @@ function TeamManager() {
           </div>
         </section>
         {sel ? (
-          <PersonEditor key={sel.id} m={sel} busy={busy} viewerId={meId}
+          <PersonEditor key={sel.id} m={sel} team={team} busy={busy} viewerId={meId}
             onSave={async (d) => {
               const updates: Record<string, unknown> = { is_admin: d.isAdmin, sections: d.sections, permissions: d.permissions, active: d.active };
               if (d.name.trim() && d.name.trim() !== sel.name) updates.name = d.name.trim();
@@ -270,6 +272,7 @@ function TeamManager() {
               if (d.role.trim() !== sel.role) updates.role = d.role.trim();
               if (d.workRole && d.workRole !== sel.workRole) updates.workRole = d.workRole;
               if (d.shiftStart && d.shiftStart !== (sel.shiftStart || "09:00")) updates.shiftStart = d.shiftStart;
+              if (d.editPartner !== (sel.editPartner || "")) updates.editPartner = d.editPartner;
               if (await call("PATCH", { id: sel.id, updates })) flash(`Saved ${sel.first}'s access — it applies from their next page load.`);
             }}
             onAction={async (body, msg) => { if (await call("POST", body)) flash(msg); }} />
@@ -306,8 +309,8 @@ function Tick({ checked, label, onChange, disabled }: { checked: boolean; label:
   );
 }
 
-function PersonEditor({ m, busy, viewerId, onSave, onAction }: { m: Member; busy: boolean; viewerId: string; onSave: (d: Draft) => void; onAction: (body: unknown, msg: string) => void }) {
-  const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, name: m.name, email: m.email, role: m.role, active: m.active, workRole: m.workRole ?? null, shiftStart: m.shiftStart || "09:00" });
+function PersonEditor({ m, team, busy, viewerId, onSave, onAction }: { m: Member; team: Member[]; busy: boolean; viewerId: string; onSave: (d: Draft) => void; onAction: (body: unknown, msg: string) => void }) {
+  const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, name: m.name, email: m.email, role: m.role, active: m.active, workRole: m.workRole ?? null, shiftStart: m.shiftStart || "09:00", editPartner: m.editPartner || "" });
   const [d, setD] = useState<Draft>(fresh);
   const [pw, setPw] = useState<string | null>(null);
   const dirty = JSON.stringify(d) !== JSON.stringify(fresh());
@@ -407,12 +410,17 @@ function PersonEditor({ m, busy, viewerId, onSave, onAction }: { m: Member; busy
         </div>
       </Section>
 
-      <Section icon={<IconClockHour4 size={16} stroke={1.8} />} title="Role in the workflow" hint="Who gets which work, and when their day starts. Design goes to the Designer, videos to the Editors, the Writer writes, the Manager approves date changes.">
+      <Section icon={<IconClockHour4 size={16} stroke={1.8} />} title="Role in the workflow" hint="Who gets which work, and when their day starts. Design goes to the Designer, videos to the Editors, the Writer writes, the Manager approves date changes. The edit partner is the on-camera pair.">
         <div className="flex items-end gap-6 flex-wrap">
           <div><span className="block text-[11px] text-[#8A92A6] mb-1">Role</span>
             <Choice options={WORK_ROLES} value={d.workRole || ""} disabled={busy} onChange={(v) => setD((x) => ({ ...x, workRole: v as WorkRole }))} /></div>
           <label className="block mb-3"><span className="block text-[11px] text-[#8A92A6] mb-1">Shift starts</span>
             <input type="time" value={d.shiftStart} disabled={busy} onChange={(e) => setD((x) => ({ ...x, shiftStart: e.target.value }))} className={`${FIELD} border-gray-200 w-[130px]`} /></label>
+          {/* The on-camera pair: when this person presents a pool video, the edit goes
+              straight to their partner; when the partner edits one, this person presents. */}
+          <div className="mb-3 w-[220px]"><span className="block text-[11px] text-[#8A92A6] mb-1">When they present, editing goes to</span>
+            <PreviewSelect value={d.editPartner} disabled={busy} ariaLabel="Edit partner" onChange={(v) => setD((x) => ({ ...x, editPartner: v }))}
+              options={[{ value: "", label: "No one — stays in the pool" }, ...team.filter((t) => t.id !== m.id && t.active).map((t) => ({ value: t.id, label: t.first || t.name }))]} /></div>
         </div>
       </Section>
 

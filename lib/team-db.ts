@@ -79,10 +79,10 @@ export async function fetchRoster(fresh = false): Promise<RosterUser[]> {
       // Workflow roles + shift starts (Team page, sql/038) — refreshed with the roster
       // so every server decision that asks "who is the editor" sees today's answer.
       try {
-        const { data: hub } = await sb.from("mh_team_members").select("key, role, shift_start, active");
+        const { data: hub } = await sb.from("mh_team_members").select("key, role, shift_start, active, edit_partner");
         if (hub) {
           const activeIds = new Set(rows.filter((u) => u.active).map((u) => u.id));
-          setTeamRoles((hub as { key: string; role: string | null; shift_start: string | null; active: boolean | null }[])
+          setTeamRoles((hub as { key: string; role: string | null; shift_start: string | null; active: boolean | null; edit_partner: string | null }[])
             .map((h) => ({ ...h, active: h.active !== false && activeIds.has(h.key) })));
         }
       } catch { /* keep the last known roles */ }

@@ -34,7 +34,7 @@ import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationH
 import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 import { shouldPoll } from "@/lib/quiet-hours";
 import { useOwnUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
-import { firstWithRole, isDesigner, isEditor as isEditorKey, isWriter, keysWithRole, roleOf, shiftStartMin, type WorkRole } from "@/lib/team-roles";
+import { editPartnerOf, firstWithRole, isDesigner, isEditor as isEditorKey, isWriter, keysWithRole, presenterFor, roleOf, shiftStartMin, type WorkRole } from "@/lib/team-roles";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -3620,12 +3620,11 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // that needs no presenter, exactly as Nikhil does.
   // The video pair (Nikhil's request, 5 Oct — "Nikhil and Nandu pair only"): Nikhil
   // presenting hands the edit to Nandu straight away; Nandu editing puts Nikhil on
-  // camera. The server checks the pair, so this can't be used to assign anyone else.
-  const PAIR_EDITOR: Record<string, string> = { nikhil: "nandu" };
-  const PAIR_PRESENTER: Record<string, string> = { nandu: "nikhil" };
+  // camera. The pair is each person's "Edit partner" on Team & access (27 Oct); the
+  // server checks it, so this can't be used to assign anyone else.
   const confirmClaim = (v: Task, role?: "present" | "edit" | "both") => {
     setClaimConfirm(null);
-    const partner = role === "present" ? PAIR_EDITOR[person] : undefined;
+    const partner = role === "present" ? editPartnerOf(person) : undefined;
     if (partner) {
       const name = PPL[partner]?.name || partner;
       setClaimPool((p) => p.filter((x) => x.id !== v.id));
@@ -3655,7 +3654,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     }
     if (role) {
       // Nandu editing puts Nikhil on camera — unless someone already said they'd present.
-      const presenter = role === "edit" && !v.detail.presenter ? PAIR_PRESENTER[person] : undefined;
+      const presenter = role === "edit" && !v.detail.presenter ? presenterFor(person) : undefined;
       const saved = fetch("/api/marketing-hub/update", { method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: v.id, actor: person, fields: { custom: { claim_role: role, ...(presenter ? { presenter_key: presenter } : {}) } } }) })
         .catch(() => {});
@@ -4203,7 +4202,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                       <div className="mm">
                         {v.detail.typeLine} · {v.detail.presenter && PPL[v.detail.presenter]
                           ? <><b>{PPL[v.detail.presenter].name} is presenting</b> — needs an editor</>
-                          : "up for grabs — Nandu or Nikhil"}
+                          : `up for grabs — ${keysWithRole("editor").map((k) => PPL[k]?.name || k).join(" or ")}`}
                       </div>
                       {!confirming ? (
                         <span className="pill" style={{ background: "#E3F5EA", color: "#157F3C", display: "inline-block", marginTop: ".45rem" }}>Claimable</span>
