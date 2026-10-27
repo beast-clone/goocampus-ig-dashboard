@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { IconX, IconExternalLink, IconChevronLeft, IconChevronRight, IconDownload, IconCopy, IconCheck } from "@tabler/icons-react";
+import { SoundVideo } from "@/components/SoundVideo";
 
 // Put a picture on the clipboard so it pastes straight into WhatsApp, Canva, a doc…
 // (Praveen, 26 Oct). Browsers only take PNG, so anything else is redrawn as PNG first.
@@ -268,7 +269,7 @@ export function RefPreviewHost() {
         {v.kind === "pdf" && <iframe src={v.src} title={nameOf(cur)} />}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {v.kind === "image" && <img src={v.src} alt={nameOf(cur)} onError={() => setFailed(cur.url)} onClick={() => setBig(true)} className="rfp-zoomable" title="Click to view full size" />}
-        {v.kind === "video" && <video src={v.src} controls autoPlay playsInline onError={() => setFailed(cur.url)} />}
+        {v.kind === "video" && <SoundVideo src={v.src} open loop={false} onError={() => setFailed(cur.url)} />}
         {v.kind === "download" && (
           <div className="rfp-msg">This file can&apos;t be previewed here.
             <a className="rfp-btn pri" href={cur.url} target="_blank" rel="noreferrer" download><IconDownload size={14} stroke={2} />Download</a>
@@ -360,7 +361,7 @@ const CSS = `
 .rfp-btn:hover{border-color:#3A57E8;color:#3A57E8}
 .rfp-btn.pri{background:#3A57E8;border-color:#3A57E8;color:#fff;margin-top:14px}
 .rfp-btn.pri:hover{color:#fff;background:#2138B0}
-.rfp-body{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;justify-content:center;align-items:flex-start}
+.rfp-body{position:relative;flex:1;min-height:0;overflow:auto;padding:14px;display:flex;justify-content:center;align-items:flex-start}
 .rfp-body iframe{width:100%;height:100%;min-height:560px;border:1px solid #EEF0F4;border-radius:12px;background:#fff}
 .rfp-body iframe.narrow{max-width:420px}
 .rfp-body img,.rfp-body video{max-width:100%;max-height:100%;border-radius:12px;background:#0b1020}

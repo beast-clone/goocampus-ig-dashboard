@@ -39,6 +39,9 @@ export async function POST(req: Request) {
     if (error) throw new Error(error.message);
     if (!data?.length) return notUpdated(sb, body.recordId);
     await logQueueAction(sb, body.recordId, "publish_rescheduled", istTime(was?.schedule_time), istTime(body.scheduleTime));
+    // Its "also as a Story" moves with it (enqueue syncStory, 27 Oct).
+    await sb.from("mh_posts").update({ schedule_time: new Date(body.scheduleTime).toISOString() })
+      .eq("custom->>story_of", body.recordId).eq("publish_status", "scheduled");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Reschedule failed"), { status: 502 });

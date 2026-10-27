@@ -43,6 +43,7 @@ import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
 import { needsDateApproval, needsDateReason, hasCapability, canEditCalendar } from "@/lib/permissions";
 import { shiftStartMin } from "@/lib/team-roles";
 import { useAppSettings } from "@/lib/use-app-settings";
+import { SoundVideo } from "@/components/SoundVideo";
 
 export type Row = {
   id: string;
@@ -350,7 +351,7 @@ const SUBTAB_LABEL: Record<string, string> = {
 const SUBTAB_SUBTITLE: Record<string, string> = {
   team: "Each teammate's plan and capacity for the day.",
   master: "The master sheet — every task, every column. Filter, sort, save views.",
-  pipeline: "Where every task sits in production — spot what's stuck.",
+  pipeline: "How many pieces of content are at each step right now.",
   calendar: "The team's publishing schedule, month at a glance — drag to reschedule.",
 };
 
@@ -524,6 +525,10 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
     // (It used to read only ~30 days back and 7 ahead, so the bar showed free time
     // the person didn't have.)
     ? { from: ymd(new Date(Date.now() - 120 * 86_400_000)), to: ymd(new Date(Date.now() + 120 * 86_400_000)) }
+    : tab === "pipeline"
+    // Pipeline counts ALL open work whatever its date (a post stuck since September must
+    // not drop off), so look a year back; Published is cut to the last 30 days in the view.
+    ? { from: ymd(new Date(Date.now() - 365 * 86_400_000)), to: ymd(new Date(Date.now() + 365 * 86_400_000)) }
     // Master sheet / Pipeline: the range picks how far BACK to look; everything
     // planned ahead is always included (imported Airtable tasks are mostly future).
     : { from: range.from, to: ymd(new Date(Date.now() + 365 * 86_400_000)) };
@@ -585,7 +590,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         {tab !== "team" && tab !== "master" && (
           <>
             <div className="text-base text-gray-500 flex-shrink-0">
-              {data ? <>{fmtInt(filtered.length)} of {fmtInt(data.totalInRange)} entries in this range{data.cached ? " · cached" : ""}</> : isLoading ? "Loading…" : ""}
+              {tab === "pipeline" ? null : data ? <>{fmtInt(filtered.length)} of {fmtInt(data.totalInRange)} entries in this range{data.cached ? " · cached" : ""}</> : isLoading ? "Loading…" : ""}
             </div>
             <div className="relative flex-1 max-w-md">
               <IconSearch size={16} stroke={1.8} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -602,7 +607,7 @@ function Inner({ range, setRange }: { range: { from: string; to: string }; setRa
         <div className="ml-auto flex-shrink-0 flex items-center gap-2">
           {/* Up here with the page's other actions — a floating button at the bottom
               was easy to miss (Praveen, 26 Oct). */}
-          <HubNewTaskButton onCreated={refresh} />
+          {tab !== "pipeline" && <HubNewTaskButton onCreated={refresh} />}
           {/* The plan lives in Airtable; this is how a window of it gets here. */}
           {tab === "master" && <SyncFromAirtable onImported={refresh} />}
           {/* Not on the Master sheet (it refreshes itself after every edit) — except the
@@ -1128,185 +1133,227 @@ function PersonTimelineRow({ card }: {
   );
 }
 
-// PIPELINE sub-tab — team-wide stat strip + a proportional pipeline bar; click a
-// stage to drill into a table of every task at that stage across all SBUs.
-export function PipelineView({ rows, facets, onOpen, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean }) {
+// PIPELINE sub-tab — "how many pieces of content are at each step right now", by status.
+// Rewritten 27 Oct so anyone can read it (Praveen: "make it so a normal person understands
+// what the pipeline is for"): each step says what it means and who acts next, steps are
+// grouped Writing → Making → Publishing, and the old separate "Needs chasing" list is folded
+// into the step's table (longest-waiting first).
+const STEP_HELP: Record<string, { phase: "Writing" | "Making" | "Publishing"; means: string; next: string }> = {
+  "Content - Pending":      { phase: "Writing",    means: "Copy being written or waiting for sign-off", next: "Writer" },
+  "Content - Approved":     { phase: "Making",     means: "Copy approved — design / video not started", next: "Designer or editor" },
+  "Output - In Progress":   { phase: "Making",     means: "Being designed or edited right now",         next: "Designer or editor" },
+  "Incorporating Feedback": { phase: "Making",     means: "Changes were asked for — being fixed",       next: "Designer or editor" },
+  "Output - Ready":         { phase: "Making",     means: "Finished — waiting for the final check",     next: "Content Review" },
+  "Ready to Publish":       { phase: "Publishing", means: "Approved — waiting to be scheduled",         next: "Scheduler" },
+  "Published/Scheduled":    { phase: "Publishing", means: "Posted or scheduled in the last 30 days",    next: "Nobody — done" },
+};
+const PHASES = [
+  { name: "Writing", span: "xl:col-span-1", cols: "grid-cols-1" },
+  { name: "Making", span: "xl:col-span-4", cols: "grid-cols-2 md:grid-cols-4" },
+  { name: "Publishing", span: "xl:col-span-2", cols: "grid-cols-2" },
+] as const;
+
+export function PipelineView({ rows: allRows, facets, onOpen, loading }: { rows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean }) {
   const today = ymd(new Date());
-  const weekAgo = ymd(new Date(Date.now() - 7 * 86_400_000));
   const allSbus = facets?.sbu || [];
-
-  const totals = useMemo(() => {
-    let publishingToday = 0, overdue = 0, awaitingApproval = 0, completedThisWeek = 0, inProgress = 0;
-    for (const r of rows) {
-      const pd = r.publishingDate?.slice(0, 10) || "";
-      const dd = r.dueDate?.slice(0, 10) || "";
-      const isDone = DONE_STATUSES.includes(r.status);
-      if (pd === today && !isDone) publishingToday += 1;
-      if (dd && dd < today && !isDone) overdue += 1;
-      // "Awaiting approval" = the Content-Pending queue (the pre-approval step),
-      // OR anything explicitly flagged needsReview. Was keyed only on needsReview,
-      // which is never set in the data → the stat was permanently 0.
-      if (r.status === "Content - Pending" || r.needsReview) awaitingApproval += 1;
-      if (r.completionTime && r.completionTime.slice(0, 10) >= weekAgo) completedThisWeek += 1;
-      if (r.status === "Content - Approved") inProgress += 1;
+  // This week / This month = posts whose PUBLISH date falls in it (Mon–Sun, calendar
+  // month). All = every unfinished post whatever its date (old stuck work included),
+  // plus Published for the last 30 days — it would otherwise pile up for ever.
+  const [period, setPeriod] = useState<"week" | "month" | "all" | "custom">("month");
+  const [custom, setCustom] = useState(() => {
+    const n = new Date();
+    return { from: ymd(new Date(n.getFullYear(), n.getMonth(), 1)), to: ymd(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
+  });
+  const span = useMemo(() => {
+    const n = new Date();
+    if (period === "custom") return custom.from && custom.to && custom.from <= custom.to ? custom : null;
+    if (period === "week") {
+      const mon = new Date(n.getFullYear(), n.getMonth(), n.getDate() - ((n.getDay() + 6) % 7));
+      return { from: ymd(mon), to: ymd(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)) };
     }
-    return { publishingToday, overdue, awaitingApproval, completedThisWeek, inProgress };
-  }, [rows, today, weekAgo]);
+    if (period === "month") return { from: ymd(new Date(n.getFullYear(), n.getMonth(), 1)), to: ymd(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
+    return null;
+  }, [period, custom]);
+  const monthAgo = ymd(new Date(Date.now() - 30 * 86_400_000));
+  const rows = useMemo(() => allRows.filter((r) => {
+    const pd = (r.publishingDate || "").slice(0, 10);
+    if (span) return !!pd && pd >= span.from && pd <= span.to;
+    return r.status !== "Published/Scheduled" || (pd >= monthAgo && pd <= today);
+  }), [allRows, span, monthAgo, today]);
+  const fmtDay = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 
-  const pipeline = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const s of PIPELINE_STAGES) counts[s.key] = 0;
-    for (const r of rows) if (counts[r.status] !== undefined) counts[r.status] += 1;
-    return PIPELINE_STAGES.map((s) => ({ ...s, count: counts[s.key] }));
-  }, [rows]);
-  const total = pipeline.reduce((a, s) => a + s.count, 0);
+  // We don't record when a task entered a step, so "waiting" = days since it was last
+  // changed (fallback: created).
+  const ageDays = useCallback((r: Row) => {
+    const base = (r.lastModified || r.createdDate || "").slice(0, 10);
+    if (!base) return 0;
+    return Math.max(0, Math.round((Date.parse(today) - Date.parse(base)) / 86_400_000));
+  }, [today]);
 
-  // Bottleneck signal — how long in-production work has sat untouched. We don't
-  // track per-stage entry times, so age = days since last modified (fallback:
-  // created). Per non-done stage: avg age + count stale (>7d); plus the oldest.
-  const attention = useMemo(() => {
-    const active = rows.filter((r) => !DONE_STATUSES.includes(r.status));
-    const ageDays = (r: Row) => {
-      const base = (r.lastModified || r.createdDate || "").slice(0, 10);
-      if (!base) return 0;
-      return Math.max(0, Math.round((Date.parse(today) - Date.parse(base)) / 86_400_000));
-    };
-    const perStage = PIPELINE_STAGES.filter((s) => !DONE_STATUSES.includes(s.key)).map((s) => {
-      const inStage = active.filter((r) => r.status === s.key);
-      const avg = inStage.length ? Math.round(inStage.reduce((a, r) => a + ageDays(r), 0) / inStage.length) : 0;
-      const stale = inStage.filter((r) => ageDays(r) >= 7).length;
-      const oldestAge = inStage.length ? Math.max(...inStage.map(ageDays)) : 0;
-      return { ...s, count: inStage.length, avg, stale, oldestAge };
-    });
-    const oldest = [...active]
-      .map((r) => ({ r, age: ageDays(r) }))
-      .sort((a, b) => b.age - a.age)
-      .slice(0, 5);
-    return { perStage, oldest };
-  }, [rows, today]);
+  const steps = useMemo(() => PIPELINE_STAGES.map((s, i) => {
+    const inStep = rows.filter((r) => r.status === s.key);
+    const oldest = inStep.length ? Math.max(...inStep.map(ageDays)) : 0;
+    const help = STEP_HELP[s.key];
+    const means = s.key === "Published/Scheduled" && span ? "Posted or scheduled — done" : help.means;
+    // Who the posts at this step are under — most first.
+    const byOwner = new Map<string, number>();
+    for (const r of inStep) { const o = r.owner || "Unassigned"; byOwner.set(o, (byOwner.get(o) || 0) + 1); }
+    const owners = [...byOwner.entries()].sort((a, b) => b[1] - a[1]);
+    return { ...s, ...help, means, owners, n: i + 1, count: inStep.length, oldest, done: DONE_STATUSES.includes(s.key) };
+  }), [rows, ageDays, span]);
+  const total = steps.reduce((a, s) => a + s.count, 0);
 
   const [selected, setSelected] = useState<string>(PIPELINE_STAGES[0].key);
-  const stage = PIPELINE_STAGES.find((s) => s.key === selected) || PIPELINE_STAGES[0];
-  const stageRows = rows.filter((r) => r.status === selected);
-  const stageMeta = new Map(attention.perStage.map((s) => [s.key, s]));
+  const [owner, setOwner] = useState<string | null>(null);   // a name clicked on a box
+  const pick = (key: string, who: string | null = null) => { setSelected(key); setOwner(who); };
+  const step = steps.find((s) => s.key === selected) || steps[0];
+  const stepRows = useMemo(
+    () => rows.filter((r) => r.status === selected && (!owner || (r.owner || "Unassigned") === owner))
+      .map((r) => ({ r, age: ageDays(r) })).sort((a, b) => b.age - a.age),
+    [rows, selected, owner, ageDays],
+  );
 
   if (loading && rows.length === 0) {
     return <div className="bg-white border border-gray-100 rounded-xl"><LoadingBlock label="Loading pipeline…" /></div>;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Needs attention — only the time-based alerts the stage flow below doesn't
-          already show (the old row duplicated the stage counts). */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="text-sm text-[#8A92A6] mr-1">Needs attention</span>
-        <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full ${totals.overdue > 0 ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-400"}`}>
-          <IconAlertTriangle size={14} stroke={1.9} />{fmtInt(totals.overdue)} overdue
-        </span>
-        <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full ${totals.publishingToday > 0 ? "bg-brand-light text-[#2138B0]" : "bg-gray-100 text-gray-400"}`}>
-          <IconCalendarEvent size={14} stroke={1.9} />{fmtInt(totals.publishingToday)} publishing today
-        </span>
-        <button onClick={() => setSelected("Content - Pending")} className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition ${totals.awaitingApproval > 0 ? "bg-amber-50 text-amber-700 hover:bg-amber-100" : "bg-gray-100 text-gray-400 cursor-default"}`}>
-          {fmtInt(totals.awaitingApproval)} need approval <IconArrowRight size={14} stroke={1.9} />
-        </button>
+    <div className="space-y-5">
+      {/* What this page is — plain words, so nobody has to guess. */}
+      <div className="flex flex-wrap items-start gap-3 bg-brand-light/60 border border-brand/10 rounded-xl px-4 py-3">
+        <IconColumns size={18} stroke={1.7} className="text-[#3A57E8] flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-[260px] text-[13px] text-[#232D42] leading-relaxed">
+          {span ? (
+            <><span className="font-medium">Posts publishing {period === "custom" ? <>from {fmtDay(span.from)} to {fmtDay(span.to)}</> : <>{period === "week" ? "this week" : "this month"} ({fmtDay(span.from)} – {fmtDay(span.to)})</>} — {fmtInt(total)} in all.</span>{" "}
+              Each box shows how many of them are at that step today. Posts due earlier and still stuck are under <span className="font-medium">All</span>.</>
+          ) : (
+            <><span className="font-medium">Every unfinished post, whatever its date</span> — old stuck ones and ones with no publish date yet — plus everything published in the last 30 days.</>
+          )}{" "}
+          Click a box to see which ones, longest-waiting first.
+        </div>
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+            {([["week", "This week"], ["month", "This month"], ["custom", "Custom"], ["all", "All"]] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setPeriod(k)}
+                className={`px-3 py-1 text-[13px] rounded-md transition ${period === k ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {period === "custom" && (
+            <div className="flex items-center gap-1.5 text-[13px] text-gray-600">
+              <input type="date" value={custom.from} onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
+                className="border border-gray-200 rounded-md px-2 py-1 bg-white text-[13px]" aria-label="From date" />
+              <span>to</span>
+              <input type="date" value={custom.to} min={custom.from} onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
+                className="border border-gray-200 rounded-md px-2 py-1 bg-white text-[13px]" aria-label="To date" />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Bottleneck insight — where in-production work is sitting untouched */}
-      <PageSection icon={IconHistory} title="Needs chasing — oldest first">
-        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">In-production work that has sat the longest. Click one to open it.</div>
-        {attention.oldest.length === 0 ? (
-          <div className="text-sm text-gray-400 py-2">Nothing in production right now. Team is clear.</div>
-        ) : (
-          <div className="flex flex-col">
-            {attention.oldest.map(({ r, age }) => {
-              const sp = statusPill(r.status);
-              return (
-                <button key={r.id} onClick={() => onOpen(r.id)} className="w-full text-left grid grid-cols-[minmax(0,2.5fr)_1.6fr_1.5fr_1.5fr] items-center gap-x-4 px-2.5 py-2.5 rounded-lg hover:bg-gray-50 border-b border-gray-50 last:border-0">
-                  <span className="min-w-0 truncate text-sm font-medium text-[#232D42]">{r.particulars || "(untitled)"}</span>
-                  <span className="justify-self-start inline-flex items-center gap-2 min-w-0 whitespace-nowrap">
-                    <span className={`text-[11px] font-semibold rounded-md px-2 py-0.5 ${age >= 7 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>{age} {age === 1 ? "day" : "days"} old</span>
-                    <span className="text-[11px] text-gray-400">{fmtDateShort(r.lastModified || r.createdDate)}</span>
-                  </span>
-                  <span className="justify-self-start text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: sp.bg, color: sp.text }}>{r.status}</span>
-                  <span className="justify-self-start inline-flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap min-w-0">
-                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0" style={{ background: "#EEEDFE", color: "#3C3489" }}>{(r.owner || "?").trim().slice(0, 1).toUpperCase()}</span>
-                    <span className="truncate">{r.owner || "Unassigned"}</span>
-                  </span>
-                </button>
-              );
-            })}
+      {/* The steps, grouped Writing → Making → Publishing. One row on a wide screen. */}
+      <div className="grid grid-cols-1 xl:grid-cols-7 gap-3">
+        {PHASES.map((ph) => (
+          <div key={ph.name} className={`${ph.span} min-w-0 flex flex-col`}>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[#8A92A6] mb-1.5">{ph.name}</div>
+            <div className={`grid gap-3 flex-1 ${ph.cols}`}>
+              {steps.filter((s) => s.phase === ph.name).map((s) => {
+                const isSel = s.key === selected;
+                return (
+                  <div key={s.key} role="button" tabIndex={0} onClick={() => pick(s.key)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(s.key); } }}
+                    className={`text-left rounded-xl border p-3 transition flex flex-col gap-1 min-w-0 cursor-pointer ${isSel ? "border-brand bg-brand-light/50" : "border-gray-100 bg-white hover:border-gray-200"}`}>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#8A92A6]">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />Step {s.n}
+                    </div>
+                    <div className={`text-[26px] font-medium leading-none mt-1 ${s.count === 0 ? "text-gray-300" : "text-[#232D42]"}`}>{fmtInt(s.count)}</div>
+                    <div className="text-[13px] font-medium text-[#232D42] leading-tight mt-1">{s.label}</div>
+                    <div className="text-[12px] text-gray-600 leading-snug">{s.means}</div>
+                    {/* Who it is under — click a name to see just their posts. */}
+                    {s.owners.length > 0 && (
+                      <div className="flex flex-col gap-0.5 mt-1.5">
+                        {s.owners.slice(0, 4).map(([who, c]) => {
+                          const on = isSel && owner === who;
+                          return (
+                            <button key={who} onClick={(e) => { e.stopPropagation(); pick(s.key, on ? null : who); }}
+                              title={`Show only posts under ${who}`}
+                              className={`flex items-center justify-between gap-2 rounded-md px-1.5 py-0.5 !min-h-0 h-6 text-[12px] text-left ${on ? "bg-brand text-white" : "text-[#232D42] hover:bg-gray-100"}`}>
+                              <span className="truncate">{who}</span>
+                              <span className={on ? "text-white/90" : "text-[#8A92A6]"}>{c}</span>
+                            </button>
+                          );
+                        })}
+                        {s.owners.length > 4 && <span className="px-1.5 text-[11px] text-[#8A92A6]">+{s.owners.length - 4} more</span>}
+                      </div>
+                    )}
+                    <div className="mt-auto pt-2 border-t border-gray-100 text-[11px] leading-relaxed">
+                      <div className="text-[#8A92A6] truncate">Next: <span className="text-gray-600">{s.next}</span></div>
+                      {s.done || s.count === 0
+                        ? <div className="text-gray-300">{s.count === 0 ? "Nothing waiting" : "Done"}</div>
+                        : <div className={s.oldest >= 7 ? "text-rose-600 font-medium" : "text-amber-600"}>Oldest waiting {s.oldest} {s.oldest === 1 ? "day" : "days"}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        )}
-      </PageSection>
+        ))}
+      </div>
 
-      {/* Stage cards — one card per pipeline stage; click to drill in (table below). */}
-      <PageSection icon={IconColumns} title="Content pipeline" right={<span className="text-sm text-[#8A92A6]">{fmtInt(total)} total</span>}>
-        <div className="text-sm text-[#8A92A6] mb-4 -mt-1">Content flows left → right. Click a stage to see its tasks.</div>
-        <div className="flex items-stretch gap-1.5">
-          {pipeline.map((s, i) => {
-            const isSel = s.key === selected;
-            const meta = stageMeta.get(s.key);
-            return (
-              <Fragment key={s.key}>
-                {i > 0 && <IconChevronRight size={16} className="text-gray-300 self-center flex-shrink-0" />}
-                <button
-                  onClick={() => setSelected(s.key)}
-                  className={`flex-1 min-w-0 rounded-lg border p-3 text-center transition ${isSel ? "border-brand bg-brand-light/40" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"}`}
-                >
-                  <div className={`text-2xl font-medium leading-none ${s.count === 0 ? "text-gray-300" : "text-gray-900"}`}>{fmtInt(s.count)}</div>
-                  <div className="text-[11px] text-gray-600 mt-1.5 leading-tight">{s.label}</div>
-                  {meta
-                    ? (s.count > 0
-                        ? <div className={`text-[11px] mt-1.5 ${meta.oldestAge >= 7 ? "text-rose-600 font-medium" : "text-amber-600"}`}>oldest {meta.oldestAge}d</div>
-                        : <div className="text-[11px] text-gray-300 mt-1.5">empty</div>)
-                    : <div className="text-[11px] text-gray-300 mt-1.5">{s.count > 0 ? "done" : "—"}</div>}
-                </button>
-              </Fragment>
-            );
-          })}
-        </div>
-      </PageSection>
-
-      {/* Drill-down table — tasks at the selected stage, all SBUs */}
+      {/* The posts at the chosen step — longest-waiting first, so the ones to chase are on top. */}
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-brand-light/40">
-          <div className="flex items-center gap-2.5">
-            <span className="w-3 h-3 rounded-sm" style={{ background: stage.color }} />
-            <span className="text-[14px] font-medium text-[#232D42]">{stage.label}</span>
-            <span className="text-sm text-[#8A92A6]">· {fmtInt(stageRows.length)} tasks · all SBUs</span>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-2.5 border-b border-gray-100 bg-brand-light/40">
+          <span className="w-3 h-3 rounded-sm" style={{ background: step.color }} />
+          <span className="text-[14px] font-medium text-[#232D42]">Step {step.n} · {step.label}</span>
+          {owner && (
+            <button onClick={() => setOwner(null)} className="inline-flex items-center gap-1 text-[12px] bg-brand text-white rounded-full px-2.5 py-0.5" title="Show everyone">
+              {owner} <IconX size={12} stroke={2} />
+            </button>
+          )}
+          <span className="text-sm text-[#8A92A6]">· {fmtInt(stepRows.length)} {stepRows.length === 1 ? "post" : "posts"} · {step.means}</span>
+          <span className="ml-auto text-xs text-[#8A92A6]">Next: <span className="text-gray-600">{step.next}</span></span>
         </div>
         <div className="max-h-[520px] overflow-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-gray-100 bg-gray-50 sticky top-0">
               <tr className="text-gray-500 text-left">
-                <th className="px-4 py-2.5 font-normal">Publish</th>
-                <th className="px-4 py-2.5 font-normal">SBU</th>
                 <th className="px-4 py-2.5 font-normal">Title</th>
-                <th className="px-4 py-2.5 font-normal">Type</th>
+                <th className="px-4 py-2.5 font-normal">Waiting</th>
                 <th className="px-4 py-2.5 font-normal">Owner</th>
-                <th className="px-4 py-2.5 font-normal">Priority</th>
+                <th className="px-4 py-2.5 font-normal">Type</th>
+                <th className="px-4 py-2.5 font-normal">SBU</th>
+                <th className="px-4 py-2.5 font-normal">Publish</th>
               </tr>
             </thead>
             <tbody>
-              {stageRows.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">Nothing sitting at this stage.</td></tr>
+              {stepRows.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">Nothing at this step right now.</td></tr>
               )}
-              {stageRows.map((r) => (
-                <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                  <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{fmtDateShort(r.publishingDate)}</td>
-                  <td className="px-4 py-2.5">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: sbuColor(r.sbu, allSbus) }} />
-                      {r.sbu || "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5">{r.particulars || "(untitled)"}</td>
-                  <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{r.type || "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{r.owner || "—"}</td>
-                  <td className="px-4 py-2.5">{r.priority || "—"}</td>
-                </tr>
-              ))}
+              {stepRows.map(({ r, age }) => {
+                const pd = r.publishingDate?.slice(0, 10) || "";
+                const late = !!pd && pd < today && !step.done;
+                return (
+                  <tr key={r.id} onClick={() => onOpen(r.id)} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
+                    <td className="px-4 py-2.5 text-[#232D42]">{r.particulars || "(untitled)"}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {step.done ? <span className="text-gray-400">—</span>
+                        : <span className={`text-[11px] font-medium rounded-md px-2 py-0.5 ${age >= 7 ? "bg-rose-50 text-rose-700" : "bg-gray-100 text-gray-600"}`}>{age} {age === 1 ? "day" : "days"}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{r.owner || "Unassigned"}</td>
+                    <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{r.type || "—"}</td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: sbuColor(r.sbu, allSbus) }} />
+                        {r.sbu || "—"}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-2.5 whitespace-nowrap ${late ? "text-rose-600 font-medium" : "text-gray-500"}`}>
+                      {fmtDateShort(r.publishingDate)}{late && " · late"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -3882,7 +3929,7 @@ function CreativeViewer({ creatives, index, setIndex, onClose }: {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.url} alt={c.name} className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg" />
         ) : kind === "video" ? (
-          <video src={c.url} controls autoPlay className="max-w-[92vw] max-h-[82vh] rounded-lg bg-black" />
+          <div className="relative"><SoundVideo src={c.url} open loop={false} className="max-w-[92vw] max-h-[82vh] rounded-lg bg-black" /></div>
         ) : kind === "pdf" ? (
           <iframe src={c.url} title={c.name} className="w-[90vw] h-[84vh] bg-white rounded-lg" />
         ) : (

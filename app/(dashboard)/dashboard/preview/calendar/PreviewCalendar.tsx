@@ -4,6 +4,7 @@ import { IconChevronLeft, IconChevronRight, IconRefresh, IconBrandInstagram, Ico
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { fmtDateTime } from "@/lib/date";
+import { SoundVideo } from "@/components/SoundVideo";
 
 // Themed (Version 2) Publishing Calendar — built to match the the dashboard theme reference
 // page 1:1 (special-pages/calender.html): blue hero band → "Calendar" title card
@@ -547,9 +548,7 @@ function MediaPreview({ post, pane }: { post: ScheduledPost; pane?: boolean }) {
     <div className={`hcal-media ${pane ? "pane" : ""}`}>
       <div className={`hcal-media-stage ${isReel ? "reel" : ""}`}>
         {isVideo
-          ? <video className="hcal-media-el" src={cur} controls autoPlay muted loop playsInline preload="auto"
-              poster={post.coverUrl || undefined}
-              onLoadedData={(e) => { const v = e.currentTarget; v.muted = true; void v.play().catch(() => {}); }} />
+          ? <SoundVideo className="hcal-media-el" src={cur} poster={post.coverUrl || undefined} />
           : <img className="hcal-media-el" src={cur} alt={post.particulars} />}
         {isReel && !isVideo && (
           post.instagramUrl

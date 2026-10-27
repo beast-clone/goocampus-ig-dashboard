@@ -63,6 +63,56 @@ export async function uploadMaterialFile(tab: string, file: File): Promise<{ ok:
   return { ok: true, file: { url: publicUrl, name: file.name, mime, size: file.size } };
 }
 
+/** Upload one Scheduler media file straight to storage (upload-media/sign + complete).
+ *  Going through the server capped files at Netlify's ~6 MB and returned its
+ *  plain-text error page, shown as "Unexpected token 'e' … not valid JSON" (27 Oct). */
+export async function uploadSchedulerMedia(file: File, onProgress?: (pct: number) => void): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const errorOf = async (r: Response | null, fallback: string) => {
+    if (!r) return fallback;
+    const text = await r.text().catch(() => "");
+    try { return (JSON.parse(text) as { error?: string }).error || fallback; } catch { return fallback; }
+  };
+  const mime = file.type || guessMime(file.name);
+  // Fingerprint the bytes so a file we already hold isn't stored again. Skipped for
+  // very large files, where reading the whole thing into memory isn't worth it.
+  let sha = "";
+  if (file.size <= 150 * 1024 * 1024 && typeof crypto !== "undefined" && crypto.subtle) {
+    try {
+      const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+      sha = Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
+    } catch { /* no fingerprint — just upload */ }
+  }
+  const sign = await fetch("/api/scheduler/upload-media/sign", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, mime, size: file.size, sha }),
+  }).catch(() => null);
+  if (!sign || !sign.ok) return { ok: false, error: await errorOf(sign, "Couldn't start the upload — try again.") };
+  const s = (await sign.json()) as { url?: string; path?: string; signedUrl?: string };
+  if (s.url) return { ok: true, url: s.url }; // already held — same bytes, same file
+  if (!s.path || !s.signedUrl) return { ok: false, error: "Couldn't start the upload — try again." };
+
+  const putOk = await new Promise<boolean>((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", s.signedUrl as string);
+    xhr.setRequestHeader("content-type", mime);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("cache-control", "max-age=3600");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100))); };
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+    xhr.onerror = () => resolve(false);
+    xhr.send(file);
+  });
+  if (!putOk) return { ok: false, error: "The file didn't upload — check the connection and try again." };
+
+  const done = await fetch("/api/scheduler/upload-media/complete", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: s.path, filename: file.name, sha }),
+  }).catch(() => null);
+  if (!done || !done.ok) return { ok: false, error: await errorOf(done, "Upload failed — try again.") };
+  const d = (await done.json()) as { url: string };
+  return { ok: true, url: d.url };
+}
+
 // Some systems hand over a file with no type (often a PDF dragged from certain apps).
 function guessMime(name: string): string {
   const ext = name.toLowerCase().split(".").pop() || "";

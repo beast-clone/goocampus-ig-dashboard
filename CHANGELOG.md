@@ -3,6 +3,55 @@
 Every day of work on this dashboard gets its own dated section here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-27 — Scheduler rebuilt, reels with sound, a Pipeline anyone can read
+
+> ### ⚠️ NOT DEPLOYED
+>
+> Built on the Windows machine and checked on localhost against the live Supabase
+> (Scheduler tests used drafts only — the n8n publisher posts anything `scheduled`).
+> `tsc` clean. Goes live only when the user says "deploy".
+
+**Repo renamed** on GitHub: `beast-clone/goocampus-ig-dashboard` → `beast-clone/marketing-os`.
+The Netlify site and address (`goocampus-ig-dashboard.netlify.app`) were deliberately left
+alone — n8n, the OAuth callbacks and email links all point there. On another machine:
+`git remote set-url origin https://github.com/beast-clone/marketing-os.git`.
+
+### Scheduler
+- **Uploads up to 300 MB.** Files used to pass through a Netlify function (≈6 MB cap), which
+  answered big files with a plain-text page → "Unexpected token 'e' … not valid JSON". The
+  browser now uploads straight to storage (`/api/scheduler/upload-media/{sign,complete}`,
+  `lib/scheduler-media.ts`); duplicate files are still recognised and reused.
+- **"Also share as a Story"** (photo post) / **"Use this reel as a Story too"** (reel), like
+  Meta's own scheduler. Ticking it queues a matching Story for Instagram/Facebook at the
+  same time as the post (now → both now). LinkedIn has no Stories, so it never gets one.
+  Cancel bins the Story too; reschedule moves it.
+- **Drafts** are visible again (they had no status and vanished): open one to keep editing
+  it, or delete it.
+- **Three-pane layout** like My Day: statuses on the left, that status's posts in the
+  middle (grouped by day, "Up next" card, live countdowns), the opened post on the right.
+  ‹ n of N › and ↑/↓ step through posts. Sized for 14", 24" and 27" screens.
+
+### Reels play with sound
+Browsers only autoplay video silently, so every reel was mute unless you found the tiny
+volume icon. New `components/SoundVideo.tsx` puts a "Tap for sound" button on every reel
+player (Scheduler, Content Review, Publishing Calendar, My Day / task file viewer, Marketing
+Hub viewer) and remembers the choice. Video files in a task's "Creatives & files" now show
+a real frame instead of a black box.
+
+### Pipeline (Marketing Hub › Pipeline)
+Rewritten so anyone can read it. Seven boxes, one per status, grouped Writing → Making →
+Publishing; each says what the step means, who acts next, how long the oldest post has
+waited, and **whose posts are there** (click a name to list only theirs). A
+**This week · This month · Custom · All** switch picks posts by publish date; All shows every
+unfinished post whatever its date (old stuck ones included) plus the last 30 days published.
+"New task" no longer shows on this page.
+
+### Small things
+- Browser-tab icon is now the blue Marketing OS "M" (`app/icon.png`, `apple-icon.png`,
+  `favicon.ico`) instead of Netlify's default.
+- Supabase: RLS switched on for the last 8 public tables (no policies — the app uses the
+  service key).
+
 ## 2026-10-08 — Every comment on the board, closed
 
 > ### ⚠️ NOT DEPLOYED

@@ -4,6 +4,8 @@ import { getSupabase } from "@/lib/supabase";
 import { safeError } from "@/lib/errors";
 import { freshPublishState, NOT_PUBLISHING } from "@/lib/scheduler-lock";
 import { logQueueAction, istTime } from "@/lib/publish-history";
+import { trashTasks } from "@/lib/task-trash";
+import { getSessionUserId } from "@/lib/auth";
 
 // POST /api/scheduler/enqueue
 // Puts a post into the Supabase publish QUEUE (mh_posts). This does NOT publish to
@@ -30,7 +32,42 @@ type Body = {
   draft?: boolean;             // park it; the worker only picks up "scheduled"
   sbu?: string;                // brand / business unit — the calendar's "Interest"
   scheduleTimeISO?: string;    // absent/empty → publish "now" (schedule_time = now)
+  alsoStory?: boolean;         // also post the same single photo / reel as a Story
 };
+
+type Sb = NonNullable<ReturnType<typeof getSupabase>>;
+
+// "Also share as a Story" (Praveen, 27 Oct — like Meta's own scheduler). The Story is
+// its own queue row beside the post: same file, pages, networks and time, so the
+// publisher (which already posts IG + FB stories) sends both in the same run.
+// Instagram and Facebook only — LinkedIn has no Stories. Re-queueing the post updates
+// its Story instead of adding another; unticking bins a Story that hasn't gone out.
+async function syncStory(sb: Sb, postId: string, want: boolean, row: Record<string, unknown>, title: string, when: string, draft: boolean) {
+  const { data: found } = await sb.from("mh_posts").select("id, publish_status").eq("custom->>story_of", postId).limit(5);
+  const open = (found || []).find((r) => r.publish_status !== "published" && r.publish_status !== "publishing");
+  if (!want) {
+    if (open) await trashTasks(sb, [open.id], (getSessionUserId() || "scheduler").toLowerCase());
+    return;
+  }
+  // Already out (or going out right now) — never post the same Story twice.
+  if (!open && (found || []).length) return;
+  if (open) {
+    const { error } = await sb.from("mh_posts").update(row).eq("id", open.id).or(NOT_PUBLISHING);
+    if (error) throw new Error(`story: ${error.message}`);
+    await logQueueAction(sb, open.id, draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(String(row.schedule_time)));
+    return;
+  }
+  const { data, error } = await sb.from("mh_posts").insert({
+    particulars: `${title} · Story`.slice(0, 200),
+    status: "Ready to Publish",
+    needs_review: false,
+    synced_to_scheduler: false,
+    type: "Story",
+    ...row,
+  }).select("id").single();
+  if (error) throw new Error(`story: ${error.message}`);
+  await logQueueAction(sb, data.id, draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(String(row.schedule_time)));
+}
 
 // Instagram allows up to 3 collaborators; normalise (strip leading @, blanks) and cap.
 function cleanCollaborators(raw?: string[]): string[] | null {
@@ -91,6 +128,14 @@ export async function POST(req: Request) {
       publish_status: (b.draft ? "draft" : "scheduled") as "draft" | "scheduled",
     };
 
+    // A Story is one photo or one video, and only a feed post or reel gets one beside it.
+    const wantStory = !!b.alsoStory && (format === "post" || format === "reel") && media.length === 1;
+    const storyFor = (postId: string) => syncStory(sb, postId, wantStory, {
+      ...common,
+      collaborators: null,   // Stories can't carry collaborators
+      custom: { publish_format: "story", cover_url: null, channels: customPatch.channels, caption_fb: null, story_of: postId },
+    }, (b.particulars || "Post").trim(), when, !!b.draft);
+
     if (b.taskId) {
       // Merge into whatever custom already holds. An Output-Ready row can carry other
       // custom fields (claim_role, and any column the Marketing Hub has added), and
@@ -107,7 +152,8 @@ export async function POST(req: Request) {
       const { data, error } = await sb.from("mh_posts").update({ ...common, custom: merged }).eq("id", b.taskId).or(NOT_PUBLISHING).select("id").single();
       if (error) throw new Error(error.message);
       await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));
-      return NextResponse.json({ ok: true, id: data.id, when: b.draft ? "draft" : when, scheduleTime, mode: "updated" });
+      await storyFor(data.id);
+      return NextResponse.json({ ok: true, id: data.id, when: b.draft ? "draft" : when, scheduleTime, mode: "updated", story: wantStory });
     }
 
     // New manual post
@@ -132,7 +178,8 @@ export async function POST(req: Request) {
       .single();
     if (error) throw new Error(error.message);
     await logQueueAction(sb, data.id, b.draft ? "publish_draft_saved" : when === "now" ? "publish_now" : "publish_scheduled", null, istTime(scheduleTime));
-    return NextResponse.json({ ok: true, id: data.id, when, scheduleTime, mode: "inserted" });
+    if (wantStory) await storyFor(data.id);
+    return NextResponse.json({ ok: true, id: data.id, when, scheduleTime, mode: "inserted", story: wantStory });
   } catch (err) {
     return NextResponse.json(safeError(err, "Enqueue failed"), { status: 502 });
   }

@@ -64,8 +64,8 @@ All these go in `.env.local` for local dev, or **Netlify → Site settings → E
 ### Local development
 
 ```bash
-git clone https://github.com/beast-clone/goocampus-ig-dashboard
-cd goocampus-ig-dashboard
+git clone https://github.com/beast-clone/marketing-os
+cd marketing-os
 npm install
 
 # Copy your backup secrets in from the SSD:
@@ -78,7 +78,7 @@ npm run dev
 
 ### Netlify deployment
 
-1. **Push to GitHub** (this repo is at `beast-clone/goocampus-ig-dashboard`)
+1. **Push to GitHub** (this repo is at `beast-clone/marketing-os`, renamed from goocampus-ig-dashboard on 27 Oct 2026)
 2. **Netlify → Add new site → Import from Git** → pick the repo
 3. Build config auto-detects from `netlify.toml`
 4. **Site settings → Environment variables** — paste every variable from the table above.

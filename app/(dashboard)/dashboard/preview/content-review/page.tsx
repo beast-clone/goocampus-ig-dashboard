@@ -9,6 +9,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { PdfThumb, isPdf, pdfPageCount } from "@/components/PdfThumb";
 import { fmtDate } from "@/lib/date";
+import { SoundVideo } from "@/components/SoundVideo";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
@@ -555,13 +556,13 @@ function Review() {
                       }}
                     >
                       {slides.map((sl, i) => (
-                        <div key={`${sl.url}-${sl.page}-${i}`} className="w-full h-full flex-shrink-0 snap-center grid place-items-center">
+                        <div key={`${sl.url}-${sl.page}-${i}`} className="relative w-full h-full flex-shrink-0 snap-center grid place-items-center">
                           {sl.page > 0 ? (
                             <PdfThumb url={sl.url} page={sl.page} width={460} fit="contain" badge={false}
                               fallback={<a href={sl.url} target="_blank" rel="noreferrer" className="text-sm text-white underline">Open PDF</a>} />
                           ) : isVideoUrl(sl.url, p.type) ? (
                             Math.abs(i - slide) <= 1
-                              ? <video src={sl.url} controls autoPlay={i === slide} muted loop playsInline className="w-full h-full object-contain" />
+                              ? <SoundVideo src={sl.url} autoPlay={i === slide} className="w-full h-full object-contain" />
                               : null
                           ) : (
                             // eslint-disable-next-line @next/next/no-img-element

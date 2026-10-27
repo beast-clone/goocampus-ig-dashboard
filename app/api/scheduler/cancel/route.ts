@@ -4,6 +4,8 @@ import { getSupabase } from "@/lib/supabase";
 import { NOT_PUBLISHING, notUpdated, freshPublishState } from "@/lib/scheduler-lock";
 import { safeError } from "@/lib/errors";
 import { logQueueAction, istTime } from "@/lib/publish-history";
+import { trashTasks } from "@/lib/task-trash";
+import { getSessionUserId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,11 @@ export async function POST(req: Request) {
     if (!data?.length) return notUpdated(sb, recordId);
     await logQueueAction(sb, recordId, "removed_from_queue", was?.publish_status || null, null,
       typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 300) : undefined);
+    // Its "also as a Story" goes with it — to the recycle bin, unless it's already out
+    // (enqueue syncStory, 27 Oct). A Story left queued would post on its own.
+    const { data: stories } = await sb.from("mh_posts").select("id, publish_status").eq("custom->>story_of", recordId);
+    const open = (stories || []).filter((s) => s.publish_status !== "published" && s.publish_status !== "publishing").map((s) => s.id);
+    if (open.length) await trashTasks(sb, open, (getSessionUserId() || "scheduler").toLowerCase());
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Cancel failed"), { status: 502 });

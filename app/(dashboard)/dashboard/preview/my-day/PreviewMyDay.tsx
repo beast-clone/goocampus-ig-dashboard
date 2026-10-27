@@ -37,6 +37,7 @@ import { useOwnUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 import { editPartnerOf, firstWithRole, isDesigner, isEditor as isEditorKey, isWriter, keysWithRole, presenterFor, roleOf, shiftStartMin, type WorkRole } from "@/lib/team-roles";
 import { SETTINGS } from "@/lib/app-settings";
 import { useAppSettings } from "@/lib/use-app-settings";
+import { SoundVideo } from "@/components/SoundVideo";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -624,7 +625,7 @@ function CreativePreview({ items, index, onIndex, onClose }: { items: CreativeIt
         <button className="cv-x" onClick={onClose}>×</button>
         <div className="cv-stage">
           {cur.type === "video"
-            ? <video className="cv-el" src={cur.url} controls autoPlay playsInline />
+            ? <SoundVideo className="cv-el" src={cur.url || ""} open loop={false} />
             : <img className="cv-el" src={cur.url} alt={cur.name} />}
           {items.length > 1 && (
             <>

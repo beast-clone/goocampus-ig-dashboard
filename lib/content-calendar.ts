@@ -168,6 +168,13 @@ export type ScheduledPost = {
   prepState?: "sending" | "ready" | "error" | null;   // file sent ahead of the time (publisher v3)
   prepError?: string | null;
   processingTry?: number | null;   // set while Instagram is still processing a video
+  format?: string | null;          // "post" | "reel" | "story" — what the publisher builds
+  storyOf?: string | null;         // set on a post's "also as a Story" — the post's id
+  // What reopening a draft in Create post needs (27 Oct).
+  pages?: string[];                // every page ticked, not only the first
+  channels?: string[];             // "instagram" / "facebook"
+  collaborators?: string[];
+  captionFbOverride?: string | null; // the separate Facebook caption, when one was written
 };
 
 export type EffectiveStatus = "scheduled" | "publishing" | "published" | "failed" | "draft" | "unknown";
@@ -246,6 +253,9 @@ function deriveSupabaseStatus(
         return { effective: "failed", failureReason: `Scheduled ${Math.floor((now - schedMs) / 60000)} min ago but never picked up by the publish worker. Check the n8n worker is active.` };
       }
       return { effective: "scheduled", failureReason: null };
+    // Saved from Create post, never sent — the Scheduler's Drafts list (27 Oct).
+    case "draft":
+      return { effective: "draft", failureReason: null };
     default:
       return { effective: "unknown", failureReason: null };
   }
@@ -328,6 +338,12 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       publishedAt: r.published_at,
       updatedAt: r.updated_at,
       processingTry: cust.ig_creation_id ? Math.max(1, Number(cust.attempts) || 1) : null,
+      format: typeof cust.publish_format === "string" ? cust.publish_format : null,
+      storyOf: typeof cust.story_of === "string" ? cust.story_of : null,
+      pages,
+      channels: Array.isArray(cust.channels) ? (cust.channels as string[]) : [],
+      collaborators: r.collaborators || [],
+      captionFbOverride: typeof cust.caption_fb === "string" ? cust.caption_fb : null,
       prepState: prepStateOf(r).state,
       prepError: prepStateOf(r).error,
     } as ScheduledPost;

@@ -1,13 +1,13 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { AutoTextarea } from "@/components/AutoTextarea";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook, IconTrash } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook, IconTrash, IconSearch, IconLayoutSidebarRight } from "@tabler/icons-react";
 import { LinkedInQueue } from "./LinkedInScheduler";
 import { PdfThumb, pdfPageCount } from "@/components/PdfThumb";
 import { ReelThumbnail } from "./ReelThumbnail";
@@ -21,6 +21,8 @@ import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { compressImage } from "@/lib/compress-image";
+import { SoundVideo } from "@/components/SoundVideo";
+import { uploadSchedulerMedia } from "@/lib/upload-task-file";
 import { nextPublisherCheck, clockText, durationText, SEND_AHEAD_MIN } from "@/lib/publisher-clock";
 import { SETTINGS } from "@/lib/app-settings";
 import { useAppSettings } from "@/lib/use-app-settings";
@@ -52,6 +54,13 @@ type ScheduledPost = {
   processingTry?: number | null;
   prepState?: "sending" | "ready" | "error" | null;
   prepError?: string | null;
+  format?: string | null;    // "post" | "reel" | "story"
+  storyOf?: string | null;   // a post's "also as a Story" points at the post
+  coverUrl?: string | null;
+  pages?: string[];
+  channels?: string[];
+  collaborators?: string[];
+  captionFbOverride?: string | null;
 };
 
 type TimeSuggestion = {
@@ -180,10 +189,11 @@ function Scheduler() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [mediaUrls, setMediaUrls] = useState<string[]>([""]);
-  // What the publisher should build. A reel is a single video; anything else is a
-  // post. Stories are deliberately absent — nothing publishes them yet, and a format
-  // you can pick but not send is worse than one that isn't offered.
+  // What the publisher should build: a reel (one video), a story (one image or video,
+  // IG + FB only), or a post.
   const [format, setFormat] = useState<"post" | "reel" | "story">("post");
+  // "Also share as a Story" beside a single-photo post or a reel (27 Oct).
+  const [alsoStory, setAlsoStory] = useState(false);
   const [coverUrl, setCoverUrl] = useState("");
   // Which of Meta's two channels this goes to. A brand implies an Instagram account
   // AND one or more Facebook pages; until now both always fired. Meta lets you tick
@@ -241,7 +251,7 @@ function Scheduler() {
   const [gate, setGate] = useState<GateBlock | null>(null);
   // recordId is optional: a LinkedIn-only (PDF) post never touches the Meta queue,
   // so there is no mh_posts row to point at.
-  const [result, setResult] = useState<{ ok: true; recordId?: string; draft?: boolean; whenLabel?: string } | { ok: false; error: string } | null>(null);
+  const [result, setResult] = useState<{ ok: true; recordId?: string; draft?: boolean; whenLabel?: string; story?: boolean } | { ok: false; error: string } | null>(null);
 
   // Smart features state
   const [timeSuggestions, setTimeSuggestions] = useState<TimeSuggestion[]>([]);
@@ -276,7 +286,7 @@ function Scheduler() {
     tabParam === "calendar" ? "publish" : tabParam === "top" ? "top" : "to_schedule";
   // Which status the counter strip is filtering the list to. "ready" = produced content
   // awaiting scheduling (the default To-schedule master list); the rest slice the queue.
-  const [listFilter, setListFilter] = useState<"ready" | "scheduled" | "published" | "failed">("ready");
+  const [listFilter, setListFilter] = useState<"ready" | "scheduled" | "published" | "failed" | "drafts" | "linkedin">("ready");
   const [topAccount, setTopAccount] = useState<string>("all");
   const [toSchedule, setToSchedule] = useState<ToScheduleItem[]>([]);
   const [toScheduleLoading, setToScheduleLoading] = useState(true);
@@ -394,6 +404,9 @@ function Scheduler() {
     setCaption(t.caption || "");
     setMediaUrls(t.mediaUrls && t.mediaUrls.length ? t.mediaUrls : [""]);
     setScheduleEnabled(false);
+    // Ticked again if this task already has a Story waiting, so re-scheduling it
+    // doesn't drop that Story unasked.
+    setAlsoStory(queue.some((p) => p.storyOf === t.id && p.effectiveStatus !== "published"));
     setResult(null);
     setSelectedTaskId(t.id);
     openTaskRef.current = t.id;
@@ -414,7 +427,51 @@ function Scheduler() {
   // When rescheduling a top performer, the creatives are locked (view-only) — you're
   // reposting the SAME media, only the caption changes.
   const [mediaLocked, setMediaLocked] = useState(false);
-  const openManualComposer = () => { setSchedulingTaskId(null); setMediaLocked(false); setShowCreateForm(true); };
+  // A draft left open and closed must not seed the next new post (it would publish a copy).
+  const editingDraft = useRef(false);
+  const openManualComposer = () => {
+    if (editingDraft.current) { resetComposer(); editingDraft.current = false; }
+    setSchedulingTaskId(null); setMediaLocked(false); setShowCreateForm(true);
+  };
+  // Reopen a draft in Create post with everything it was saved with. The draft's own
+  // id rides along, so Publish / Schedule / Save as draft update it instead of adding
+  // a copy (27 Oct).
+  function openDraft(p: ScheduledPost) {
+    resetComposer();
+    editingDraft.current = true;
+    setSchedulingTaskId(p.id);
+    setMediaLocked(false);
+    setParticulars(p.particulars || "");
+    setCaption(p.fullCaption || "");
+    const media = p.mediaUrls && p.mediaUrls.length ? p.mediaUrls : [];
+    setMediaUrls(media.length ? media : [""]);
+    setComposePages(p.pages && p.pages.length ? p.pages : [p.publishToPage].filter(Boolean));
+    const ch = p.channels && p.channels.length ? p.channels : ["instagram", "facebook"];
+    setToInstagram(ch.includes("instagram"));
+    setToFacebook(ch.includes("facebook"));
+    setCollab((p.collaborators || []).join(", "));
+    setSbu(p.primaryInterest || "");
+    setCaptionFb(p.captionFbOverride || "");
+    setSplitCaption(!!p.captionFbOverride);
+    setCoverUrl(p.coverUrl || "");
+    const fmt = p.format === "reel" || p.format === "story" ? p.format : "post";
+    if (media.filter((u) => !isPdfUrl(u)).length === 1) draftFormat.current = fmt;
+    setAlsoStory(draftHasStory(p.id));
+    setResult(null);
+    setShowCreateForm(true);
+  }
+  async function discardDraft(p: ScheduledPost) {
+    const ok = await confirmDialog({
+      title: "Delete this draft?",
+      body: <span>“{p.particulars || "Untitled"}”{draftHasStory(p.id) ? " and its Story" : ""} will go to the recycle bin — you can restore it from there.</span>,
+      action: "Delete draft",
+      cancel: "Keep it",
+    });
+    if (!ok) return;
+    const r = await fetch("/api/scheduler/discard-draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: p.id }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); await alertDialog(`Couldn't delete the draft — ${(j as { error?: string }).error || "try again in a moment."}`); return; }
+    loadQueue();
+  }
   // Filters for the queue
   const [filterPage, setFilterPage] = useState<string>("all");
   const [filterInterest, setFilterInterest] = useState<string>("all");
@@ -638,12 +695,30 @@ function Scheduler() {
   // points at it — that is the one the toggle is still for. Picking by hand wins
   // until the creative changes, at which point the file gets the say again.
   const formatTouched = useRef(false);
+  // A reopened draft brings its own format; applied once, after its media lands.
+  const draftFormat = useRef<"post" | "reel" | "story" | null>(null);
   useEffect(() => { formatTouched.current = false; }, [singleMediaUrl, metaMediaUrls.length]);
   useEffect(() => {
+    if (draftFormat.current) { setFormat(draftFormat.current); formatTouched.current = true; draftFormat.current = null; return; }
     if (formatTouched.current) return;
     setFormat(!singleMediaUrl ? "post" : singleVideoUrl ? "reel" : "post");
   }, [singleMediaUrl, singleVideoUrl]);
   const chooseFormat = (f: "post" | "reel" | "story") => { formatTouched.current = true; setFormat(f); };
+  // "Also share as a Story" — only for one photo (post) or one reel going to Instagram
+  // and/or Facebook. It queues a Story beside the post at the same time (now or the
+  // scheduled time); the publisher sends both. LinkedIn has no Stories.
+  const storyOffer = !!singleMediaUrl && (format === "post" || format === "reel") && (toInstagram || toFacebook);
+  const storyTick = storyOffer ? (
+    <label className="flex items-start gap-2 mt-3 cursor-pointer">
+      <input type="checkbox" checked={alsoStory} onChange={(e) => setAlsoStory(e.target.checked)} className="w-4 h-4 mt-0.5 accent-[#3A57E8]" />
+      <span>
+        <span className="text-sm text-[#232D42]">{format === "reel" ? "Use this reel as a Story too" : "Also share as a Story"}</span>
+        <span className="block text-xs text-[#8A92A6]">
+          {[toInstagram && "Instagram", toFacebook && "Facebook"].filter(Boolean).join(" + ")} Story, at the same time as the post. LinkedIn has no Stories.
+        </span>
+      </span>
+    </label>
+  ) : null;
   // Everything the queue needs, listed in one place. The Schedule/Publish button stays
   // clickable when something's short so the popup can name it — a greyed-out button
   // with no reason was the single most common "why won't it do anything?" complaint.
@@ -668,6 +743,9 @@ function Scheduler() {
     return queue.filter((p) => {
       if (excludeId && p.id === excludeId) return false;
       if (page && p.publishToPage !== page) return false;
+      // A Story doesn't land in the feed, so it doesn't use up the day or the gap —
+      // otherwise a post's own "also as a Story" would block the next slot (27 Oct).
+      if (p.format === "story") return false;
       if (!["scheduled", "publishing", "published"].includes(p.effectiveStatus)) return false;
       const t = p.scheduleTime || p.publishedAt;
       return !!t && new Date(t).toLocaleDateString("en-CA") === day;
@@ -754,6 +832,9 @@ function Scheduler() {
               ))}
               <div className="text-[13px] text-[#4A5468] mt-1">{nets || "No network ticked"}</div>
             </div>
+            {storyOffer && alsoStory && (
+              <div className="text-[13px] text-[#4A5468]"><span className="text-[#8A92A6]">Also:</span> as a {[toInstagram && "Instagram", toFacebook && "Facebook"].filter(Boolean).join(" + ")} Story, at the same time</div>
+            )}
             <div className="text-[13px] text-[#4A5468]"><span className="text-[#8A92A6]">When:</span> {when}</div>
           </div>
         ),
@@ -806,7 +887,7 @@ function Scheduler() {
   function resetComposer() {
     setParticulars(""); setCaption(""); setMediaUrls([""]); setCollab(""); setScheduleEnabled(false);
     setScheduleDate(""); setScheduleTime(""); setSchedulingTaskId(null); setSelectedTaskId(null); setAlsoLinkedIn(false);
-    setFormat("post"); setCoverUrl(""); setSplitCaption(false); setCaptionFb(""); setSbu("");
+    setFormat("post"); setAlsoStory(false); setCoverUrl(""); setSplitCaption(false); setCaptionFb(""); setSbu("");
     setComposePages([]);   // the next post starts with no page ticked too
   }
 
@@ -863,7 +944,9 @@ function Scheduler() {
   // Scheduled → the LinkedIn queue + cron; publish-now → the immediate route.
   // Sends the PDF when there is one, so the post lands as a document carousel.
   async function crossPostLinkedIn(scheduleTimeISO?: string): Promise<boolean> {
-    if (!alsoLinkedIn) return true;
+    // LinkedIn has no Stories — a Story with LinkedIn ticked used to go out there as
+    // an ordinary feed post (27 Oct).
+    if (!alsoLinkedIn || format === "story") return true;
     const liPages = linkedInPages;
     if (!liPages.length) return true;
     try {
@@ -921,6 +1004,7 @@ function Scheduler() {
           captionFb: splitCaption && toInstagram && toFacebook ? captionFb : "",
           draft: Boolean(asDraft),
           scheduleTimeISO,
+          alsoStory: storyOffer && alsoStory,
         }),
       });
       const d = await res.json();
@@ -933,6 +1017,7 @@ function Scheduler() {
           ok: true,
           recordId: d.id,
           draft: Boolean(asDraft),
+          story: Boolean(d.story),
           whenLabel: !asDraft && scheduleTimeISO
             ? new Date(scheduleTimeISO).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })
             : undefined,
@@ -992,6 +1077,12 @@ function Scheduler() {
   // Publishing stays in this list (marked) until it lands under Published.
   const readyToSchedule = queueFiltered.filter((p) => p.effectiveStatus === "scheduled" || p.effectiveStatus === "publishing");
   const failed = queueFiltered.filter((p) => p.effectiveStatus === "failed");
+  // Saved from Create post, not sent. A draft's own Story rides with it ("+ Story"),
+  // so it isn't listed a second time.
+  const drafts = queueFiltered
+    .filter((p) => p.effectiveStatus === "draft" && !p.storyOf)
+    .sort((a, b) => new Date(b.updatedAt || b.scheduleTime || 0).getTime() - new Date(a.updatedAt || a.scheduleTime || 0).getTime());
+  const draftHasStory = (id: string) => queue.some((q) => q.storyOf === id && q.effectiveStatus === "draft");
   const publishedRecent = queueFiltered
     .filter((p) => p.effectiveStatus === "published")
     .sort((a, b) => new Date(b.publishedAt || b.scheduleTime || 0).getTime() - new Date(a.publishedAt || a.scheduleTime || 0).getTime())
@@ -1059,229 +1150,390 @@ function Scheduler() {
     } finally { setCaptionSaving(false); }
   }
 
+  // ── Layout B (Praveen, 27 Oct): statuses | the posts in that status | the opened post ──
+  const [paneSearch, setPaneSearch] = useState("");
+  const [paneSel, setPaneSel] = useState<string | null>(null);   // the open queue post
+  const paneMatches = (t: string) => !paneSearch.trim() || t.toLowerCase().includes(paneSearch.trim().toLowerCase());
+  // A post's own "also as a Story" rides with it ("+ Story"), not as a second row.
+  const hideCompanions = (l: ScheduledPost[]) => { const ids = new Set(l.map((p) => p.id)); return l.filter((p) => !(p.storyOf && ids.has(p.storyOf))); };
+  const hasStory = (id: string) => queue.some((q) => q.storyOf === id);
+  const rowIso = (p: ScheduledPost) => (p.effectiveStatus === "published" ? p.publishedAt : p.effectiveStatus === "draft" ? p.updatedAt : p.scheduleTime) || p.scheduleTime || p.publishedAt || null;
+  const kindOf = (p: ScheduledPost) => (p.format === "reel" ? "Reel" : p.format === "story" ? "Story" : (p.mediaUrls?.length || 0) > 1 ? "Carousel" : (p.type || "Post"));
+  const dateMs = (d: string | null) => (d ? new Date(d).getTime() : Number.POSITIVE_INFINITY);
+  const readyList = [...toSchedule].filter((t) => paneMatches(t.title)).sort((a, b) => dateMs(a.publishingDate) - dateMs(b.publishingDate));
+  const queueList: ScheduledPost[] =
+    listFilter === "scheduled" ? hideCompanions(readyToSchedule).sort((a, b) => dateMs(a.scheduleTime) - dateMs(b.scheduleTime))
+    : listFilter === "published" ? hideCompanions(publishedRecent)
+    : listFilter === "failed" ? [...failed].sort((a, b) => dateMs(b.scheduleTime) - dateMs(a.scheduleTime))
+    : listFilter === "drafts" ? drafts
+    : [];
+  const queueShown = queueList.filter((p) => paneMatches(p.particulars || ""));
+  const openPost = queueShown.find((p) => p.id === paneSel) || null;
+  const openTaskObj = toSchedule.find((t) => t.id === selectedTaskId) || null;
+  const paneMeta = PANE_STATUSES.find((s) => s.key === listFilter) || PANE_STATUSES[0];
+  const paneCount: Record<string, number | null> = {
+    ready: toScheduleTotal, scheduled: hideCompanions(readyToSchedule).length, published: hideCompanions(publishedRecent).length,
+    failed: failed.length, drafts: drafts.length, linkedin: null,
+  };
+  const paneShownCount = listFilter === "ready" ? readyList.length : queueShown.length;
+  const paneSubtitle = `${paneShownCount} post${paneShownCount === 1 ? "" : "s"}${listFilter === "ready" || listFilter === "scheduled" ? " · soonest first" : listFilter === "published" ? " · latest first" : ""}`;
+  // Open a ready task in the right pane (selectTask toggles, so never re-click the open one).
+  const openTask = (t: ToScheduleItem) => { if (selectedTaskId !== t.id) selectTask(t); };
+  const choosePane = (k: (typeof PANE_STATUSES)[number]["key"]) => { setListFilter(k); setPaneSearch(""); setPaneSel(null); };
+  // Queue statuses open their first post; a ready task is only opened by a click (opening
+  // one fills the composer, which would overwrite an unsent Create post).
+  const queueKey = queueShown.map((p) => p.id).join(",");
+  useEffect(() => {
+    if (listFilter === "ready" || listFilter === "linkedin") return;
+    if (!queueShown.length) { if (paneSel) setPaneSel(null); return; }
+    if (!queueShown.some((p) => p.id === paneSel)) setPaneSel(queueShown[0].id);
+  }, [listFilter, queueKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepPane = (d: number) => {
+    if (listFilter === "ready") {
+      const i = readyList.findIndex((t) => t.id === selectedTaskId);
+      const n = readyList[i < 0 ? 0 : i + d]; if (n) openTask(n); return;
+    }
+    const i = queueShown.findIndex((p) => p.id === paneSel);
+    const n = queueShown[i + d]; if (n) setPaneSel(n.id);
+  };
+  // ↑ / ↓ step through the list — not while typing, and not with a popup open.
+  useEffect(() => {
+    if (schedTab !== "to_schedule") return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && el.closest && el.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (showCreateForm || calItem || publishNowPost || scheduleModalPost || deletePost) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); stepPane(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); stepPane(-1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  useEffect(() => { document.querySelector(".sched-row.on")?.scrollIntoView({ block: "nearest" }); }, [paneSel, selectedTaskId]);
+  const panePager = (i: number, n: number) => (n > 1 && i >= 0 ? (
+    <div className="sched-pager" title="Previous / next — or press ↑ ↓">
+      <button disabled={i <= 0} onClick={() => stepPane(-1)} aria-label="Previous">‹</button>
+      <span>{i + 1} of {n}</span>
+      <button disabled={i >= n - 1} onClick={() => stepPane(1)} aria-label="Next">›</button>
+    </div>
+  ) : null);
+  // Take a failed post out of the queue and open its task to change the creative.
+  async function fixCreative(p: ScheduledPost) {
+    const r = await fetch("/api/scheduler/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: p.id, reason: "Fix creative — taken out to change the creative" }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); await alertDialog(`Couldn't take it out of the queue — ${(j as { error?: string }).error || "try again in a moment."}`); return; }
+    window.location.href = `/dashboard/preview/marketing-hub?tab=master&open=${p.id}`;
+  }
+
   return (
     <div>
       {schedTab === "to_schedule" && (
-        <div>
-          {/* Header + view toggle (List = inline master-detail · Cards = classic grid) */}
-          <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-            <div>
-              <div className="sched-heading text-base text-[#232D42]">{
-                listFilter === "ready" ? "Ready to schedule"
-                : listFilter === "scheduled" ? "Scheduled"
-                : listFilter === "published" ? "Published" : "Failed"
-              }</div>
-              <div className="text-[12px] text-gray-500">{
-                listFilter === "ready"
-                  ? "Produced content awaiting a publish action — click a post to open it right here."
-                  : "Click a post to open its full preview and analytics."
-              }</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => { if (listFilter === "ready") loadToSchedule(); else loadQueue(); }} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
-              <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Create post</button>
-            </div>
+        <div className="sched-wrap">
+          <style>{SPLIT_CSS}</style>
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <button onClick={() => { loadToSchedule(); loadQueue(); }} className="text-xs font-medium bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg hover:border-gray-300">↻ Refresh</button>
+            <button onClick={openManualComposer} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">+ Create post</button>
           </div>
 
-          {/* Pipeline status: content awaiting scheduling → scheduled → published/failed.
-              No "Publishing" state — the n8n worker takes a scheduled post straight to
-              published/failed in one pass, so nothing ever sits in an intermediate state.
-              A scheduled post the worker never picks up auto-flips to Failed (see
-              deriveSupabaseStatus), so nothing is ever silently missed. */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <StatusCounter label="Ready to schedule" count={toScheduleTotal} color="amber" active={listFilter === "ready"} onClick={() => setListFilter("ready")} />
-            <StatusCounter label="Scheduled" count={readyToSchedule.length} color="violet" active={listFilter === "scheduled"} onClick={() => setListFilter("scheduled")} />
-            <StatusCounter label="Published (recent)" count={publishedRecent.length} color="green" active={listFilter === "published"} onClick={() => setListFilter("published")} />
-            <StatusCounter label="Failed" count={failed.length} color="rose" active={listFilter === "failed"} onClick={() => setListFilter("failed")} />
-          </div>
+          {/* Layout B (Praveen, 27 Oct): statuses | the posts in that status | the opened
+              post — like My Day. Each pane scrolls on its own; widths follow the screen. */}
+          <div className="sched-split">
+            {/* 1 — statuses */}
+            <aside className="sched-pane">
+              <div className="sched-head sched-railhead"><div className="text-base font-medium text-[#232D42]">Status</div></div>
+              <div className="sched-scroll sched-rail">
+                {PANE_STATUSES.map((st) => {
+                  const n = paneCount[st.key];
+                  return (
+                    <button key={st.key} onClick={() => choosePane(st.key)} title={`${st.name} — ${st.hint}`}
+                      className={`sched-status${listFilter === st.key ? " on" : ""}`}
+                      style={{ ["--tone" as string]: st.tone, ["--tint" as string]: st.tint } as CSSProperties}>
+                      <span className="ic" style={{ background: st.tint, color: st.tone }}><st.Icon size={16} stroke={1.8} /></span>
+                      <span className="nm">
+                        <span className="n-full">{st.name}</span><span className="n-mid">{st.mid}</span><span className="n-short">{st.short}</span>
+                        <span className="hint">{st.hint}</span>
+                      </span>
+                      {n !== null && <span className="ct">{n}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
 
-          {listFilter === "ready" ? (
-            <>
-              {toScheduleLoading && <div className="bg-white rounded-lg border border-gray-100"><LoadingBlock label="Loading produced content…" /></div>}
-              {!toScheduleLoading && toSchedule.length === 0 && (
-                <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">Nothing waiting — everything produced has been scheduled.</div>
-              )}
-              {!toScheduleLoading && toSchedule.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                  {/* LEFT — clickable list; the selected row expands its editor inline */}
-                  <div className="lg:col-span-7 space-y-2">
-                    {toSchedule.map((t) => {
-                      const open = selectedTaskId === t.id;
-                      return (
-                        <div key={t.id} className={`bg-white rounded-xl border ${open ? "border-brand" : "border-gray-200"}`}>
-                          <div className={`flex items-center ${open ? "bg-brand-light/30 rounded-t-xl" : "hover:bg-gray-50 rounded-xl"}`}>
-                          <button onClick={() => selectTask(t)} className="min-w-0 flex-1 flex items-center gap-3 pl-3.5 pr-2 py-3 text-left">
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium text-gray-900 truncate">{t.title}</div>
-                              <div className="text-xs text-gray-500 truncate">{pageHandle(t.defaultPage)}{t.type ? ` · ${t.type}` : ""}</div>
-                            </div>
-                            {/* Publishing date at the right corner — when it's set to go out */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {(() => {
-                                if (!t.publishingDate) return <span className="text-xs text-gray-300">no date</span>;
-                                const d = new Date(t.publishingDate);
-                                const label = Number.isNaN(d.getTime()) ? t.publishingDate : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-                                return <span className="inline-flex items-center gap-1 text-xs text-gray-600 tabular-nums bg-gray-50 border border-gray-100 rounded px-2 py-0.5 whitespace-nowrap"><IconCalendarEvent size={13} stroke={1.8} className="text-gray-400" />{label}</span>;
-                              })()}
-                              <IconChevronRight size={16} stroke={2.2} className={`transition-transform ${open ? "text-brand rotate-90" : "text-gray-400"}`} />
-                            </div>
-                          </button>
-                          <button onClick={() => sendBackToReview(t)} title="Take it out of the Scheduler and send it back to Content Review"
-                            className="mr-2.5 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-gray-500 hover:text-brand hover:bg-white border border-transparent hover:border-gray-200 flex-shrink-0">
-                            <IconArrowBackUp size={14} stroke={1.8} />Send back
-                          </button>
-                          <button onClick={() => deleteToSchedule(t)} title="Delete it — it goes to the recycle bin"
-                            className="mr-2.5 -ml-1.5 inline-flex items-center gap-1 h-7 px-2 rounded text-xs text-gray-500 hover:text-rose-600 hover:bg-white border border-transparent hover:border-gray-200 flex-shrink-0">
-                            <IconTrash size={14} stroke={1.8} />Delete
-                          </button>
+            {listFilter === "linkedin" ? (
+              <section className="sched-pane sched-wide"><div className="sched-scroll p-4"><LinkedInQueue /></div></section>
+            ) : (<>
+              {/* 2 — the posts in that status */}
+              <section className="sched-pane">
+                <div className="sched-head">
+                  <div className="text-base font-medium text-[#232D42]">{paneMeta.name}</div>
+                  <div className="text-xs text-[#8A92A6]">{paneSubtitle}</div>
+                </div>
+                <div className="sched-search">
+                  <IconSearch size={15} stroke={1.8} className="text-[#8A92A6] flex-shrink-0" />
+                  <input value={paneSearch} onChange={(e) => setPaneSearch(e.target.value)} placeholder="Search posts…" />
+                </div>
+                <div className="sched-scroll sched-list">
+                  {listFilter === "ready" ? (
+                    toScheduleLoading ? <LoadingBlock label="Loading produced content…" />
+                    : readyList.length === 0 ? <div className="sched-empty">{paneSearch ? "Nothing matches that search." : "Nothing waiting — everything produced has been scheduled."}</div>
+                    : (<>
+                      {!paneSearch && (
+                        <button className="sched-upnext" onClick={() => openTask(readyList[0])}>
+                          <div className="lbl">Schedule next</div>
+                          <div className="ttl">{readyList[0].title}</div>
+                          <div className="cd">{dueText(readyList[0].publishingDate)}<small>{readyList[0].publishingDate ? ` · ${dayLabel2(readyList[0].publishingDate)}` : ""}</small></div>
+                          {readyList[1] && <div className="then">Then: {readyList[1].title} — {readyList[1].publishingDate ? dayLabel2(readyList[1].publishingDate) : "no date"}</div>}
+                        </button>
+                      )}
+                      {readyList.map((t, i) => {
+                        const head = t.publishingDate ? dayLabel2(t.publishingDate) : "No publishing date";
+                        const prev = i > 0 ? (readyList[i - 1].publishingDate ? dayLabel2(readyList[i - 1].publishingDate as string) : "No publishing date") : null;
+                        return (
+                          <div key={t.id}>
+                            {head !== prev && <div className="sched-day">{head}</div>}
+                            <button onClick={() => openTask(t)} className={`sched-row${selectedTaskId === t.id ? " on" : ""}`}>
+                              <PaneThumb url={t.mediaUrls[0]} />
+                              <span className="flex-1 min-w-0">
+                                <span className="t">{i === 0 && !paneSearch && <span className="sched-badge">Do next</span>}{t.title}</span>
+                                <span className="m">{pageHandle(t.defaultPage)}{t.type ? ` · ${t.type}` : ""}</span>
+                              </span>
+                              <span className="w"><span className="rel">{dueText(t.publishingDate)}</span></span>
+                            </button>
                           </div>
+                        );
+                      })}
+                    </>)
+                  ) : (
+                    queueLoading && !queueShown.length ? <LoadingBlock label="Loading the queue…" />
+                    : queueShown.length === 0 ? <div className="sched-empty">{paneSearch ? "Nothing matches that search." : PANE_EMPTY[listFilter]}</div>
+                    : (<>
+                      {listFilter === "scheduled" && !paneSearch && (
+                        <button className="sched-upnext" onClick={() => setPaneSel(queueShown[0].id)}>
+                          <div className="lbl">Up next</div>
+                          <div className="ttl">{queueShown[0].particulars || "Untitled"}</div>
+                          <div className="cd"><RelTime iso={queueShown[0].scheduleTime} /><small> · {whenText(queueShown[0].scheduleTime)} · {pageHandle(queueShown[0].publishToPage)}</small></div>
+                          {queueShown[1] && <div className="then">Then: {queueShown[1].particulars || "Untitled"} — {whenText(queueShown[1].scheduleTime)}</div>}
+                        </button>
+                      )}
+                      {queueShown.map((p, i) => {
+                        const iso = rowIso(p);
+                        const head = iso ? dayLabel2(iso) : "";
+                        const prevIso = i > 0 ? rowIso(queueShown[i - 1]) : null;
+                        const prev = i > 0 ? (prevIso ? dayLabel2(prevIso) : "") : null;
+                        const why = listFilter === "failed" ? explainFailure(p.failureReason) : null;
+                        return (
+                          <div key={p.id}>
+                            {head !== prev && head && <div className="sched-day">{head}</div>}
+                            <button onClick={() => setPaneSel(p.id)} className={`sched-row${p.id === paneSel ? " on" : ""}`}>
+                              <PaneThumb url={p.thumbnailUrl} />
+                              <span className="flex-1 min-w-0">
+                                <span className="t">{i === 0 && listFilter === "scheduled" && !paneSearch && <span className="sched-badge">Next up</span>}{p.particulars || "Untitled"}</span>
+                                <span className="m">{pageHandle(p.publishToPage)} · {kindOf(p)}{hasStory(p.id) && <span className="sched-mini">+ Story</span>}</span>
+                                {why && <span className="why">Why: {why.why}</span>}
+                              </span>
+                              <span className="w">
+                                {p.effectiveStatus === "publishing" ? <span className="text-blue-700">Publishing…</span>
+                                  : listFilter === "failed" ? <><span className="text-rose-600">Failed</span><br />{whenText(iso)}</>
+                                  : listFilter === "drafts" ? <>saved<br />{whenText(iso)}</>
+                                  : whenText(iso)}
+                                {listFilter === "scheduled" && p.effectiveStatus !== "publishing" && <RelTime iso={p.scheduleTime} className="rel" />}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </>)
+                  )}
+                </div>
+              </section>
 
-                          {open && (
-                            <div className="border-t border-gray-100 px-3 py-3 space-y-3">
-                              <div>
-                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post name</label>
-                                <input value={particulars} onChange={(e) => setParticulars(e.target.value)} className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2" />
+              {/* 3 — the opened post */}
+              <section className="sched-pane sched-detail">
+                {listFilter === "ready" ? (
+                  openTaskObj ? (<>
+                    <div className="sched-dhead">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="sched-chip" style={{ background: PANE_STATUSES[0].tint, color: PANE_STATUSES[0].tone }}><IconClock size={13} stroke={1.8} />Ready to schedule</span>
+                          {openTaskObj.type && <span className="sched-chip brand">{openTaskObj.type}</span>}
+                          <span className="sched-chip">{openTaskObj.publishingDate ? `Publishing date · ${dayLabel2(openTaskObj.publishingDate)}` : "No publishing date"}</span>
+                        </div>
+                        <div className="sched-dtitle">{openTaskObj.title}</div>
+                      </div>
+                      <div className="sched-acts">
+                        {panePager(readyList.findIndex((x) => x.id === openTaskObj.id), readyList.length)}
+                        <button onClick={() => sendBackToReview(openTaskObj)} title="Take it out of the Scheduler and send it back to Content Review"
+                          className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 inline-flex items-center gap-1"><IconArrowBackUp size={14} stroke={1.8} />Send back</button>
+                        <button onClick={() => deleteToSchedule(openTaskObj)} title="Delete it — it goes to the recycle bin"
+                          className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 inline-flex items-center gap-1"><IconTrash size={14} stroke={1.8} />Delete</button>
+                      </div>
+                    </div>
+                    <div className="sched-scroll" key={openTaskObj.id}>
+                      <div className="sched-ready">
+                        <div className="space-y-3 min-w-0">
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post name</label>
+                            <input value={particulars} onChange={(e) => setParticulars(e.target.value)} className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2" />
+                          </div>
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</label>
+                            <div className="mt-1"><PageCheckboxes value={composePages} onChange={setComposePages} allowed={allowedPages} /></div>
+                            <div className="mt-2">{channelTicks}</div>
+                          </div>
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Collaborator</label>
+                            <div className="mt-1"><CollaboratorField value={collab} onChange={setCollab} /></div>
+                          </div>
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
+                            <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} taskId={schedulingTaskId} /></div>
+                          </div>
+                          {/* Same Format choice as the modal. This row is how produced work
+                              actually gets scheduled, so leaving it out here meant a story
+                              could only be scheduled by starting again from Create post. */}
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Format</label>
+                            <div className="mt-1 inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                              {ALL_FORMATS.map((f, fi) => {
+                                const ok = formatChoices.includes(f);
+                                return (
+                                  <button key={f} type="button" disabled={!ok} onClick={() => chooseFormat(f)}
+                                    title={ok ? undefined : FORMAT_WHY_NOT[f]}
+                                    className={`px-3 py-1.5 text-[12px] ${fi > 0 ? "border-l border-gray-200" : ""} ${
+                                      !ok ? "text-[#C2C6D0] bg-[#FAFBFC] cursor-not-allowed"
+                                        : format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
+                                    {f === "post" ? "Post" : f === "reel" ? "Reel" : "Story"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">{formatChoices.length ? FORMAT_NOTE[format] : FORMAT_BLOCKED}</div>
+                            {storyTick}
+                          </div>
+                          <div>
+                            <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
+                            <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
+                            <div className="text-right text-xs text-gray-400 mt-0.5">{caption.length} / 2200</div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-700">{scheduleEnabled ? "Publish at the time below" : "Publish now"}</span>
+                            <button onClick={() => setScheduleEnabled(!scheduleEnabled)} className={`relative inline-flex items-center h-5 rounded-full w-9 transition ${scheduleEnabled ? "bg-brand" : "bg-gray-200"}`} aria-label="Toggle schedule">
+                              <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow transition ${scheduleEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                            </button>
+                          </div>
+                          {scheduleEnabled && (
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <PreviewDatePicker value={scheduleDate} onChange={setScheduleDate} />
+                                <TimePicker value={scheduleTime} onChange={setScheduleTime} />
                               </div>
-                              <div>
-                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Post to</label>
-                                <div className="mt-1"><PageCheckboxes value={composePages} onChange={setComposePages} allowed={allowedPages} /></div>
-                                <div className="mt-2">{channelTicks}</div>
-                              </div>
-                              <div>
-                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Collaborator</label>
-                                <div className="mt-1"><CollaboratorField value={collab} onChange={setCollab} /></div>
-                              </div>
-                              <div>
-                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
-                                <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} taskId={schedulingTaskId} /></div>
-                              </div>
-                              {/* Same Format choice as the modal. This row is how produced work
-                                  actually gets scheduled, so leaving it out here meant a story
-                                  could only be scheduled by starting again from Create post. */}
-                              <div>
-                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Format</label>
-                                <div className="mt-1 inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                                  {ALL_FORMATS.map((f, fi) => {
-                                    const ok = formatChoices.includes(f);
-                                    return (
-                                      <button key={f} type="button" disabled={!ok} onClick={() => chooseFormat(f)}
-                                        title={ok ? undefined : FORMAT_WHY_NOT[f]}
-                                        className={`px-3 py-1.5 text-[12px] ${fi > 0 ? "border-l border-gray-200" : ""} ${
-                                          !ok ? "text-[#C2C6D0] bg-[#FAFBFC] cursor-not-allowed"
-                                            : format === f ? "bg-brand text-white" : "text-[#4A5468] hover:bg-[#F6F7FB]"}`}>
-                                        {f === "post" ? "Post" : f === "reel" ? "Reel" : "Story"}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                <div className="text-xs text-gray-400 mt-1">{formatChoices.length ? FORMAT_NOTE[format] : FORMAT_BLOCKED}</div>
-                              </div>
-                              <div>
-                                <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Caption</label>
-                                <CaptionField value={caption} onChange={setCaption} placeholder="Write your caption…" className="w-full mt-1 text-sm text-gray-900 rounded-lg border border-gray-200 px-3 py-2 font-sans" />
-                                <div className="text-right text-xs text-gray-400 mt-0.5">{caption.length} / 2200</div>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-700">{scheduleEnabled ? "Publish at the time below" : "Publish now"}</span>
-                                <button onClick={() => setScheduleEnabled(!scheduleEnabled)} className={`relative inline-flex items-center h-5 rounded-full w-9 transition ${scheduleEnabled ? "bg-brand" : "bg-gray-200"}`} aria-label="Toggle schedule">
-                                  <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow transition ${scheduleEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
-                                </button>
-                              </div>
-                              {scheduleEnabled && (
-                                <div className="space-y-2">
-                                  <div className="flex gap-2">
-                                    <PreviewDatePicker value={scheduleDate} onChange={setScheduleDate} />
-                                    <TimePicker value={scheduleTime} onChange={setScheduleTime} />
+                              {/* Friendly, unambiguous confirmation of the exact date it'll go out */}
+                              {(() => {
+                                if (!scheduleDate || !scheduleTime) return null;
+                                const dt = new Date(`${scheduleDate}T${scheduleTime}`);
+                                if (Number.isNaN(dt.getTime())) return null;
+                                const label = fmtDateTime(dt.toISOString());
+                                return <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5"><IconCalendarEvent size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Goes out <span className="font-medium">{label}</span></div>;
+                              })()}
+                              {timeSuggestions.length > 0 && (
+                                <div>
+                                  <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5"><IconSparkles size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Best time to post — when your audience is most online</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {timeSuggestions.map((s, i) => {
+                                      const d = new Date(s.nextOccurrenceISO);
+                                      const dateLbl = Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+                                      return (
+                                        <button key={i} type="button" onClick={() => applyTimeSuggestion(s)}
+                                          className="text-xs bg-brand-light hover:bg-brand-light border border-brand/30 text-brand rounded-lg px-2.5 py-1.5 transition"
+                                          title={`Scheduled for ${s.weekdayLabel} ${dateLbl} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}>
+                                          <span className="font-semibold">{s.weekdayLabel} {dateLbl} · {s.hourLabel}</span>
+                                          <span className="text-brand ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
+                                        </button>
+                                      );
+                                    })}
                                   </div>
-                                  {/* Friendly, unambiguous confirmation of the exact date it'll go out */}
-                                  {(() => {
-                                    if (!scheduleDate || !scheduleTime) return null;
-                                    const dt = new Date(`${scheduleDate}T${scheduleTime}`);
-                                    if (Number.isNaN(dt.getTime())) return null;
-                                    const label = fmtDateTime(dt.toISOString());
-                                    return <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5"><IconCalendarEvent size={14} stroke={1.8} className="inline -mt-0.5 mr-1" />Goes out <span className="font-medium">{label}</span></div>;
-                                  })()}
-                                  {timeSuggestions.length > 0 && (
-                                    <div>
-                                      <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1.5"><IconSparkles size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Best time to post — when your audience is most online</div>
-                                      <div className="flex flex-wrap gap-2">
-                                        {timeSuggestions.map((s, i) => {
-                                          const d = new Date(s.nextOccurrenceISO);
-                                          const dateLbl = Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-                                          return (
-                                            <button key={i} type="button" onClick={() => applyTimeSuggestion(s)}
-                                              className="text-xs bg-brand-light hover:bg-brand-light border border-brand/30 text-brand rounded-lg px-2.5 py-1.5 transition"
-                                              title={`Scheduled for ${s.weekdayLabel} ${dateLbl} at ${s.hourLabel} — ${s.followersOnline.toLocaleString("en-IN")} followers typically online`}>
-                                              <span className="font-semibold">{s.weekdayLabel} {dateLbl} · {s.hourLabel}</span>
-                                              <span className="text-brand ml-1">· {s.followersOnline.toLocaleString("en-IN")} online</span>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
                                 </div>
                               )}
-                              {tooBigForIg.length > 0 && (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
-                                  <b className="font-medium">Too big for Instagram:</b> {tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram only takes videos up to 300 MB from here — export at 1080 × 1920, H.264, about 10–15 Mbps.
-                                </div>
-                              )}
-                              <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                                <span className="text-xs">
-                                  {result?.ok === true ? <span className="text-green-700">✓ Scheduled — moved to the queue.</span>
-                                    : result?.ok === false ? <span className="text-red-700">✗ {result.error}</span>
-                                    : <span className="text-gray-500">to <b className="text-gray-700">{pageHandle(publishToPage)}</b></span>}
-                                </span>
-                                <button onClick={submit} disabled={submitting} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed">
-                                  {submitting ? "Sending…" : scheduleEnabled ? "Schedule →" : "Publish →"}
-                                </button>
-                              </div>
                             </div>
                           )}
+                          {tooBigForIg.length > 0 && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+                              <b className="font-medium">Too big for Instagram:</b> {tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram only takes videos up to 300 MB from here — export at 1080 × 1920, H.264, about 10–15 Mbps.
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                            <span className="text-xs">
+                              {result?.ok === true ? <span className="text-green-700">✓ Scheduled — moved to the queue.</span>
+                                : result?.ok === false ? <span className="text-red-700">✗ {result.error}</span>
+                                : <span className="text-gray-500">to <b className="text-gray-700">{pageHandle(publishToPage)}</b></span>}
+                            </span>
+                            <button onClick={submit} disabled={submitting} className="text-xs font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed">
+                              {submitting ? "Sending…" : scheduleEnabled ? "Schedule →" : "Publish →"}
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* RIGHT — sticky live preview with an Instagram / Facebook / LinkedIn switcher */}
-                  <div className="lg:col-span-5">
-                    <div className="sticky top-6">
-                      <PreviewHeader platform={previewPlatform} onPlatform={setPreviewPlatform}
-                        device={previewDevice} onDevice={setPreviewDevice} />
-                      {selectedTaskId ? (
-                        <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} device={previewDevice} />
-                      ) : (
-                        <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400 max-w-sm mx-auto">Select a post on the left to preview it here.</div>
-                      )}
+                        <div className="min-w-0">
+                          <PreviewHeader platform={previewPlatform} onPlatform={setPreviewPlatform} device={previewDevice} onDevice={setPreviewDevice} />
+                          <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} device={previewDevice} />
+                        </div>
+                      </div>
+                    </div>
+                  </>) : (
+                    <PanePlaceholder text={readyList.length ? "Pick a post — or start with the one under “Schedule next”." : "Nothing to schedule right now."} />
+                  )
+                ) : openPost ? (<>
+                  <div className="sched-dhead">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="sched-chip" style={{ background: paneMeta.tint, color: paneMeta.tone }}><paneMeta.Icon size={13} stroke={1.8} />{openPost.effectiveStatus === "publishing" ? "Publishing…" : paneMeta.name}</span>
+                        <span className="sched-chip brand">{kindOf(openPost)}</span>
+                        {hasStory(openPost.id) && <span className="sched-chip brand">+ Story</span>}
+                        <span className="sched-chip">{pageHandle(openPost.publishToPage)}</span>
+                      </div>
+                      <div className="sched-dtitle">{openPost.particulars || "Untitled"}</div>
+                    </div>
+                    <div className="sched-acts">
+                      {panePager(queueShown.findIndex((x) => x.id === openPost.id), queueShown.length)}
+                      {openPost.effectiveStatus === "publishing" ? <span className="text-xs text-gray-500">Can&apos;t be changed now</span>
+                      : listFilter === "drafts" ? (<>
+                        <button onClick={() => openDraft(openPost)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark">Open in Create post</button>
+                        <button onClick={() => void discardDraft(openPost)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50">Delete</button>
+                      </>) : listFilter === "published" ? null : (<>
+                        {listFilter === "failed" && (
+                          <button onClick={() => void fixCreative(openPost)} title="Take it out of the queue and open the task to change the creative"
+                            className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark">Fix creative →</button>
+                        )}
+                        <button onClick={() => setPublishNowPost(openPost)}
+                          className={`text-xs font-medium px-2.5 py-1.5 rounded-lg ${listFilter === "failed" ? "border border-brand/40 text-brand hover:bg-brand-light/40" : "bg-brand text-white hover:bg-brand-dark"}`}>{listFilter === "failed" ? "Try again" : "Publish now"}</button>
+                        <button onClick={() => setScheduleModalPost(openPost)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40">Reschedule</button>
+                        <button onClick={() => setDeletePost(openPost)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50">Delete</button>
+                      </>)}
                     </div>
                   </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <StatusFilterList
-              posts={listFilter === "scheduled" ? readyToSchedule : listFilter === "published" ? publishedRecent : failed}
-              emptyLabel={
-                listFilter === "scheduled" ? "No scheduled posts yet — schedule one from the Ready to schedule list."
-                : listFilter === "published" ? "No published posts in this window."
-                : "No failed posts — all clear."
-              }
-              pageHandle={pageHandle}
-              onOpen={(p) => setCalItem({ kind: "scheduled", whenMs: new Date(p.scheduleTime || p.publishedAt || 0).getTime(), post: p })}
-              onReschedule={(p) => setScheduleModalPost(p)}
-              onPublishNow={(p) => setPublishNowPost(p)}
-              onDelete={(p) => setDeletePost(p)}
-              onFix={async (p) => {
-                const r = await fetch("/api/scheduler/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: p.id, reason: "Fix creative — taken out to change the creative" }) });
-                if (!r.ok) { const j = await r.json().catch(() => ({})); await alertDialog(`Couldn't take it out of the queue — ${(j as { error?: string }).error || "try again in a moment."}`); return; }
-                window.location.href = `/dashboard/preview/marketing-hub?tab=master&open=${p.id}`;
-              }}
-            />
-          )}
-          {listFilter !== "ready" && listFilter !== "failed" && (
-            <div className="mt-5"><LinkedInQueue /></div>
-          )}
+                  <div className="sched-scroll" key={openPost.id}>
+                    <PostPreviewContent key={openPost.id} item={{ kind: "scheduled", whenMs: new Date(rowIso(openPost) || 0).getTime(), post: openPost }} />
+                    {(() => {
+                      const i = queueShown.findIndex((x) => x.id === openPost.id);
+                      const nx = listFilter === "scheduled" ? queueShown[i + 1] : undefined;
+                      if (!nx) return null;
+                      return (
+                        <div className="px-5 pb-5">
+                          <button onClick={() => setPaneSel(nx.id)} className="sched-after">
+                            <PaneThumb url={nx.thumbnailUrl} />
+                            <span className="flex-1 min-w-0 text-left"><span className="text-xs text-[#8A92A6]">After this</span><br /><span className="text-sm font-medium text-[#232D42]">{nx.particulars || "Untitled"}</span></span>
+                            <span className="text-xs text-[#4A5468] text-right whitespace-nowrap">{whenText(nx.scheduleTime)}<br /><RelTime iso={nx.scheduleTime} className="text-brand" /></span>
+                            <IconChevronRight size={16} stroke={2} className="text-[#C2C6D0]" />
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </>) : (
+                  <PanePlaceholder text="Pick a post — its preview, caption, time and actions open here." />
+                )}
+              </section>
+            </>)}
+          </div>
         </div>
       )}
 
@@ -1600,6 +1852,7 @@ function Scheduler() {
                   );
                 })}
               </div>
+              {storyTick}
               {format === "reel" && singleVideoUrl && (
                 <div className="pt-1 border-t border-gray-100">
                   <div className="text-xs uppercase tracking-wide text-gray-500 font-medium mt-3 mb-2">Thumbnail</div>
@@ -1777,8 +2030,8 @@ function Scheduler() {
           {result?.ok === true && (result.draft
             ? <span className="text-green-700">✓ Saved as a draft. Nothing is posted until you send it.</span>
             : result.whenLabel
-            ? <span className="text-green-700">✓ Scheduled for {result.whenLabel}. It goes out on its own — you don&apos;t need to be here.</span>
-            : <span className="text-green-700">✓ Queued to go out now — live within a minute (a video can take a few more while Instagram processes it).</span>)}
+            ? <span className="text-green-700">✓ {result.story ? "Post and Story scheduled" : "Scheduled"} for {result.whenLabel}. It goes out on its own — you don&apos;t need to be here.</span>
+            : <span className="text-green-700">✓ {result.story ? "Post and Story queued" : "Queued"} to go out now — live within a minute (a video can take a few more while Instagram processes it).</span>)}
           {result?.ok === false && <span className="text-red-700">✗ {result.error}</span>}
           {!result && <span>{scheduleEnabled ? sendAheadHint(scheduleDate, scheduleTime) : "Goes straight into your publishing queue."}</span>}
         </div>
@@ -1835,11 +2088,9 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
         // Shrink before it leaves the browser — Meta re-encodes anyway, so the
         // extra megabytes only ever cost us storage.
         const f = await compressImage(raw);
-        const fd = new FormData(); fd.append("file", f);
-        const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
-        const d = await r.json();
-        if (r.ok && d.url) urls.push(d.url);
-        else alertDialog(`Upload failed: ${d.error || r.status}`);
+        const up = await uploadSchedulerMedia(f);
+        if (up.ok) urls.push(up.url);
+        else alertDialog(`Upload failed: ${up.error}`);
       }
       if (urls.length) {
         await fetch("/api/scheduler/set-media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, mediaUrls: urls, append: true }) });
@@ -1943,36 +2194,6 @@ function ToScheduleList({ items, loading, onRefresh, onSchedule, onAddManual, hi
         })}
       </div>
     </div>
-  );
-}
-
-function StatusCounter({ label, count, color, active, onClick }: { label: string; count: number; color: "amber" | "violet" | "blue" | "green" | "rose"; active?: boolean; onClick?: () => void }) {
-  // Polished KPI tile (matches the Sales Hub KPI row): an icon chip tinted to the
-  // status colour, a big number, and a one-line hint. Still a filter button — the
-  // active one gets a soft tinted background + coloured border so it reads as selected.
-  const META: Record<string, { fg: string; chipBg: string; activeBg: string; hint: string; Icon: typeof IconClock }> = {
-    amber:  { fg: "#D9861B", chipBg: "rgba(226,154,46,0.12)",  activeBg: "rgba(226,154,46,0.06)",  hint: "Waiting for a time slot", Icon: IconClock },
-    violet: { fg: "#3A57E8", chipBg: "rgba(58,87,232,0.12)",   activeBg: "rgba(58,87,232,0.06)",   hint: "Queued to publish",       Icon: IconCalendarEvent },
-    blue:   { fg: "#3A57E8", chipBg: "rgba(58,87,232,0.12)",   activeBg: "rgba(58,87,232,0.06)",   hint: "Queued to publish",       Icon: IconCalendarEvent },
-    green:  { fg: "#1AA053", chipBg: "rgba(26,160,83,0.12)",   activeBg: "rgba(26,160,83,0.06)",   hint: "Live in the last 7 days", Icon: IconSend },
-    rose:   { fg: "#E5484D", chipBg: "rgba(229,72,77,0.12)",   activeBg: "rgba(229,72,77,0.06)",   hint: "Need a retry",            Icon: IconAlertTriangle },
-  };
-  const m = META[color];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`text-left rounded-xl border px-3 py-2.5 transition ${active ? "" : "bg-white border-gray-100 hover:border-gray-200"}`}
-      style={active ? { background: m.activeBg, borderColor: m.fg } : undefined}
-    >
-      <span className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-[7px] mb-1.5" style={{ background: m.chipBg }}>
-        <m.Icon size={15} stroke={1.8} style={{ color: m.fg }} />
-      </span>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-[#8A92A6]">{label}</div>
-      <div className="text-[21px] font-semibold text-[#232D42] tabular-nums leading-[1.1]">{count}</div>
-      <div className="text-[11px] text-[#9AA1B1]">{m.hint}</div>
-    </button>
   );
 }
 
@@ -2130,89 +2351,6 @@ function PublishHistory({ postId }: { postId: string }) {
 
 // Compact list shown when a status counter (Scheduled / Publishing / Published / Failed)
 // is the active filter. Click a row to open the big preview/analytics modal.
-function StatusFilterList({ posts, emptyLabel, pageHandle, onOpen, onReschedule, onPublishNow, onDelete, onFix }: {
-  posts: ScheduledPost[];
-  emptyLabel: string;
-  pageHandle: (page: string) => string;
-  onOpen: (p: ScheduledPost) => void;
-  onReschedule: (p: ScheduledPost) => void;
-  onPublishNow: (p: ScheduledPost) => void;
-  onDelete: (p: ScheduledPost) => void;
-  onFix?: (p: ScheduledPost) => void;
-}) {
-  if (posts.length === 0) {
-    return <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center text-sm text-gray-500">{emptyLabel}</div>;
-  }
-  const fmt = (iso: string | null) => {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    return fmtDateTime(d.toISOString());
-  };
-  const pill: Record<string, string> = {
-    scheduled: "bg-brand-light text-brand",
-    publishing: "bg-blue-50 text-blue-700",
-    published: "bg-emerald-50 text-emerald-700",
-    failed: "bg-rose-50 text-rose-700",
-    draft: "bg-gray-100 text-gray-600",
-    unknown: "bg-gray-100 text-gray-600",
-  };
-  return (
-    <div className="space-y-2">
-      {posts.map((p) => (
-        <div key={p.id}
-          className="w-full flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3.5 py-3 hover:border-brand transition">
-          <button onClick={() => onOpen(p)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
-            <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-              {/* A reel with no cover has only an mp4 to show — a still frame from
-                  the video beats the broken-image icon that an <img> gives. */}
-              {p.thumbnailUrl && (isVideoUrl(p.thumbnailUrl)
-                ? <video src={p.thumbnailUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-gray-900 truncate">{p.particulars || "Untitled"}</div>
-              <div className="text-xs text-gray-500 truncate">{pageHandle(p.publishToPage)}{p.type ? ` · ${p.type}` : ""}</div>
-              <LiveStatus post={p} className="mt-0.5" />
-              {p.effectiveStatus === "failed" && explainFailure(p.failureReason) && (
-                <div className="text-xs text-rose-700 mt-0.5 truncate" title={`${explainFailure(p.failureReason)!.why} ${explainFailure(p.failureReason)!.fix || ""}`}>
-                  Why: {explainFailure(p.failureReason)!.why}
-                </div>
-              )}
-            </div>
-          </button>
-          <div className="text-xs text-gray-500 flex-shrink-0 text-right tabular-nums hidden sm:block">
-            {fmt(p.effectiveStatus === "published" ? p.publishedAt : p.scheduleTime)}
-          </div>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${pill[p.effectiveStatus] || pill.unknown}`}>{p.effectiveStatus === "publishing" ? "Publishing…" : p.effectiveStatus}</span>
-          {p.effectiveStatus === "publishing" && (
-            <span className="text-xs text-gray-500 flex-shrink-0">Can&apos;t be changed now</span>
-          )}
-          {/* Row actions — only for posts that are still actionable (not published, not mid-publish) */}
-          {p.effectiveStatus !== "published" && p.effectiveStatus !== "publishing" && (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {/* Some posts are written to go out now, not at the time someone
-                  picked earlier. Without this the only way was to reschedule to a
-                  minute in the future and wait. */}
-              {/* A failed post's way back (Praveen, 22 Oct): take it out of the queue and
-                  open its task to swap the creative; it then waits in Ready to schedule. */}
-              {p.effectiveStatus === "failed" && onFix && (
-                <button onClick={() => onFix(p)} title="Take it out of the queue and open the task to change the creative"
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark transition">Fix creative →</button>
-              )}
-              <button onClick={() => onPublishNow(p)}
-                className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition ${p.effectiveStatus === "failed" ? "border border-brand/40 text-brand hover:bg-brand-light/40" : "bg-brand text-white hover:bg-brand-dark"}`}>{p.effectiveStatus === "failed" ? "Try again" : "Publish now"}</button>
-              <button onClick={() => onReschedule(p)}
-                className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 transition">Reschedule</button>
-              <button onClick={() => onDelete(p)}
-                className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition">Delete</button>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // Over-posting guard popup. Lists the posts already committed to that day (name + time),
 // A deliverable arrives either as an uploaded file or as a LINK (Drive, Canva,
 // Slack). Name the link by where it actually points — this used to say "Slack" for
@@ -2650,7 +2788,174 @@ type CalFilter = "all" | "today" | "yesterday" | "week" | "upcoming";
 
 // Big full-screen view of a scheduled or published post — opened from the calendar.
 // View-only: media, caption, status, account, and permalinks. Handles both kinds.
-function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: () => void }) {
+// ── Layout B (27 Oct): the Scheduler's status column, its little helpers and its CSS ──
+const PANE_STATUSES = [
+  { key: "ready", name: "Ready to schedule", mid: "To schedule", short: "Ready", hint: "Waiting for a time slot", tone: "#D9861B", tint: "rgba(226,154,46,0.12)", Icon: IconClock },
+  { key: "scheduled", name: "Scheduled", mid: "Scheduled", short: "Scheduled", hint: "Queued to publish", tone: "#3A57E8", tint: "rgba(58,87,232,0.12)", Icon: IconCalendarEvent },
+  { key: "published", name: "Published", mid: "Published", short: "Published", hint: "Live in the last 7 days", tone: "#1AA053", tint: "rgba(26,160,83,0.12)", Icon: IconSend },
+  { key: "failed", name: "Failed", mid: "Failed", short: "Failed", hint: "Need a retry", tone: "#E5484D", tint: "rgba(229,72,77,0.12)", Icon: IconAlertTriangle },
+  { key: "drafts", name: "Drafts", mid: "Drafts", short: "Drafts", hint: "Saved, not sent", tone: "#4A5468", tint: "rgba(74,84,104,0.10)", Icon: IconPencil },
+  { key: "linkedin", name: "LinkedIn", mid: "LinkedIn", short: "LinkedIn", hint: "Scheduled & posted", tone: "#0A66C2", tint: "rgba(10,102,194,0.10)", Icon: IconBrandLinkedin },
+] as const;
+const PANE_EMPTY: Record<string, string> = {
+  scheduled: "No scheduled posts yet — schedule one from Ready to schedule.",
+  published: "No published posts in this window.",
+  failed: "No failed posts — all clear.",
+  drafts: "No drafts. Use “Save as draft” in Create post to park a post here and finish it later.",
+};
+// "Today" / "Tomorrow" / "Yesterday" / "Thu, 30 Oct" — the list's day headings.
+function dayLabel2(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(d) - day(new Date())) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}
+// The time on a row: just the time today, else day + time.
+function whenText(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const t = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return dayLabel2(iso) === "Today" ? t : `${dayLabel2(iso)}, ${t}`;
+}
+// A ready task's publishing date as "due today" / "due in 3 days" / "overdue · 2 days".
+function dueText(date: string | null): string {
+  if (!date) return "no date";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "no date";
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(d) - day(new Date())) / 86400000);
+  if (diff === 0) return "due today";
+  if (diff === 1) return "due tomorrow";
+  if (diff > 1) return `due in ${diff} days`;
+  return `overdue · ${-diff} day${diff === -1 ? "" : "s"}`;
+}
+// "in 2 h 10 m" — its own little ticking component, so the page doesn't re-render every second.
+function RelTime({ iso, className = "" }: { iso: string | null | undefined; className?: string }) {
+  const now = useNow(!!iso);
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - now;
+  if (Number.isNaN(ms)) return null;
+  let text: string;
+  if (ms <= 0) text = "due now";
+  else {
+    const m = Math.round(ms / 60000), h = Math.floor(m / 60), dd = Math.floor(h / 24);
+    text = dd >= 2 ? `in ${dd} days` : h >= 1 ? `in ${h} h${m % 60 ? ` ${m % 60} m` : ""}` : `in ${Math.max(1, m)} m`;
+  }
+  return <span className={`block ${className}`}>{text}</span>;
+}
+function PaneThumb({ url }: { url?: string | null }) {
+  return (
+    <span className="sched-thumb">
+      {url ? (isVideoUrl(url)
+        ? <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+        : /* eslint-disable-next-line @next/next/no-img-element */ <img src={url} alt="" className="w-full h-full object-cover" />)
+        : <IconPhoto size={16} stroke={1.6} className="text-[#C2C6D0]" />}
+    </span>
+  );
+}
+function PanePlaceholder({ text }: { text: string }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-8 py-16 text-sm text-[#8A92A6]">
+      <IconLayoutSidebarRight size={34} stroke={1.4} className="text-[#C2C6D0]" />
+      {text}
+    </div>
+  );
+}
+// Widths follow the screen through container queries on the Scheduler's own width
+// (the sidebar is outside it): 24"+ full names with hints, 15" laptop names only,
+// 14" laptop an icon rail with counts, very narrow everything stacked.
+const SPLIT_CSS = `
+.sched-wrap{container:sched / inline-size}
+.sched-split{display:grid;gap:12px;align-items:start;grid-template-columns:232px minmax(300px,380px) minmax(0,1fr)}
+.sched-pane{position:sticky;top:12px;max-height:calc(100vh - 24px);min-height:420px;display:flex;flex-direction:column;background:#fff;border:1px solid #EEF0F4;border-radius:14px;min-width:0}
+.sched-wide{grid-column:span 2}
+.sched-scroll{overflow:auto;min-height:0;flex:1}
+.sched-head{padding:12px 14px 10px;border-bottom:1px solid #EEF0F4;flex-shrink:0}
+.sched-rail{padding:6px}
+.sched-status{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:9px 10px;border-radius:10px;text-align:left;color:#232D42}
+.sched-status:hover{background:#F8F9FC}
+.sched-status.on{background:var(--tint)}
+.sched-status .ic{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.sched-status .nm{flex:1;min-width:0;font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sched-status .n-mid,.sched-status .n-short{display:none}
+.sched-status .hint{display:block;font-size:11.5px;font-weight:400;color:#8A92A6;overflow:hidden;text-overflow:ellipsis}
+.sched-status .ct{font-size:12.5px;font-weight:500;color:#4A5468;background:#F1F3F7;border-radius:999px;padding:1px 8px;min-width:26px;text-align:center;flex-shrink:0}
+.sched-status.on .ct{background:#fff;color:var(--tone)}
+.sched-search{margin:10px 10px 4px;display:flex;align-items:center;gap:8px;border:1px solid #EEF0F4;border-radius:10px;padding:7px 10px;flex-shrink:0}
+.sched-search input{border:0;outline:0;flex:1;min-width:0;font-size:13px;color:#232D42;background:transparent}
+.sched-list{padding:4px 8px 10px}
+.sched-day{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8A92A6;padding:10px 8px 4px}
+.sched-row{display:flex;align-items:flex-start;gap:10px;width:100%;border:1px solid transparent;background:transparent;border-radius:10px;padding:8px;text-align:left}
+.sched-row:hover{background:#F8F9FC}
+.sched-row.on{background:#E9ECFB;border-color:rgba(58,87,232,.25)}
+.sched-row .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:500;color:#232D42;line-height:1.35}
+.sched-row .m{display:block;font-size:12px;color:#8A92A6;margin-top:2px;line-height:1.4}
+.sched-row .why{display:block;font-size:12px;color:#BE123C;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sched-row .w{flex-shrink:0;font-size:12px;color:#4A5468;text-align:right;white-space:nowrap;padding-left:4px;line-height:1.45}
+.sched-row .rel,.sched-row .w .rel{font-size:11.5px;color:#3A57E8;font-weight:500}
+.sched-thumb{width:40px;height:40px;border-radius:8px;flex-shrink:0;background:#EEF0F4;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.sched-badge{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:2px 5px;background:#3A57E8;color:#fff;margin-right:6px;vertical-align:1px}
+.sched-mini{display:inline-block;white-space:nowrap;font-size:11px;font-weight:500;border-radius:999px;padding:0 7px;margin-left:5px;background:#E9ECFB;color:#3A57E8}
+.sched-upnext{display:block;width:calc(100% - 4px);margin:8px 2px 4px;text-align:left;border:1px solid #D5DBF8;background:linear-gradient(180deg,#F3F5FE,#fff);border-radius:12px;padding:11px 13px}
+.sched-upnext:hover{border-color:#3A57E8}
+.sched-upnext .lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#3A57E8;font-weight:600}
+.sched-upnext .ttl{font-size:14px;font-weight:500;color:#232D42;margin-top:3px;line-height:1.35}
+.sched-upnext .cd{font-size:19px;font-weight:600;color:#232D42;margin-top:1px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
+.sched-upnext .cd small{font-size:12px;font-weight:400;color:#8A92A6}
+.sched-upnext .then{font-size:12px;color:#8A92A6;margin-top:6px;border-top:1px dashed #D5DBF8;padding-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sched-empty{padding:28px 14px;text-align:center;font-size:13px;color:#8A92A6}
+.sched-detail{container:detail / inline-size}
+.sched-dhead{padding:14px 18px;border-bottom:1px solid #EEF0F4;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-start;justify-content:space-between;flex-shrink:0}
+.sched-dtitle{font-size:20px;font-weight:500;color:#232D42;margin-top:6px;line-height:1.3}
+.sched-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sched-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;border-radius:999px;padding:2px 9px;background:#F1F3F7;color:#4A5468;white-space:nowrap}
+.sched-chip.brand{background:#E9ECFB;color:#3A57E8}
+.sched-pager{display:inline-flex;align-items:center;gap:2px;border:1px solid #EEF0F4;border-radius:10px;padding:2px}
+.sched-pager button{border:0;background:transparent;width:28px;height:28px;border-radius:8px;font-size:17px;line-height:1;color:#4A5468}
+.sched-pager button:hover:not(:disabled){background:#F1F3F7;color:#232D42}
+.sched-pager button:disabled{color:#C2C6D0;cursor:default}
+.sched-pager span{font-size:12.5px;color:#4A5468;padding:0 4px;white-space:nowrap}
+.sched-after{display:flex;align-items:center;gap:10px;width:100%;border:1px solid #EEF0F4;border-radius:12px;padding:10px 12px;background:#fff}
+.sched-after:hover{border-color:#3A57E8}
+.sched-ready{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:18px;padding:16px 18px;align-items:start}
+@container detail (max-width: 720px){ .sched-ready{grid-template-columns:minmax(0,1fr)} }
+@container sched (min-width: 1900px){ .sched-split{grid-template-columns:260px minmax(380px,460px) minmax(0,1fr)} }
+@container sched (max-width: 1323px){
+  .sched-split{grid-template-columns:196px minmax(280px,330px) minmax(0,1fr)}
+  .sched-status .hint{display:none}
+  .sched-status .n-full{display:none}.sched-status .n-mid{display:inline}
+}
+@container sched (max-width: 1123px){
+  .sched-split{grid-template-columns:64px minmax(270px,310px) minmax(0,1fr)}
+  .sched-railhead{display:none}
+  .sched-rail{padding:4px}
+  .sched-status{flex-direction:column;gap:3px;padding:8px 2px}
+  .sched-status .nm{flex:none;width:100%;text-align:center;font-size:10.5px;color:#4A5468}
+  .sched-status.on .nm{color:var(--tone)}
+  .sched-status .n-mid{display:none}.sched-status .n-short{display:inline}
+  .sched-status .ct{position:absolute;top:2px;right:2px;font-size:10.5px;padding:0 5px;min-width:18px}
+}
+@container sched (max-width: 760px){
+  .sched-split{grid-template-columns:minmax(0,1fr)}
+  .sched-wide{grid-column:auto}
+  .sched-pane{position:static;max-height:none;min-height:0}
+  .sched-pane .sched-scroll{max-height:70vh}
+  .sched-rail{display:flex;gap:6px;overflow-x:auto}
+  .sched-status{flex-direction:row;width:auto;flex-shrink:0;padding:6px 10px}
+  .sched-status .nm{width:auto;font-size:12.5px}
+  .sched-status .ct{position:static}
+}
+`;
+
+// The post itself — creative (slides / video), status, results, why it failed, caption,
+// links and publishing history. Used by the planner popup and the Scheduler's right
+// pane (layout B, 27 Oct), so the two never drift apart.
+function PostPreviewContent({ item }: { item: CalendarItem }) {
   const isPub = item.kind === "published";
   const p = item.post as ScheduledPost & PublishedIG;
   // All slides for this post: carousels navigate slide-by-slide; videos play inline.
@@ -2671,8 +2976,6 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
   // Until it has loaded, the old guess is still the best one available.
   const boxRatio = ratio || (portrait ? "9 / 16" : "4 / 5");
   const caption: string = isPub ? (p.caption || "") : (p.fullCaption || p.caption || "");
-  const when = fmtDateTime(new Date(item.whenMs).toISOString());
-  const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
   const status: string = isPub ? "published" : (p.effectiveStatus || "scheduled");
   const igUrl: string | null = isPub ? (p.permalink || null) : (p.instagramUrl || null);
   const fbUrl: string | null = isPub ? null : (p.facebookUrl || null);
@@ -2683,6 +2986,90 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
     published: "bg-emerald-50 text-emerald-700", publishing: "bg-blue-50 text-blue-700",
     failed: "bg-rose-50 text-rose-700", scheduled: "bg-amber-50 text-amber-700",
   };
+  // items-start, so the media column stops at the creative instead of being
+  // stretched to whatever the caption beside it needs.
+  return (
+    <div className="grid md:grid-cols-2 min-h-0 overflow-auto items-start">
+      <div className="bg-gray-900 relative">
+        {cur
+          ? (
+            <div className="w-full relative" style={{ aspectRatio: boxRatio }}>
+              {isVideo(cur)
+                ? <SoundVideo src={cur} className="w-full h-full object-cover"
+                    onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setRatio(`${v.videoWidth} / ${v.videoHeight}`); }} />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="w-full h-full object-cover"
+                    onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setRatio(`${i.naturalWidth} / ${i.naturalHeight}`); }} />}
+            </div>
+          )
+          : <div className="min-h-[320px] w-full flex items-center justify-center text-gray-400"><IconPhoto size={56} stroke={1.2} /></div>}
+        {slides.length > 1 && (
+          <>
+            <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Previous">‹</button>
+            <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) + 1) % slides.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Next">›</button>
+            <div className="absolute top-3 right-3 text-xs font-medium text-white bg-black/50 rounded-full px-2 py-0.5 tabular-nums">{safeIdx + 1}/{slides.length}</div>
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {slides.map((_, i) => (
+                <button key={i} onClick={() => setIdx(i)} className={`w-2 h-2 rounded-full transition ${i === safeIdx ? "bg-white" : "bg-white/40 hover:bg-white/70"}`} aria-label={`Slide ${i + 1}`} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="p-5 space-y-4 overflow-auto">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusColor[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>
+          {account && <span className="text-xs text-gray-500">{account}</span>}
+        </div>
+        {isPub && (
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Likes", value: p.likes ?? 0 },
+              { label: "Comments", value: p.comments ?? 0 },
+              { label: "Reach", value: p.reach ?? 0 },
+            ].map((m) => (
+              <div key={m.label} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
+                <div className="text-lg font-semibold text-gray-900 tabular-nums leading-none">{(m.value || 0).toLocaleString("en-IN")}</div>
+                <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mt-1">{m.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!isPub && <LiveStatus post={p} />}
+        {!isPub && status === "failed" && explainFailure(p.failureReason) && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm">
+            <div className="font-medium text-rose-700">Why it failed: {explainFailure(p.failureReason)!.why}</div>
+            {explainFailure(p.failureReason)!.fix && <div className="text-rose-700/90 mt-1 text-[13px] leading-relaxed">{explainFailure(p.failureReason)!.fix}</div>}
+            <div className="text-xs text-rose-600/80 mt-1.5">Instagram said: &ldquo;{p.failureReason}&rdquo;</div>
+          </div>
+        )}
+        <div>
+          <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Caption</div>
+          <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{caption || <span className="text-gray-400 italic">No caption</span>}</div>
+        </div>
+        {(igUrl || fbUrl) && (
+          <div className="flex gap-2 pt-1">
+            {igUrl && <a href={igUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-lg hover:bg-brand-dark">View on Instagram ↗</a>}
+            {fbUrl && <a href={fbUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-300">View on Facebook ↗</a>}
+          </div>
+        )}
+        {!isPub && p.id && (
+          <div className="pt-1">
+            <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-2">Publishing history</div>
+            <PublishHistory postId={p.id} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: () => void }) {
+  const isPub = item.kind === "published";
+  const p = item.post as ScheduledPost & PublishedIG;
+  const when = fmtDateTime(new Date(item.whenMs).toISOString());
+  const title: string = isPub ? "Published post" : (p.particulars || "Scheduled post");
   return (
     <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -2693,81 +3080,7 @@ function SchedulePreviewModal({ item, onClose }: { item: CalendarItem; onClose: 
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
         </div>
-        {/* items-start, so the media column stops at the creative instead of being
-            stretched to whatever the caption beside it needs. */}
-        <div className="grid md:grid-cols-2 min-h-0 overflow-auto items-start">
-          <div className="bg-gray-900 relative">
-            {cur
-              ? (
-                <div className="w-full relative" style={{ aspectRatio: boxRatio }}>
-                  {isVideo(cur)
-                    ? <video key={cur} src={cur} controls autoPlay muted loop playsInline className="w-full h-full object-cover"
-                        onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setRatio(`${v.videoWidth} / ${v.videoHeight}`); }} />
-                    : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="w-full h-full object-cover"
-                        onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setRatio(`${i.naturalWidth} / ${i.naturalHeight}`); }} />}
-                </div>
-              )
-              : <div className="min-h-[320px] w-full flex items-center justify-center text-gray-400"><IconPhoto size={56} stroke={1.2} /></div>}
-            {slides.length > 1 && (
-              <>
-                <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) - 1 + slides.length) % slides.length)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Previous">‹</button>
-                <button onClick={() => setIdx((i) => (Math.min(i, slides.length - 1) + 1) % slides.length)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition" aria-label="Next">›</button>
-                <div className="absolute top-3 right-3 text-xs font-medium text-white bg-black/50 rounded-full px-2 py-0.5 tabular-nums">{safeIdx + 1}/{slides.length}</div>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                  {slides.map((_, i) => (
-                    <button key={i} onClick={() => setIdx(i)} className={`w-2 h-2 rounded-full transition ${i === safeIdx ? "bg-white" : "bg-white/40 hover:bg-white/70"}`} aria-label={`Slide ${i + 1}`} />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <div className="p-5 space-y-4 overflow-auto">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusColor[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>
-              {account && <span className="text-xs text-gray-500">{account}</span>}
-            </div>
-            {isPub && (
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "Likes", value: p.likes ?? 0 },
-                  { label: "Comments", value: p.comments ?? 0 },
-                  { label: "Reach", value: p.reach ?? 0 },
-                ].map((m) => (
-                  <div key={m.label} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
-                    <div className="text-lg font-semibold text-gray-900 tabular-nums leading-none">{(m.value || 0).toLocaleString("en-IN")}</div>
-                    <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mt-1">{m.label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {!isPub && <LiveStatus post={p} />}
-            {!isPub && status === "failed" && explainFailure(p.failureReason) && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm">
-                <div className="font-medium text-rose-700">Why it failed: {explainFailure(p.failureReason)!.why}</div>
-                {explainFailure(p.failureReason)!.fix && <div className="text-rose-700/90 mt-1 text-[13px] leading-relaxed">{explainFailure(p.failureReason)!.fix}</div>}
-                <div className="text-xs text-rose-600/80 mt-1.5">Instagram said: &ldquo;{p.failureReason}&rdquo;</div>
-              </div>
-            )}
-            <div>
-              <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Caption</div>
-              <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{caption || <span className="text-gray-400 italic">No caption</span>}</div>
-            </div>
-            {(igUrl || fbUrl) && (
-              <div className="flex gap-2 pt-1">
-                {igUrl && <a href={igUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-brand text-white px-3 py-2 rounded-lg hover:bg-brand-dark">View on Instagram ↗</a>}
-                {fbUrl && <a href={fbUrl} target="_blank" rel="noreferrer" className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-300">View on Facebook ↗</a>}
-              </div>
-            )}
-            {!isPub && p.id && (
-              <div className="pt-1">
-                <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-2">Publishing history</div>
-                <PublishHistory postId={p.id} />
-              </div>
-            )}
-          </div>
-        </div>
+        <PostPreviewContent item={item} />
       </div>
     </div>
   );
@@ -3059,12 +3372,9 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
       for (const file of Array.from(files)) {
         // The cap is Meta's carousel limit; a LinkedIn PDF doesn't use a slot.
         if (!isPdfUrl(file.name) && next.filter((u) => !isPdfUrl(u)).length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} images per post`); break; }
-        const fd = new FormData();
-        fd.append("file", await compressImage(file));
-        const r = await fetch("/api/scheduler/upload-media", { method: "POST", body: fd });
-        const d = await r.json();
-        if (!r.ok || d.error) { setUploadError(d.error || `HTTP ${r.status}`); break; }
-        next.push(d.url);
+        const up = await uploadSchedulerMedia(await compressImage(file));
+        if (!up.ok) { setUploadError(up.error); break; }
+        next.push(up.url);
       }
       setMediaUrls(next.length > 0 ? next : [""]);
     } catch (e) {
@@ -3140,7 +3450,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
                 <IconPaperclip size={15} stroke={1.9} className="text-brand" />
                 Drag a file here or click to upload
               </div>
-              <div className="text-[11px] text-[#8A92A6] mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 50 MB</div>
+              <div className="text-[11px] text-[#8A92A6] mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 300 MB</div>
             </>
           )}
         </div>
@@ -3878,10 +4188,9 @@ function SocialPreview({ platform, handle, name, images, caption, device = "mobi
         // autoPlay alone is unreliable here: the element mounts before the source is
         // ready, and Chrome silently declines the attempt. Asking again once there
         // are frames to show is what actually starts it.
-        ? <video key={image} src={image} autoPlay muted loop playsInline preload="auto"
+        ? <SoundVideo src={image} controls={false}
             style={natural ? { aspectRatio: natural } : undefined}
             onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setNatural(`${v.videoWidth} / ${v.videoHeight}`); }}
-            onLoadedData={(e) => { const v = e.currentTarget; v.muted = true; void v.play().catch(() => {}); }}
             className={`w-full block bg-black ${natural ? "h-full object-cover" : "h-auto max-h-[520px] object-contain"}`} />
         : image
         ? <img src={image} alt="" style={natural ? { aspectRatio: natural } : undefined}

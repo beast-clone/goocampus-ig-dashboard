@@ -184,7 +184,8 @@ export function FilesCard({
                 ? <PdfThumb url={t.url} width={96} fallback={<span className="gcf-doc"><IconFileText size={20} stroke={1.7} /></span>} />
                 : t.kind === "file" || (t.kind === "pdf" && !t.url)
                   ? <span className="gcf-doc"><IconFileText size={20} stroke={1.7} /><i>{(t.name.split(".").pop() || "file").slice(0, 5)}</i></span>
-                  : t.kind === "video" ? <span className="gcf-play">▶</span> : null;
+                  // A reel tile showed a lone ▶ on a blank square — now a frame from the video (27 Oct).
+                  : t.kind === "video" ? <>{(t.url || t.preview) && <video className="gcf-vthumb" src={`${(t.url || t.preview || "").split("#")[0]}#t=0.5`} muted playsInline preload="metadata" />}<span className="gcf-play">▶</span></> : null;
               const style = t.kind === "image" && (t.preview || t.url) ? { backgroundImage: `url(${t.preview || t.url})` } : undefined;
               return (
                 <div key={t.key} className={`gcf-tile${drag === t.key ? " drag" : ""}${over === t.key && drag !== t.key ? " over" : ""}`} title={canDrag ? `${t.name} — drag to change the order` : t.name}
@@ -311,6 +312,7 @@ html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6
 .gcf-im.clk{cursor:zoom-in}
 .gcf-doc{display:grid;place-items:center;align-content:center;gap:2px;height:100%;color:var(--muted)}
 .gcf-doc i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.gcf-vthumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;background:#0b1020}
 .gcf-play{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:20px;text-shadow:0 1px 6px rgba(0,0,0,.4)}
 .gcf-nm{font-size:11.5px;padding:.4rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-soft)}
 .gcf-n{position:absolute;top:6px;left:6px;font-size:10.5px;background:rgba(35,45,66,.6);color:#fff;border-radius:5px;padding:0 5px;z-index:2}
