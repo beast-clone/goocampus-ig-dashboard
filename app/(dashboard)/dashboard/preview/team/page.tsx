@@ -20,7 +20,15 @@ type Member = {
   permissions: Perm;
   sections: Record<string, boolean>;
   photoUrl?: string | null;
+  workRole?: WorkRole | null;
+  shiftStart?: string;
 };
+type WorkRole = "writer" | "designer" | "editor" | "manager";
+// Role in the workflow decides who gets approved design work, who claims videos, who
+// writes and who approves date changes; shift start sets their day and quiet hours.
+const WORK_ROLES: { v: WorkRole; label: string }[] = [
+  { v: "writer", label: "Writer" }, { v: "designer", label: "Designer" }, { v: "editor", label: "Editor" }, { v: "manager", label: "Manager" },
+];
 type Perm = Record<string, unknown> & { tabs?: Record<string, boolean>; scheduler_pages?: string[]; task_access?: "full" | "partial"; calendar_edit?: boolean; date_needs_approval?: boolean; date_needs_reason?: boolean; manage_access?: boolean };
 type AccessReq = { id: string; from: string; fromName: string; text: string; at: string };
 
@@ -99,7 +107,7 @@ function Pill({ tone, children }: { tone: "good" | "mute" | "brand"; children: R
 // code (Praveen, 22 Oct): Admin, one switch per sidebar tab, Scheduler pages (full or
 // selected), task actions (full or partial), calendar editing, date approval.
 
-type Draft = { isAdmin: boolean; sections: Record<string, boolean>; permissions: Perm; name: string; email: string; role: string; active: boolean };
+type Draft = { isAdmin: boolean; sections: Record<string, boolean>; permissions: Perm; name: string; email: string; role: string; active: boolean; workRole: WorkRole | null; shiftStart: string };
 const BRAND_PAGES: { value: string; label: string }[] = [
   { value: "GooCampus Main", label: "GooCampus" },
   { value: "GooCampus World", label: "GooCampus World" },
@@ -260,6 +268,8 @@ function TeamManager() {
               if (d.name.trim() && d.name.trim() !== sel.name) updates.name = d.name.trim();
               if (d.email.trim() !== sel.email) updates.email = d.email.trim();
               if (d.role.trim() !== sel.role) updates.role = d.role.trim();
+              if (d.workRole && d.workRole !== sel.workRole) updates.workRole = d.workRole;
+              if (d.shiftStart && d.shiftStart !== (sel.shiftStart || "09:00")) updates.shiftStart = d.shiftStart;
               if (await call("PATCH", { id: sel.id, updates })) flash(`Saved ${sel.first}'s access — it applies from their next page load.`);
             }}
             onAction={async (body, msg) => { if (await call("POST", body)) flash(msg); }} />
@@ -297,7 +307,7 @@ function Tick({ checked, label, onChange, disabled }: { checked: boolean; label:
 }
 
 function PersonEditor({ m, busy, viewerId, onSave, onAction }: { m: Member; busy: boolean; viewerId: string; onSave: (d: Draft) => void; onAction: (body: unknown, msg: string) => void }) {
-  const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, name: m.name, email: m.email, role: m.role, active: m.active });
+  const fresh = (): Draft => ({ isAdmin: m.isAdmin, sections: { ...(m.sections || {}) }, permissions: { ...(m.permissions || {}) }, name: m.name, email: m.email, role: m.role, active: m.active, workRole: m.workRole ?? null, shiftStart: m.shiftStart || "09:00" });
   const [d, setD] = useState<Draft>(fresh);
   const [pw, setPw] = useState<string | null>(null);
   const dirty = JSON.stringify(d) !== JSON.stringify(fresh());
@@ -394,6 +404,15 @@ function PersonEditor({ m, busy, viewerId, onSave, onAction }: { m: Member; busy
         <div className="flex items-center justify-between gap-3 py-2">
           <div><div className="text-[13px] text-[#232D42]">{DATE_REASON_RULE.label}</div><div className="text-[12px] text-[#8A92A6]">{DATE_REASON_RULE.desc}</div></div>
           <Toggle checked={needsDateReason({ permissions: d.permissions as never })} disabled={busy} label={DATE_REASON_RULE.label} onChange={(v) => setPerm({ date_needs_reason: v })} />
+        </div>
+      </Section>
+
+      <Section icon={<IconClockHour4 size={16} stroke={1.8} />} title="Role in the workflow" hint="Who gets which work, and when their day starts. Design goes to the Designer, videos to the Editors, the Writer writes, the Manager approves date changes.">
+        <div className="flex items-end gap-6 flex-wrap">
+          <div><span className="block text-[11px] text-[#8A92A6] mb-1">Role</span>
+            <Choice options={WORK_ROLES} value={d.workRole || ""} disabled={busy} onChange={(v) => setD((x) => ({ ...x, workRole: v as WorkRole }))} /></div>
+          <label className="block mb-3"><span className="block text-[11px] text-[#8A92A6] mb-1">Shift starts</span>
+            <input type="time" value={d.shiftStart} disabled={busy} onChange={(e) => setD((x) => ({ ...x, shiftStart: e.target.value }))} className={`${FIELD} border-gray-200 w-[130px]`} /></label>
         </div>
       </Section>
 

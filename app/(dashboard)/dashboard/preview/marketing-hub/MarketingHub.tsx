@@ -41,6 +41,7 @@ import { hubRoleFor } from "@/lib/hub-role";
 import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
 import { needsDateApproval, needsDateReason, hasCapability, canEditCalendar } from "@/lib/permissions";
+import { shiftStartMin } from "@/lib/team-roles";
 
 export type Row = {
   id: string;
@@ -182,9 +183,10 @@ const SPAN_MIN = (WORK_END_H - WORK_START_H) * 60; // 600 — the width the time
 // width — using SPAN_MIN gave everyone on the 9–6 shift a phantom extra hour and
 // made this screen disagree with My Day about the same person's free time.
 const SHIFT_MIN = 9 * 60;                  // 540 = 8h work + 1h lunch
-const LATE_SHIFT = new Set(["Nandu"]);     // 10–7 instead of 9–6
-const shiftStart = (m: { label: string }) => (LATE_SHIFT.has(m.label) ? 60 : 0);
-const shiftEnd = (m: { label: string }) => shiftStart(m) + SHIFT_MIN;
+// Each person's start comes from "Shift starts" on the Team page (was: Nandu 10–7,
+// typed in). Kept inside the 9 AM–7 PM drawing.
+const shiftStart = (m: { key: string }) => Math.min(SPAN_MIN - SHIFT_MIN, Math.max(0, shiftStartMin(m.key) - 9 * 60));
+const shiftEnd = (m: { key: string }) => shiftStart(m) + SHIFT_MIN;
 const LUNCH_AT_MIN = 240;                  // ~1 PM
 const LUNCH_MIN = 60;
 const HOUR_TICKS = ["9 AM", "10", "11", "12", "1 PM", "2", "3", "4", "5", "6"];

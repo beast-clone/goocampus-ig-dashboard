@@ -7,6 +7,7 @@
 // email. She approves → the date is written; rejects → the old date stays.
 
 import { getSupabase } from "@/lib/supabase";
+import { keysWithRole } from "@/lib/team-roles";
 import { postTeamMessage, MH_NAME } from "@/lib/mh-chat";
 import { sendMail, hasEmail } from "@/lib/email";
 import { postSlack } from "@/lib/slack";
@@ -14,7 +15,8 @@ import { fetchRoster } from "@/lib/team-db";
 
 type SB = NonNullable<ReturnType<typeof getSupabase>>;
 
-export const APPROVER_KEY = "maheen";
+// Who approves a date: everyone with the Manager role on the Team page (was "maheen").
+export const approverKeys = () => keysWithRole("manager");
 const APPROVER_EMAIL = process.env.APPROVER_EMAIL || "info@goocampus.in";
 
 export type DateChangeRequest = {

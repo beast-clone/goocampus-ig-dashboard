@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { firstWithRole, isDesigner, isEditor, roleOf } from "@/lib/team-roles";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
@@ -347,13 +348,13 @@ export async function PATCH(req: Request) {
     const actual = (field: string) => (field in saved ? saved[field] : clean[field]);
     let ownershipNote: string | null = null;
     if ("owner_key" in clean && (saved.owner_key ?? null) !== (clean.owner_key ?? null)) {
-      const editorPicked = ["nikhil", "nandu"].includes(String(clean.owner_key || "").toLowerCase());
+      const editorPicked = isEditor(String(clean.owner_key || ""));
       ownershipNote = editorPicked
         ? `Kept with Praveen while it's design work. ${String(clean.owner_key).charAt(0).toUpperCase() + String(clean.owner_key).slice(1)} gets it as soon as the format is changed to a video type (e.g. Meta Ads - Video).`
         : `Design tasks at this stage always belong to Praveen — change the format to a video type first to give it to someone else.`;
-    } else if ("type" in clean && beforeRow.owner_key === "praveen" && saved.owner_key == null && saved.status === "Content - Approved") {
+    } else if ("type" in clean && isDesigner(String(beforeRow.owner_key || "")) && saved.owner_key == null && saved.status === "Content - Approved") {
       ownershipNote = "It's a video task now, so it went to the editors' claim pool for Nikhil / Nandu to pick up.";
-    } else if ("type" in clean && beforeRow.owner_key === "praveen" && typeof saved.owner_key === "string" && saved.owner_key !== "praveen") {
+    } else if ("type" in clean && isDesigner(String(beforeRow.owner_key || "")) && typeof saved.owner_key === "string" && !isDesigner(saved.owner_key)) {
       ownershipNote = `It's a video task now, so it went to ${saved.owner_key.charAt(0).toUpperCase() + saved.owner_key.slice(1)} (picked as owner earlier).`;
     }
     const extraFields = ["owner_key", "status"].filter((f) => !(f in clean) && f in saved && (saved[f] ?? null) !== (beforeRow[f] ?? null));
@@ -463,7 +464,8 @@ export async function PATCH(req: Request) {
         const isVideo = VIDEO_TYPES.has(String(data.type || ""));
         const who = MH_NAME[chatActor] || chatActor;
         // And don't tell someone they were handed their own work.
-        const handedTo = chatActor === "praveen" ? "design work, it's yours." : "design work, handed to Praveen.";
+        const designer = firstWithRole("designer") || "praveen";
+        const handedTo = chatActor === designer ? "design work, it's yours." : `design work, handed to ${MH_NAME[designer] || designer}.`;
         await postTeamMessage(sb, chatActor, isVideo
           ? `${who} approved “${title}” — video work, up for grabs in the editors' pool.`
           : (body as { deferHandoff?: boolean }).deferHandoff
@@ -514,7 +516,7 @@ export async function PATCH(req: Request) {
       const fromContent = ["Content - Pending", "Content - In Progress"].includes(String(before.data.status));
       // Only when that editor CREATED it — a video someone handed to Nandu on purpose stays his.
       const createdBy = String((before.data as { created_by?: string | null }).created_by || "").toLowerCase();
-      if (isVideo && fromContent && ["nikhil", "nandu"].includes(String(oldOwner || "").toLowerCase()) && createdBy === String(oldOwner).toLowerCase() && data.owner_key === oldOwner) {
+      if (isVideo && fromContent && isEditor(String(oldOwner || "")) && createdBy === String(oldOwner).toLowerCase() && data.owner_key === oldOwner) {
         await sb.from("mh_posts").update({ owner_key: null }).eq("id", body.id);
         await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: null });
       }
@@ -523,15 +525,16 @@ export async function PATCH(req: Request) {
         // landing mid-handoff never sees owner=praveen with no collaborator yet (which
         // made the task blink off Manya's board). Now every snapshot is consistent:
         // she sees it as owner (before) or as collaborator (after).
-        if (oldOwner && oldOwner !== "praveen" && oldOwner !== "maheen") {
+        const designerKey = firstWithRole("designer") || "praveen";
+        if (oldOwner && !isDesigner(oldOwner) && roleOf(oldOwner) !== "manager") {
           await sb.from("mh_post_collaborators").upsert(
             [{ post_id: body.id, member_key: oldOwner }],
             { onConflict: "post_id,member_key", ignoreDuplicates: true },
           );
         }
-        if (data.owner_key !== "praveen") {
-          await sb.from("mh_posts").update({ owner_key: "praveen" }).eq("id", body.id);
-          await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: "praveen" });
+        if (data.owner_key !== designerKey) {
+          await sb.from("mh_posts").update({ owner_key: designerKey }).eq("id", body.id);
+          await sb.from("mh_activity").insert({ post_id: body.id, actor_key: actor, action: "owner_changed", from_value: oldOwner, to_value: designerKey });
         }
       }
     }

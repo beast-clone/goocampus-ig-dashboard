@@ -5,6 +5,7 @@ import { useDraft } from "@/lib/use-draft";
 import { IconX } from "@tabler/icons-react";
 import { CONTENT_TYPES, VIDEO_TYPES as VIDEO_TYPE_SET } from "@/lib/mh-content-types";
 import { SBU_OPTIONS } from "@/lib/sbus";
+import { firstWithRole, isEditor, keysWithRole } from "@/lib/team-roles";
 import { useSbus } from "@/lib/use-sbus";
 import MissingFieldsModal from "@/app/(dashboard)/dashboard/preview/MissingFieldsModal";
 import {
@@ -37,8 +38,8 @@ const thumbnailTypeFor = (videoType: string) =>
 export type ThumbnailWho = "editor" | "praveen" | "ask";
 const THUMB_WHO: { value: ThumbnailWho; label: string; sub: string }[] = [
   { value: "editor",  label: "Whoever edits the video", sub: "The editor who claims it makes the thumbnail too. Nobody is asked." },
-  { value: "ask",     label: "Let them decide",         sub: "The editor who claims it chooses: themselves, or Praveen." },
-  { value: "praveen", label: "Praveen",                 sub: "Goes straight to Praveen now, without waiting for the video to be claimed." },
+  { value: "ask",     label: "Let them decide",         sub: "The editor who claims it chooses: themselves, or the designer." },
+  { value: "praveen", label: "The designer",            sub: "Goes straight to the designer now, without waiting for the video to be claimed." },
 ];
 
 export type NewTaskThumbnail = {
@@ -99,30 +100,34 @@ export function routeFor(type: string, status: string, writer: string): NewTaskR
       why: `Nothing is handed over below Content - Approved — ${PPL[writer]?.name || writer} keeps it while the content is written.`,
     };
   }
-  if (video && (writer === "nikhil" || writer === "nandu")) {
+  // Roles from the Team page (lib/team-roles.ts) — not names.
+  const designer = firstWithRole("designer") || "praveen";
+  const designerName = PPL[designer]?.name || designer;
+  const editorNames = keysWithRole("editor").map((k) => PPL[k]?.name || k).join(" / ") || "an editor";
+  if (video && isEditor(writer)) {
     // An editor filing a video into the pool lets go of it (save.ts releaseToPoolIfEditor),
     // otherwise it would stay theirs and never appear in the pool.
     return {
       ownerKey: "", ownerLabel: "Nobody — in the claim pool", pool: true, collaborators: [],
-      headline: "Editors' claim pool — Nikhil / Nandu claim it.",
-      why: `${type} is video work, so it goes into the shared pool with no owner until Nikhil or Nandu claims it.`,
+      headline: `Editors' claim pool — ${editorNames} claim it.`,
+      why: `${type} is video work, so it goes into the shared pool with no owner until ${editorNames.replace(" / ", " or ")} claims it.`,
     };
   }
   if (video) {
     return {
       ownerKey: writer, ownerLabel: `${PPL[writer]?.name || writer} — until an editor claims it`, pool: true, collaborators: [],
-      headline: "Editors' claim pool — Nikhil / Nandu claim it.",
-      why: `${type} is video work, so it is never auto-assigned: it goes into the shared pool and stays with ${PPL[writer]?.name || writer} until Nikhil or Nandu claims it.`,
+      headline: `Editors' claim pool — ${editorNames} claim it.`,
+      why: `${type} is video work, so it is never auto-assigned: it goes into the shared pool and stays with ${PPL[writer]?.name || writer} until ${editorNames.replace(" / ", " or ")} claims it.`,
     };
   }
   // Name the writer rather than calling them "the writer" — the person reading this is
   // checking a routing decision, and a role is one more step to translate.
   const writerName = PPL[writer]?.name || writer;
-  const selfOwned = writer === "praveen"; // Praveen filing his own design work: no collaborator to name
+  const selfOwned = writer === designer; // the designer filing their own design work: no collaborator to name
   return {
-    ownerKey: "praveen", ownerLabel: "Praveen", pool: false, collaborators: selfOwned ? [] : [writer],
-    headline: selfOwned ? "Owner: Praveen." : `Owner: Praveen · Collaborator: ${writerName}.`,
-    why: `${type} is design work, so on approval it is handed straight to Praveen${selfOwned ? "." : ` and ${writerName} stays on as collaborator.`}`,
+    ownerKey: designer, ownerLabel: designerName, pool: false, collaborators: selfOwned ? [] : [writer],
+    headline: selfOwned ? `Owner: ${designerName}.` : `Owner: ${designerName} · Collaborator: ${writerName}.`,
+    why: `${type} is design work, so on approval it is handed straight to ${designerName}${selfOwned ? "." : ` and ${writerName} stays on as collaborator.`}`,
   };
 }
 
@@ -170,7 +175,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
   // Everyone on the task once it saves: the rule's collaborators + the hand-picked
   // ones, minus whoever ends up owning it (nobody is both owner and collaborator).
   const collabKeys = Array.from(new Set([...route.collaborators, ...extraCollabs])).filter((k) => k !== route.ownerKey);
-  const notOnIt = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k) && !(route.pool && (k === "nikhil" || k === "nandu")));
+  const notOnIt = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k) && !(route.pool && isEditor(k)));
   const addable = Object.keys(PPL).filter((k) => k !== route.ownerKey && !collabKeys.includes(k));
 
   // What's still missing, in the order the fields appear in the form. Drives both the
@@ -362,7 +367,7 @@ export function NewTaskForm({ writer, initial, onClose, onCreate, onDirty }: {
                   ships with it, so there is nothing separate to set. */}
               <div className="nt-thumb-note">
                 It takes the video&apos;s SBU, publishing date and priority. {thumbWho === "praveen"
-                  ? "Praveen gets it as soon as you save."
+                  ? `${PPL[firstWithRole("designer") || ""]?.name || "The designer"} gets it as soon as you save.`
                   : "It is saved now and stays out of everyone's list until the video is claimed."}
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isEditor } from "@/lib/team-roles";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
     // Someone shot it, someone else is cutting it → the presenter collaborates.
     if (presenter && presenter !== body.newOwnerKey) want.add(presenter);
     // A writer who handed it over keeps following it; the sibling editor does not.
-    if (oldOwner && oldOwner !== "nikhil" && oldOwner !== "nandu") want.add(oldOwner);
+    if (oldOwner && !isEditor(oldOwner)) want.add(oldOwner);
     want.delete(body.newOwnerKey);   // never both owner and collaborator
 
     const existing = await sb.from("mh_post_collaborators").select("member_key").eq("post_id", body.postId);

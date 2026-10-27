@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/auth";
 import { fetchRoster, rosterById, invalidateRosterCache, syncHubMember } from "@/lib/team-db";
+import { TEAM_ROLES } from "@/lib/team-roles";
 import { getSupabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/passwords";
 import { cleanPermissions, cleanSections, canManageAccess } from "@/lib/permissions";
@@ -63,6 +64,9 @@ export async function GET() {
       permissions: u.permissions,
       sections: u.sections,
       photoUrl: u.photoUrl,
+      // Role in the workflow + shift start live on mh_team_members (sql/038).
+      workRole: TEAM_ROLES[u.id]?.role ?? null,
+      shiftStart: TEAM_ROLES[u.id]?.shiftStart ?? "09:00",
     })),
   });
 }
@@ -82,6 +86,26 @@ export async function PATCH(req: Request) {
   const updates: Record<string, unknown> = {};
   for (const k of PATCHABLE) {
     if (k in raw) updates[k] = k === "permissions" ? cleanPermissions(raw[k]) : k === "sections" ? cleanSections(raw[k]) : raw[k];
+  }
+  // Role in the workflow and shift start are stored on mh_team_members, not ind_users.
+  const hub: Record<string, string> = {};
+  if ("workRole" in raw) {
+    if (!["writer", "designer", "editor", "manager"].includes(String(raw.workRole))) {
+      return NextResponse.json({ error: "Pick Writer, Designer, Editor or Manager." }, { status: 400 });
+    }
+    hub.role = String(raw.workRole);
+  }
+  if ("shiftStart" in raw) {
+    if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(String(raw.shiftStart))) {
+      return NextResponse.json({ error: "Shift start must be a time like 09:00." }, { status: 400 });
+    }
+    hub.shift_start = String(raw.shiftStart);
+  }
+  if (id && Object.keys(hub).length && Object.keys(updates).length === 0) {
+    const { error } = await sb.from("mh_team_members").update(hub).eq("key", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    invalidateRosterCache();
+    return NextResponse.json({ ok: true });
   }
   if (!id || Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "Need id and at least one field" }, { status: 400 });
@@ -110,6 +134,10 @@ export async function PATCH(req: Request) {
 
   const { error } = await sb.from("ind_users").update(updates).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (Object.keys(hub).length) {
+    const { error: hErr } = await sb.from("mh_team_members").update(hub).eq("key", id);
+    if (hErr) return NextResponse.json({ error: hErr.message }, { status: 500 });
+  }
   invalidateRosterCache();
   // Keep the Marketing Hub's copy in step (name, email, switched on/off).
   if ("name" in updates || "email" in updates || "active" in updates) {

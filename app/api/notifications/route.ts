@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { shiftStartMin } from "@/lib/team-roles";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
@@ -42,7 +43,7 @@ async function isQuiet(sb: NonNullable<ReturnType<typeof getSupabase>>, person: 
   );
   if (parts.weekday === "Sat" || parts.weekday === "Sun") return true;
   const mins = Number(parts.hour) * 60 + Number(parts.minute);
-  const start = person === "nandu" ? 10 * 60 : 9 * 60;
+  const start = shiftStartMin(person);   // Team page shift start (was: Nandu 10, others 9)
   if (mins < start || mins >= start + 9 * 60) return true;
   const { data } = await sb.from("mh_attendance").select("logout_at").eq("person_key", person).eq("date", todayIST()).maybeSingle();
   return !!data?.logout_at;

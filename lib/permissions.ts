@@ -2,6 +2,8 @@
 // function toggles instead of 5 fixed levels). Stored on ind_users.permissions
 // (jsonb). Admins implicitly have every capability.
 
+import { roleOf } from "@/lib/team-roles";
+
 export type Capability =
   | "create_tasks"
   | "edit_tasks"
@@ -67,7 +69,8 @@ export const DATE_APPROVAL_RULE = {
 export function needsDateApproval(user: { id?: string; permissions?: Permissions } | null | undefined): boolean {
   if (!user) return true;
   const v = user.permissions?.date_needs_approval;
-  return typeof v === "boolean" ? v : (user.id || "").toLowerCase() !== "maheen";
+  // Unset → managers (the people who approve dates) move dates freely; everyone else asks.
+  return typeof v === "boolean" ? v : roleOf(user.id) !== "manager";
 }
 
 export const DATE_REASON_RULE = {

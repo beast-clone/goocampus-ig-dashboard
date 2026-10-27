@@ -34,6 +34,7 @@ import { NOTIF_REFRESH } from "@/app/(dashboard)/dashboard/preview/NotificationH
 import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 import { shouldPoll } from "@/lib/quiet-hours";
 import { useOwnUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
+import { firstWithRole, isDesigner, isEditor as isEditorKey, isWriter, keysWithRole, roleOf, shiftStartMin, type WorkRole } from "@/lib/team-roles";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -136,7 +137,8 @@ function inMyView(t: { status: string; due: string; detail: { typeLine: string }
   return t.due >= today && t.due <= endKey;
 }
 function tabsForPerson(name: string): TabDef[] {
-  return name === "Manya" || name === "Maheen" ? MANYA_TABS : PRODUCER_TABS;
+  const r = roleOf(keyOfName(name));
+  return r === "writer" || r === "manager" ? MANYA_TABS : PRODUCER_TABS;
 }
 function isVideoTask(typeLine: string): boolean {
   return isVideoType(typeLine);
@@ -299,9 +301,10 @@ const isVideoType = (t: string) => VIDEO_TYPE_SET.has(t);
 // auto-assigns to the single designer (Praveen); video work is NOT auto-assigned to
 // one editor — it goes into the shared pool that Nikhil & Nandu can claim.
 function autoAssign(type: string): { owner: string; toPool: boolean; note: string } {
-  if (DESIGN_TYPES.includes(type)) return { owner: "Praveen", toPool: false, note: `${type} is design work → auto-assigned to Praveen (designer).` };
-  if (isVideoType(type)) return { owner: "Unclaimed", toPool: true, note: `${type} is video → dropped into the editors' claim pool (Nikhil / Nandu).` };
-  return { owner: "Manya", toPool: false, note: "Stays with the writer." };
+  const designer = nameOfRole("designer", "Praveen");
+  if (DESIGN_TYPES.includes(type)) return { owner: designer, toPool: false, note: `${type} is design work → auto-assigned to ${designer} (designer).` };
+  if (isVideoType(type)) return { owner: "Unclaimed", toPool: true, note: `${type} is video → dropped into the editors' claim pool (${keysWithRole("editor").map((k) => PPL[k]?.name || k).join(" / ")}).` };
+  return { owner: nameOfRole("writer", "Manya"), toPool: false, note: "Stays with the writer." };
 }
 
 // ── Capacity model ─────────────────────────────────────────────────────────
@@ -318,9 +321,9 @@ const REMIND_BEFORE_END_MIN = 180;                 // 3 hours
 const DAY_END_LABEL = "6:00 PM";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per weekday
-// Per-person shift start (minutes after 9 AM). Nandu works the LATE shift 10 AM–7 PM,
-// so his day lays out from 10 AM; everyone else starts at 9 AM.
-const shiftStartOf = (name: string) => (name === "Nandu" ? 60 : 0);
+// Per-person shift start (minutes after 9 AM), from "Shift starts" on the Team page
+// (was typed in: Nandu 10 AM, everyone else 9 AM). The day grid begins at 9 AM.
+const shiftStartOf = (name: string) => Math.max(0, shiftStartMin(keyOfName(name)) - 9 * 60);
 // Working minutes left in a shift when the day actually starts at `start` (minutes
 // after 9 AM) — the shift still ends at its usual time and lunch never counts.
 function workAvailFrom(start: number, shift: number): number {
@@ -334,7 +337,7 @@ function workAvailFrom(start: number, shift: number): number {
 // it leaves her timeline and lands on the producer's side. Producers get everything
 // from Content-Approved onward. (Mirrors the dayFor capacity-board rule.)
 const onTimelineFor = (name: string, status: string) =>
-  name === "Manya"
+  nameIsWriter(name)
     ? status === "Content - Pending" || status === "Content - In Progress"
     : status !== "Content - Pending" && status !== "Content - In Progress";
 // Shared with the Marketing-Hub Workload timeline (lib/task-estimate) so a task's
@@ -351,6 +354,9 @@ const presentsOn = (t: Task, key: string, name: string) =>
 const planMins = (t: Task, key: string, name: string) =>
   presentsOn(t, key, name) ? SHOOT_MIN : (t.detail.duration || estMins(t.detail.typeLine));
 const keyOfName = (name: string) => Object.keys(PPL).find((k) => PPL[k].name === name) || name.toLowerCase();
+// Workflow roles come from the Team page (lib/team-roles); My Day mostly holds first names.
+const nameIsWriter = (name: string) => isWriter(keyOfName(name));
+const nameOfRole = (role: WorkRole, fallback: string) => { const k = firstWithRole(role); return (k && PPL[k]?.name) || fallback; };
 function fmtMins(m: number): string { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ` ${mm}m` : ""}` : `${mm}m`; }
 // A duration CHANGE, with its sign. fmtMins alone can't take a negative (-30 comes out
 // as "-1h -30m"), and a correction in the time log has to read as a subtraction.
@@ -2345,7 +2351,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [person, TEAM.length]);
   meNameRef.current = me.name;
-  const isEditor = person === "nandu" || person === "nikhil"; // editors claim videos
+  const isEditor = isEditorKey(person); // editors claim videos (Team page role)
   const showPool = isEditor && claimPool.length > 0;
   // PIPELINE — tasks queued for THIS person, waiting for their accept. Data-derived
   // and persistent, so it doubles as the history the transient bell doesn't keep.
@@ -2354,7 +2360,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   //   when their day was full). NOT the claim pool — that's the Claim pool button;
   //   showing it here too made both buttons list the same tasks (Nandu, 21 Sep).
   const pipelineTasks = useMemo(() => {
-    if (person === "praveen") return tasks.filter((t) => t.status === "Content - Approved" && !isVideoType(t.detail.typeLine) && t.detail.owner !== me.name);
+    if (isDesigner(person)) return tasks.filter((t) => t.status === "Content - Approved" && !isVideoType(t.detail.typeLine) && t.detail.owner !== me.name);
     if (isEditor) {
       const queued = new Set(notifs.filter((n) => n.accept && n.postId).map((n) => n.postId!));
       const seen = new Set<string>();
@@ -2400,7 +2406,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const workingTasks = useMemo(
     () => uniqById([...claimedTasks, ...tasks]).filter((t) =>
       isMine(t) && STATUS[t.status].inView &&
-      (me.name === "Manya" || (t.status !== "Content - Pending" && t.status !== "Content - In Progress"))),
+      (nameIsWriter(me.name) || (t.status !== "Content - Pending" && t.status !== "Content - In Progress"))),
     [claimedTasks, tasks, me.name],
   );
   const myTabs = useMemo(() => tabsForPerson(me.name), [me.name]);
@@ -2415,7 +2421,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       // Content phase belongs to the writer (Manya). Producers don't work
       // Content-Pending and their task list hides it, so the stat must too — otherwise
       // it counts tasks they can't see (e.g. legacy thumbnails owned by a designer).
-      pending: me.name === "Manya" ? n((s) => s === "Content - Pending" || s === "Content - In Progress") : 0,
+      pending: nameIsWriter(me.name) ? n((s) => s === "Content - Pending" || s === "Content - In Progress") : 0,
       waiting: n((s) => s === "Content - Approved" || s === "Incorporating Feedback"),
       output: n((s) => s === "Output - Ready"),
       toPublish: n((s) => s === "Ready to Publish"),
@@ -2545,7 +2551,10 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   //    auto-hands off to the producer by Type — design → Praveen (owner), video →
   //    the editors' claim pool — and Manya stays on as a collaborator.
   //  • Output-ready → Output tab; queued/terminal states leave the working view.
-  const withManya = (cs: Person[]) => (cs.some((c) => c.name === "Manya") ? cs : [PPL.manya, ...cs]);
+  const withManya = (cs: Person[]) => {
+    const w = PPL[firstWithRole("writer") || "manya"];
+    return !w || cs.some((c) => c.name === w.name) ? cs : [w, ...cs];
+  };
   // Committed load (minutes) for ANY teammate — drives the assign-side "already
   // full" warning. Same filter as Today's plan: own, in-production, not output-ready.
   // Role rule applies here too: a producer's committed load counts ONLY approved
@@ -2553,7 +2562,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // Manya's, whoever the owner field names.
   const committedFor = useCallback((name: string) => uniqById([...claimedTasks, ...tasks])
     .filter((t) => (t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
-      (name === "Manya"
+      (nameIsWriter(name)
         ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
         : (t.status === "Content - Approved" || t.status === "Incorporating Feedback")))
       || presentsOn(t, keyOfName(name), name))
@@ -2564,7 +2573,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const dayFor = useCallback((name: string) => {
     const mine = [...claimedTasks, ...tasks]
       .filter((t) => (t.detail.owner === name && STATUS[t.status].inView && t.status !== "Output - Ready" &&
-        (name === "Manya"
+        (nameIsWriter(name)
           ? (t.status === "Content - Pending" || t.status === "Content - In Progress")
           : (t.status === "Content - Approved" || t.status === "Incorporating Feedback" || t.status === "Output - In Progress")))
         || presentsOn(t, keyOfName(name), name))
@@ -2614,9 +2623,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [gateBlock, setGateBlock] = useState<GateBlock | null>(null);
   const setTaskStatus = (id: string, status: CCStatus) => {
     const cur = [...tasks, ...claimedTasks].find((t) => t.id === id);
-    if (cur && status === "Content - Approved" && cur.detail.owner === "Manya") {
+    if (cur && status === "Content - Approved" && nameIsWriter(cur.detail.owner)) {
       const handoff = autoAssign(cur.detail.typeLine);
-      if (handoff && !handoff.toPool && handoff.owner !== "Manya") {
+      if (handoff && !handoff.toPool && !nameIsWriter(handoff.owner)) {
         setApproveGate({ id, status, target: handoff.owner, add: cur.detail.duration || estMins(cur.detail.typeLine) });
         return;
       }
@@ -2659,7 +2668,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     if (!cur) return;
     // Content-first handoff fires only the first time the writer's own task is approved.
     // Deferred (pipeline-hold) approvals skip it — ownership moves on Accept instead.
-    const handoff = status === "Content - Approved" && cur.detail.owner === "Manya" && !deferHandoff ? autoAssign(cur.detail.typeLine) : null;
+    const handoff = status === "Content - Approved" && nameIsWriter(cur.detail.owner) && !deferHandoff ? autoAssign(cur.detail.typeLine) : null;
     if (deferHandoff) setToast({ who: "Queued in pipeline", color: "#D97706", av: <IconHourglass size={14} stroke={2} />, body: `“${cur.title}” is waiting — it joins their board only when they accept.` });
 
     if (handoff && handoff.toPool) {
@@ -2672,7 +2681,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       return;
     }
 
-    const next: Task = handoff && handoff.owner !== "Manya"
+    const next: Task = handoff && !nameIsWriter(handoff.owner)
       ? { ...cur, status, meta: `${cur.detail.typeLine} · owned by ${handoff.owner}`, detail: { ...cur.detail, owner: handoff.owner, collaborators: withManya(cur.detail.collaborators) } }
       : { ...cur, status };
     setTasks((a) => a.map((t) => (t.id === id ? next : t)));
@@ -3432,13 +3441,13 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     fetch("/api/my-day/swap-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pendingId: t.id, from: person, candidates }) })
       .then(async (res) => {
         if (!res.ok) { const j = await res.json().catch(() => ({})); setToast({ who: "Send failed", color: "#C03221", av: "!", body: j.error || `HTTP ${res.status}` }); }
-        else setToast({ who: "Sent to Manya", color: "#3A57E8", av: me.av, body: `Your ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} were offered — she'll pick which one moves.` });
+        else setToast({ who: `Sent to ${nameOfRole("writer", "the writer")}`, color: "#3A57E8", av: me.av, body: `Your ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} were offered — she'll pick which one moves.` });
       })
       .catch((e) => setToast({ who: "Send failed", color: "#C03221", av: "!", body: String(e) }));
   };
   // Day clock — login = start (auto, above), End day = wrap-up then log out.
   // Team-capacity page is Manya-only — snap back to My Day if the view switches away.
-  useEffect(() => { if (person !== "manya") setScreen("myday"); }, [person]);
+  useEffect(() => { if (!isWriter(person)) setScreen("myday"); }, [person]);
   // "Log back in" from the logged-out overlay: re-anchors the plan to the new login
   // time (demo — no real session change). Mirrors the auto-start on first view.
   // Record this person's login / logout server-side so the admin Attendance board
@@ -3490,7 +3499,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const sendToManya = () => {
     setAskManya(false);
     setPipeline("waiting");
-    setToast({ who: "Sent to Manya", color: "#3A57E8", av: me.av, body: "She'll free a slot — you'll get a heads-up." });
+    setToast({ who: `Sent to ${nameOfRole("writer", "the writer")}`, color: "#3A57E8", av: me.av, body: "She'll free a slot — you'll get a heads-up." });
   };
   // Manya confirms the reschedule → slides the chosen task out, frees room, and the
   // editor's pipeline flips to "freed" (they'll see the follow-up notification).
@@ -3810,7 +3819,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
               )}
               {/* Role button lives here now (the day control moved up to the top bar):
                   Manya → Team capacity; editors → Claim pool. */}
-              {person === "manya" && (
+              {isWriter(person) && (
                 <button className="teamcapbtn" onClick={() => setScreen("team")}>
                   <IconUsers size={15} stroke={1.8} /> Team capacity
                 </button>
@@ -3821,7 +3830,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                   Claim pool{claimPool.length > 0 && <span className="teamcap-n">{claimPool.length}</span>}
                 </button>
               )}
-              {person === "manya" ? (
+              {isWriter(person) ? (
                 /* Manya CREATES the work — no pipeline for her. She gets REQUESTS:
                    any change a producer makes (dates moved, etc.) pops up here. */
                 <button className={`teamcapbtn ${pipeOpen ? "on" : ""}`} onClick={() => setPipeOpen(true)} title="Changes the team asked for — date moves, task changes">
@@ -3937,7 +3946,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
             <button type="button" className={`stat stat-btn ${remOpenGroup ? "on" : ""}`} onClick={() => setRemOpenGroup((v) => !v)} disabled={!reminderCount} title={reminderCount ? "Show the reminders" : "No reminders"}>
               <div className="n">{reminderCount}</div><div className="k">Reminder{reminderCount === 1 ? "" : "s"}</div>
             </button>
-            {person === "manya"
+            {isWriter(person)
               ? <div className="stat"><div className="n w">{stats.pending}</div><div className="k">Pending</div></div>
               : <div className="stat"><div className="n">{stats.waiting}</div><div className="k">Waiting on me</div></div>}
             <div className="stat"><div className="n b">{stats.output}</div><div className="k">Output ready</div></div>
@@ -3959,7 +3968,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         )}
 
         {/* MANYA — reschedule request when an editor is packed (team capacity moved to its own page) */}
-        {person === "manya" && pipeline === "waiting" && (
+        {isWriter(person) && pipeline === "waiting" && (
           <ManyaReschedule task={URGENT_TASK} editorName="Nandu" movedId={movedId} onMove={setMovedId} onConfirm={manyaConfirmMove} />
         )}
 
@@ -4561,7 +4570,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       )}
 
       {/* MANYA'S REQUESTS — changes the producers asked for (date moves etc.) */}
-      {pipeOpen && person === "manya" && (
+      {pipeOpen && isWriter(person) && (
         <div className="modal" onClick={() => setPipeOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close"><IconX size={14} stroke={2} /></button>
@@ -4652,7 +4661,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       )}
 
       {/* PIPELINE — tasks queued for me, waiting for MY accept (persistent history) */}
-      {pipeOpen && person !== "manya" && (
+      {pipeOpen && !isWriter(person) && (
         <div className="modal" onClick={() => setPipeOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPipeOpen(false)} title="Close"><IconX size={14} stroke={2} /></button>
@@ -4779,9 +4788,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
                 <span className="nt-thumb-opt-lbl">I&rsquo;ll make it</span>
                 <span className="nt-thumb-opt-sub">It joins My tasks alongside the video.</span>
               </button>
-              <button type="button" className="nt-thumb-opt" onClick={() => void settleThumb("praveen")}>
-                <span className="nt-thumb-opt-lbl">Praveen makes it</span>
-                <span className="nt-thumb-opt-sub">It shows up in his task list straight away.</span>
+              <button type="button" className="nt-thumb-opt" onClick={() => void settleThumb(firstWithRole("designer") || "praveen")}>
+                <span className="nt-thumb-opt-lbl">{nameOfRole("designer", "The designer")} makes it</span>
+                <span className="nt-thumb-opt-sub">It shows up in their task list straight away.</span>
               </button>
             </div>
             {/* No dismiss: the question has to be answered, otherwise the thumbnail is

@@ -6,6 +6,7 @@ import { MH_NAME } from "@/lib/mh-chat";
 import { getSessionUserId } from "@/lib/auth";
 import { postSlack, slackTaskLink } from "@/lib/slack";
 import { activeTeamIds } from "@/lib/team-db";
+import { keysWithRole } from "@/lib/team-roles";
 
 // POST /api/my-day/swap-request
 // A packed producer does NOT pick which task to move — they send their whole
@@ -49,8 +50,9 @@ export async function POST(req: Request) {
       const by = (getSessionUserId() || "").toLowerCase();
       const name = (k: string) => MH_NAME[k] || k;
       const list = candidates.map((c) => `“${c.title}”`).join(", ");
+      const writerNames = keysWithRole("writer").map(name).join(" / ") || "writer";
       await postSlack(
-        `🔁 *${name(from)} is packed — Manya, pick a task to move*\n` +
+        `🔁 *${name(from)} is packed — ${writerNames}, pick a task to move*\n` +
         `*Incoming:* <${slackTaskLink(b.pendingId)}|${pending.data?.particulars || "the queued task"}>\n` +
         `*Can swap:* ${list}` +
         (by && by !== from ? `\n_Sent by ${name(by)} from ${name(from)}'s My Day._` : ""));

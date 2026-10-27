@@ -1,4 +1,5 @@
 import { isVideoType } from "@/lib/mh-content-types";
+import { firstWithRole, isEditor } from "@/lib/team-roles";
 import { uploadTaskFile } from "@/lib/upload-task-file";
 import type { NewTaskDraft, NewTaskThumbnail } from "./NewTaskForm";
 
@@ -56,7 +57,8 @@ export async function attachThumbnailTask(
   videoId: string, writerKey: string,
 ): Promise<{ id: string; owner: string | null } | null> {
   const thumb = v.thumbnail;
-  const owner = thumb.who === "praveen" ? "praveen" : null;
+  // "The designer" option → whoever has the Designer role on the Team page.
+  const owner = thumb.who === "praveen" ? firstWithRole("designer") : null;
   const res = await fetch("/api/marketing-hub/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -96,7 +98,7 @@ export async function attachThumbnailTask(
 // the pool would have stayed theirs and never shown up there — while the form and
 // the toast said "in the editors' claim pool" (Nandu, 13 Oct). Let go of it.
 export async function releaseToPoolIfEditor(postId: string, creatorKey: string, type: string, status: string): Promise<void> {
-  if (status !== "Content - Approved" || !isVideoType(type) || !["nikhil", "nandu"].includes(creatorKey)) return;
+  if (status !== "Content - Approved" || !isVideoType(type) || !isEditor(creatorKey)) return;
   await fetch("/api/marketing-hub/update", {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: postId, actor: creatorKey, fields: { owner_key: null } }),

@@ -31,7 +31,7 @@ export type RuleTab = {
 
 // The path every task takes, drawn as steps at the top of the My Day tab.
 export const TASK_FLOW: { step: string; status: string; who: string }[] = [
-  { step: "1 · Writing", status: "Content - Pending", who: "With the writer — Manya by default" },
+  { step: "1 · Writing", status: "Content - Pending", who: "With the writer — whoever has the Writer role on Team & access" },
   { step: "2 · Approved", status: "Content - Approved", who: "Handed over by the rules below — today design → Praveen, video → the editors' pool" },
   { step: "3 · Producing", status: "Output - In Progress", who: "With whoever is designing or editing" },
   { step: "4 · Review", status: "Output - Ready", who: "Goes to Content Review" },
@@ -50,11 +50,11 @@ export const RULE_TABS: RuleTab[] = [
       { id: "pipeline-hold", when: "Producer's day is full", what: "The task waits in their Pipeline until they press Accept. It is never forced onto a full day.", where: "/api/marketing-hub/update · deferHandoff", editable: "code" },
       { id: "claim", when: "Claiming a task", what: "Whoever claims it becomes the owner. The person who shot a video stays on as collaborator.", where: "/api/marketing-hub/takeover", editable: "code" },
       { id: "collab-never-owner", when: "Collaborators", what: "Nobody is ever both owner and collaborator. Any collaborator can be taken off with the × on their chip.", where: "lib/task-create.ts · My Day task detail", editable: "code" },
-      { id: "swap", when: "Packed producer", what: "They can't push work away themselves — they offer their not-started tasks and Manya picks which one moves (Swap).", where: "/api/my-day/swap-request", editable: "code" },
+      { id: "swap", when: "Packed producer", what: "They can't push work away themselves — they offer their not-started tasks and the Writer picks which one moves (Swap).", where: "/api/my-day/swap-request", editable: "code" },
       { id: "time-up", when: "Time runs out", what: "The owner is asked: Task completed, or Extend with a reason. The rest of the team sees the extension.", where: "PreviewMyDay.tsx · time-up alert", editable: "code" },
-      { id: "date-approval", when: "Publishing date moved", what: "Only Maheen moves a publishing date directly. Anyone else's change becomes a request she approves or declines.", where: "lib/date-approvals.ts · APPROVER_KEY", editable: "code" },
+      { id: "date-approval", when: "Publishing date moved", what: "The Manager moves a publishing date directly. Anyone else's change becomes a request the Manager approves or declines.", where: "Team & access · Role in the workflow, Date changes need approval", editable: "team" },
       { id: "date-why", when: "Moving a date", what: "Asks why the date moved — switched on or off for each person on Team & access.", where: "Team & access · Ask why when a date moves", editable: "team" },
-      { id: "day", when: "Your day", what: "8 hours from when you sign in, never before your shift (Manya, Praveen and Nikhil at 9; Nandu later). Lunch 1–2 PM is protected and the last hour stays free for urgent work.", where: "PreviewMyDay.tsx · shiftStartOf()", editable: "code" },
+      { id: "day", when: "Your day", what: "8 hours from when you sign in, never before your shift start. Lunch 1–2 PM is protected and the last hour stays free for urgent work.", where: "Team & access · Shift starts", editable: "team" },
       { id: "order", when: "Order of today's plan", what: "Overdue first, then Urgent/High, then by publishing date — until you drag it; your order then holds until you press Rearrange.", where: "PreviewMyDay.tsx", editable: "team" },
       { id: "spill", when: "Too much for today", what: "Only what fits the shift is drawn on the timeline; the rest is listed separately instead of being crammed in.", where: "PreviewMyDay.tsx · fitPlan / spillPlan", editable: "code" },
       { id: "estimates", when: "No time set", what: "Thumbnail 30m · Carousel 60m · Reel - Cut 60m · Meta Ads 45m · Reel / Short / Story 90m · YouTube Long-Form 120m · anything else 30m.", why: "Used only when nobody has set a duration by hand.", where: "lib/task-estimate.ts", editable: "code" },
@@ -104,7 +104,7 @@ export const RULE_TABS: RuleTab[] = [
       { id: "notify-creator", when: "Task changes stage", what: "Whoever created it is told each time it moves on in someone else's hands.", where: "lib/notifications.ts", editable: "code" },
       { id: "notify-owner", when: "Handed to you", what: "The owner is told when a task is handed to them, sent back, or waiting in their Pipeline.", where: "lib/notifications.ts", editable: "code" },
       { id: "pop", when: "Pop-ups", what: "Only things that need a decision pop up. Everything else goes to the bell (it shakes) and the unread count.", where: "NotificationHost.tsx", editable: "code" },
-      { id: "quiet", when: "Quiet hours", what: "No pop-ups at weekends, outside your shift, or after you press End day.", where: "/api/notifications · isQuiet()", editable: "code" },
+      { id: "quiet", when: "Quiet hours", what: "No pop-ups at weekends, outside your shift (Shift starts on Team & access), or after you press End day.", where: "/api/notifications · isQuiet()", editable: "team" },
       { id: "due-today", when: "Due today", what: "Nudged in the last three hours of the shift, while there is still time.", where: "PreviewMyDay.tsx", editable: "code" },
       { id: "slack", when: "Slack — #marketing-os-updates", what: "Posted when content needs approval, is approved, output is ready for review, work is sent back, a swap is asked for, or a publishing-date change is asked, approved or declined.", where: "lib/slack.ts", editable: "code" },
       { id: "messages", when: "Messages tab", what: "Only what people type. Automatic updates go to Notifications, not the chat.", where: "/api/my-day/chat", editable: "code" },
@@ -115,6 +115,7 @@ export const RULE_TABS: RuleTab[] = [
     title: "Team & access",
     blurb: "Who can see and do what.",
     rules: [
+      { id: "work-role", when: "Role in the workflow", what: "Each person is a Writer, Designer, Editor or Manager. That decides who gets approved design work, who claims videos, who picks swaps and who approves date changes.", where: "Team & access · Role in the workflow", editable: "team" },
       { id: "toggles", when: "Every permission", what: "Is an on/off switch for each person on Team & access — nothing is wired to a name.", where: "Team & access", editable: "team" },
       { id: "tabs", when: "Tabs", what: "Each sidebar tab shows only for people who have it switched on.", where: "lib/permissions.ts · Team & access", editable: "team" },
       { id: "create", when: "Creating tasks", what: "Only people with “Create tasks” switched on see + New task.", where: "Team & access · Create tasks", editable: "team" },

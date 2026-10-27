@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { setTeamRoles } from "@/lib/team-roles";
 
 // The team roster for browser screens, from /api/team (the admin Team page's
 // people). One fetch per page load, shared by every component that asks.
@@ -12,6 +13,7 @@ import { useEffect, useState } from "react";
 export type TeamPerson = {
   id: string; first: string; name: string; initials: string;
   role: string; active: boolean; photoUrl: string | null;
+  workRole?: string | null; shiftStart?: string;
 };
 
 let shared: Promise<TeamPerson[]> | null = null;
@@ -21,6 +23,8 @@ export function loadTeam(): Promise<TeamPerson[]> {
     shared = fetch("/api/team", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => (d && Array.isArray(d.team) ? (d.team as TeamPerson[]) : []))
+      // Fill the shared role/shift map (lib/team-roles.ts) for every screen.
+      .then((t) => { setTeamRoles(t.filter((p) => p.workRole).map((p) => ({ key: p.id, role: p.workRole!, shiftStart: p.shiftStart, active: p.active }))); return t; })
       .catch(() => []);
   }
   return shared;

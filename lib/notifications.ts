@@ -3,6 +3,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { TEAM_NAMES } from "@/lib/team-names";
 import { activeTeamIds } from "@/lib/team-db";
 import { fetchContentTypes } from "@/lib/content-types-db";
+import { keysWithRole, isEditor, isDesigner, siblingOf as siblingOfRole } from "@/lib/team-roles";
 
 // Notification GENERATION — who hears about what, derived from the mh_activity
 // event log (and mh_status_log for "your task moved"). Lifted verbatim out of
@@ -14,12 +15,14 @@ import { fetchContentTypes } from "@/lib/content-types-db";
 // when the underlying event happened. See docs/NOTIFICATIONS_SPEC.md §2.
 
 const NAME = TEAM_NAMES;   // filled from the Team page roster (lib/team-names.ts)
-const EDITORS = ["nandu", "nikhil"];
+// Who is an editor / the designer / a writer / an approver comes from the Team page
+// (lib/team-roles.ts), not from names typed here (27 Oct).
+const editors = () => keysWithRole("editor");
 // No actor on the event = an automation did it (link write-backs, schedulers…)
 // → say "System", never a vague "Someone" (same convention as the activity feed).
 const nameOf = (k: string | null) => (k ? NAME[k.toLowerCase()] || k : "System");
 /** The other video editor, or null for anybody who is not one. */
-export const siblingOf = (k: string) => (k === "nandu" ? "nikhil" : k === "nikhil" ? "nandu" : null);
+export const siblingOf = (k: string) => siblingOfRole(k);
 
 type Act = {
   id: number; post_id: string; actor_key: string | null; action: string;
@@ -109,7 +112,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
 
     if (e.action === "date_change_requested") {
       // Publish-date change awaiting Maheen's approval.
-      target = ["maheen"];
+      target = keysWithRole("manager");   // whoever approves dates (Team page role)
       n = { cat: "action", kind: "message", emoji: "📅", title: "Publish-date change to approve", sub: `${nameOf(e.actor_key)} wants “${short}” moved ${e.from_value} → ${e.to_value}. Approve in My Day.`, postId: e.post_id };
     } else if (e.action === "claim") {
       const sib = e.actor_key ? siblingOf(e.actor_key.toLowerCase()) : null;
@@ -122,18 +125,18 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
       if (VIDEO_TYPES.has(post?.type || "")) {
         // Only advertise as "up for grabs" while still unclaimed. Once an editor
         // owns it (claimed via takeover), stop telling editors to claim it.
-        if (post && !EDITORS.includes((post.owner_key || "").toLowerCase())) {
-          target = EDITORS;
+        if (post && !isEditor(post.owner_key)) {
+          target = editors();
           n = { cat: "pool", kind: "message", emoji: "🎬", title: "New video up for grabs", sub: `"${short}" was approved — claim it from the pool.` };
         }
-      } else if (post && (post.owner_key || "").toLowerCase() !== "praveen") {
+      } else if (post && !isDesigner(post.owner_key)) {
         // Deferred handoff (assigner saw "day full" and queued it): ownership is
         // still with the writer — Praveen must ACCEPT to take it. postId powers
         // the Accept button; the task joins his board only via that takeover.
-        target = ["praveen"];
+        target = keysWithRole("designer");
         n = { cat: "action", kind: "message", emoji: "⏳", title: "Waiting in your pipeline", sub: `"${short}" is approved and queued for you — accept when you have room.`, postId: e.post_id, accept: true };
       } else {
-        target = ["praveen"];
+        target = keysWithRole("designer");
         n = { cat: "assigned", kind: "message", emoji: "📥", title: "Approved — handed to you", sub: `"${short}" is ready for you to produce.` };
       }
     } else if (e.action === "status_changed" && e.to_value === "Incorporating Feedback") {
@@ -163,7 +166,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
           candidates = (typeof d === "string" ? JSON.parse(d) : d) as SwapCand[] || [];
         } catch { candidates = []; }
         if (candidates.length && e.actor_key) {
-          target = ["manya"];
+          target = keysWithRole("writer");
           n = { cat: "action", kind: "message", emoji: "🔁", title: `${nameOf(e.actor_key)} is packed — pick a task to move`, sub: `Offers ${candidates.length} not-started task${candidates.length > 1 ? "s" : ""} to swap for "${short}".`, postId: e.post_id, swap: { from: e.actor_key, candidates } };
         }
       }
@@ -184,7 +187,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
       // A producer moved a date (e.g. make-room rolled a task to tomorrow) →
       // Manya, who created/plans the work, gets the change request in HER
       // Requests feed. Her own date edits don't notify her (self-filter below).
-      target = ["manya"];
+      target = keysWithRole("writer");
       n = { cat: "dates", kind: "message", emoji: "📅", title: `${nameOf(e.actor_key)} moved a date`, sub: `"${short}" → ${e.to_value || "updated"}${e.from_value ? ` (was ${e.from_value})` : ""}.` };
     } else if (e.action === "owner_changed") {
       // Plain reassignment (not a claim/handoff): tell the new owner it's theirs.
@@ -194,7 +197,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
       } else if (!e.to_value && !claimedOrHandedOff.has(e.post_id) && VIDEO_TYPES.has(postMap.get(e.post_id)?.type || "")) {
         // Released back to the claim pool ("Nobody — claim pool" in the task window,
         // Nandu 9 Oct). Without this the video sat in the pool and nobody heard.
-        target = EDITORS;
+        target = editors();
         n = { cat: "pool", kind: "message", emoji: "🎬", title: "Back in the claim pool", sub: `${nameOf(e.actor_key)} put "${short}" back in the pool — claim it if you can take it.` };
       }
     }

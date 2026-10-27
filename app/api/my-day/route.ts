@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { keysWithRole } from "@/lib/team-roles";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
@@ -107,7 +108,7 @@ export async function GET() {
     const tasks = mainRows.map(mk);
     // Claim pool = approved video work still up for grabs. Once an editor (Nikhil /
     // Nandu) owns it, it's been claimed — so it drops out of the pool.
-    const EDITORS = new Set(["nikhil", "nandu"]);
+    const EDITORS = new Set(keysWithRole("editor"));   // Team page role, not names
     const pool = mainRows
       .filter(
         (r) =>

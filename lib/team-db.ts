@@ -5,6 +5,7 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { TEAM_NAMES } from "@/lib/team-names";
+import { setTeamRoles } from "@/lib/team-roles";
 import { hubRoleFor } from "@/lib/hub-role";
 import { TEAM_USERS, type TeamUser } from "@/lib/users";
 import { cleanPermissions, cleanSections, type Permissions, type Sections } from "@/lib/permissions";
@@ -75,6 +76,16 @@ export async function fetchRoster(fresh = false): Promise<RosterUser[]> {
       const rows = (data as IndUserRow[]).map(fromRow);
       cache = { at: Date.now(), rows };
       for (const u of rows) TEAM_NAMES[u.id] = u.first || u.name || u.id;
+      // Workflow roles + shift starts (Team page, sql/038) — refreshed with the roster
+      // so every server decision that asks "who is the editor" sees today's answer.
+      try {
+        const { data: hub } = await sb.from("mh_team_members").select("key, role, shift_start, active");
+        if (hub) {
+          const activeIds = new Set(rows.filter((u) => u.active).map((u) => u.id));
+          setTeamRoles((hub as { key: string; role: string | null; shift_start: string | null; active: boolean | null }[])
+            .map((h) => ({ ...h, active: h.active !== false && activeIds.has(h.key) })));
+        }
+      } catch { /* keep the last known roles */ }
       return rows;
     }
   }
