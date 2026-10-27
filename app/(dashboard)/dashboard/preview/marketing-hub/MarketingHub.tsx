@@ -4718,6 +4718,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
     autoOpened.current = true;
     const asItems = (fs: { url: string; name: string }[], from: string) => fs.filter((f) => f.url).map((f) => ({ url: f.url, title: f.name, from }));
     const cre = OUTPUT_STAGES.has(String(statusCur)) ? asItems(creatives, "Creatives") : [];
+    // Slides first, the LinkedIn PDF last — it opens on slide 1, not on the PDF (27 Oct).
+    cre.sort((x, y) => Number(/\.pdf(\?|#|$)/i.test(x.url.split("?")[0])) - Number(/\.pdf(\?|#|$)/i.test(y.url.split("?")[0])));
     const items = cre.length ? cre : asItems(workFiles, "Attachments");
     if (items.length) openRefPreview(items, 0, contentCol.current);
   }, [detail]); // eslint-disable-line react-hooks/exhaustive-deps

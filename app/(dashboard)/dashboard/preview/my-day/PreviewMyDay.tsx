@@ -900,6 +900,8 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
     const asItems = (fs: { url?: string; name: string }[], from: string) => fs.filter((f) => f.url).map((f) => ({ url: f.url!, title: f.name, from }));
     const outputStage = ["Output - Ready", "Ready to Publish", "Published/Scheduled"].includes(String(task.status));
     const cre = outputStage ? asItems(task.detail.creatives || [], "Creatives") : [];
+    // Slides first, the LinkedIn PDF last — it opens on slide 1, not on the PDF (27 Oct).
+    cre.sort((x, y) => Number(/\.pdf(\?|#|$)/i.test(x.url.split("?")[0])) - Number(/\.pdf(\?|#|$)/i.test(y.url.split("?")[0])));
     const items = cre.length ? cre : asItems(task.detail.attachments || [], "Attachments");
     // Another task's file must not stay open over this one.
     if (items.length) openRefPreview(items, 0, dockRef.current); else closeRefPreview(dockRef.current);
