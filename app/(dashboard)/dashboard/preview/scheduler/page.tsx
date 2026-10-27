@@ -22,6 +22,8 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { compressImage } from "@/lib/compress-image";
 import { nextPublisherCheck, clockText, durationText, SEND_AHEAD_MIN } from "@/lib/publisher-clock";
+import { SETTINGS } from "@/lib/app-settings";
+import { useAppSettings } from "@/lib/use-app-settings";
 
 type PublishTo = "Facebook" | "Instagram" | "Instagram/Facebook";
 type PublishToPage = "GooCampus Main" | "GooCampus World" | "12Plus / GC India";
@@ -121,27 +123,17 @@ const OWN_IG_ACCOUNTS = [
 // Soft daily post limits per account — warn (don't hard-block) before a day exceeds the
 // account's max, so we don't over-post. Scheduling the (max+1)th post triggers the popup.
 // min is the team's daily target (informational); max is what the guard enforces.
-const DAILY_POST_LIMITS: Record<string, { min: number; max: number }> = {
-  "GooCampus Main": { min: 2, max: 4 },   // @goocampus
-  "GooCampus World": { min: 1, max: 2 },  // @goocampusworld
-  "12Plus / GC India": { min: 1, max: 2 }, // @12thplusdotcom
-};
+// The numbers are set on the Rules page (Scheduler → Posting limits, lib/app-settings.ts).
 // How far apart two posts on the same account should sit. Two posts minutes apart
 // split one audience: the second competes with the first for the same early
 // engagement, and buries it in the feed. A warning, never a block — a launch or a
 // live event is a real reason to double-post.
-const MIN_GAP_MINUTES: Record<string, number> = {
-  "GooCampus Main": 60,
-  "GooCampus World": 90,
-  "12Plus / GC India": 90,
-};
-const DEFAULT_GAP_MINUTES = 60;
 function minGapMinutes(page: string): number {
-  return MIN_GAP_MINUTES[page] ?? DEFAULT_GAP_MINUTES;
+  return SETTINGS.posting[page]?.gap ?? 60;
 }
 
 function maxPostsPerDay(page: string): number {
-  return DAILY_POST_LIMITS[page]?.max ?? 4;
+  return SETTINGS.posting[page]?.max ?? 4;
 }
 
 const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = [
@@ -151,6 +143,7 @@ const PUBLISH_TO_OPTIONS: { value: PublishTo; label: string; icon: string }[] = 
 ];
 
 export default function SchedulerPage() {
+  useAppSettings();   // posting limits from the Rules page
   return (
     <PreviewDashboardShell active="scheduler" title="Scheduler" subtitle="Publish or schedule to Instagram, Facebook & LinkedIn — all from here." hideAccountPicker hideRange>
       {() => <SchedulerTabs />}

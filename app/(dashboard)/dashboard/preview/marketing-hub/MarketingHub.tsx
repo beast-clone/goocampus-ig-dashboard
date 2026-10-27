@@ -42,6 +42,7 @@ import { sanitizeRichText } from "@/lib/sanitize-rich-text";
 import { isVideoType, ALL_TYPES } from "@/lib/mh-content-types";
 import { needsDateApproval, needsDateReason, hasCapability, canEditCalendar } from "@/lib/permissions";
 import { shiftStartMin } from "@/lib/team-roles";
+import { useAppSettings } from "@/lib/use-app-settings";
 
 export type Row = {
   id: string;
@@ -376,6 +377,7 @@ function MarketingHubShell() {
 }
 
 export function MarketingHubPage() {
+  useAppSettings();   // task times from the Rules page (Workload timeline)
   return (
     <Suspense fallback={null}>
       <MarketingHubShell />

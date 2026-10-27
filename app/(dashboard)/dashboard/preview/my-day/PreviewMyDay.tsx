@@ -35,6 +35,8 @@ import { TaskActivityFeed, properName } from "../marketing-hub/MarketingHub";
 import { shouldPoll } from "@/lib/quiet-hours";
 import { useOwnUndo } from "@/app/(dashboard)/dashboard/preview/Undo";
 import { editPartnerOf, firstWithRole, isDesigner, isEditor as isEditorKey, isWriter, keysWithRole, presenterFor, roleOf, shiftStartMin, type WorkRole } from "@/lib/team-roles";
+import { SETTINGS } from "@/lib/app-settings";
+import { useAppSettings } from "@/lib/use-app-settings";
 
 function NavGroup({ label }: { label: string }) { return <div className="navgroup">{label}</div>; }
 
@@ -317,7 +319,8 @@ const WORK_MIN = 480;
 const BUFFER_MIN = 60;
 // How long before the end of the day a task due TODAY starts nudging its owner.
 // Early enough to still finish it, late enough not to nag all morning.
-const REMIND_BEFORE_END_MIN = 180;                 // 3 hours
+// Set on the Rules page (Notifications → Due-today reminder); 3 hours by default.
+const remindBeforeEndMin = () => SETTINGS.remindHours * 60;
 const DAY_END_LABEL = "6:00 PM";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const WEEK_DAY_CAP = 7 * 60;                       // 7 productive hours per weekday
@@ -1981,6 +1984,7 @@ function EndTodayModal({ tasks, isWriter, today, onEnd, onClose }: { tasks: EodT
 type CapEntry = { permissions: Permissions; isAdmin: boolean };
 
 export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, viewerId }: { initialPerson?: string; isAdmin?: boolean; viewerId?: string } = {}) {
+  useAppSettings();   // task times and the reminder from the Rules page
   // Team-page newcomers: into PPL (chips, chat) and the person switcher.
   usePplTeam();
   const rosterTeam = useTeam();
@@ -2866,7 +2870,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
       if (!t.due || !STATUS[t.status].inView) continue;
       const dueIn = Math.floor((new Date(t.due + "T00:00:00").getTime() - today) / DAY);
       // Due today and the day is nearly out — the one moment a nudge still helps.
-      if (dueIn === 0 && minsLeft !== null && minsLeft > 0 && minsLeft <= REMIND_BEFORE_END_MIN) {
+      if (dueIn === 0 && minsLeft !== null && minsLeft > 0 && minsLeft <= remindBeforeEndMin()) {
         const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
         const left = h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
         out.push({ id: t.id, title: t.title, text: `due today — ${left} left in your day` });

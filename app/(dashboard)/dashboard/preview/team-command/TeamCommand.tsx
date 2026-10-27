@@ -7,6 +7,7 @@ import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClo
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 import { shouldPoll } from "@/lib/quiet-hours";
+import { useAppSettings } from "@/lib/use-app-settings";
 
 // Team Command — the admin's cockpit. A master–detail report: pick a person on the
 // left rail, see their full day on the right — attendance, workload, and their whole
@@ -115,6 +116,7 @@ function buildPlan(tasks: MyDayTask[]): { blocks: Blk[]; overflow: number; freeM
 // One component, two tabs (22 Oct): Team Command (the team view) and Approvals
 // (publish-date changes) are separate sidebar tabs in My Workspace.
 export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } = {}) {
+  useAppSettings();   // task times from the Rules page
   const rosterTeam = useTeam();
   const [, bumpTeam] = useState(0);
   useEffect(() => {
