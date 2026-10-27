@@ -165,7 +165,9 @@ export function FilesCard({
   const openTile = (e: React.MouseEvent, t: FileTile) => {
     if (justDragged.current) { e.preventDefault(); return; }
     if (!plain(e)) return;
-    const withUrl = shown.filter((x) => x.url);
+    // Slides first, then the LinkedIn PDF — so the viewer counts "1 of 9" from the first
+    // slide, not from the PDF (27 Oct).
+    const withUrl = (splitPdf ? [...shown.filter((x) => x.kind !== "pdf"), ...shown.filter((x) => x.kind === "pdf")] : shown).filter((x) => x.url);
     if (t.url && openRefPreview(withUrl.map((x) => ({ url: x.url!, title: x.name, from: title })), withUrl.indexOf(t))) { e.preventDefault(); return; }
     if (t.onOpen) { e.preventDefault(); t.onOpen(); }
   };
