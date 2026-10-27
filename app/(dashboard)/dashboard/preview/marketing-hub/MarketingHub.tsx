@@ -4010,7 +4010,7 @@ export const ACT_VERB: Record<string, string> = {
   priority_changed: "changed the priority", type_changed: "changed the type", content_edited: "edited the content",
   caption_edited: "edited the caption", notes_edited: "edited the notes", sbu_changed: "changed the brand",
   platforms_changed: "changed platforms", review_changed: "toggled review", output_link_changed: "updated the output link",
-  creative_added: "added a creative", creative_removed: "removed a creative", creatives_reordered: "changed the order of the creatives", claim: "claimed this",
+  creative_added: "added a creative", creative_removed: "removed a creative", post_media_removed: "took a file off the post in the Scheduler (it stays on the task)", creatives_reordered: "changed the order of the creatives", claim: "claimed this",
   reference_added: "added a reference", reference_removed: "removed a reference",
   attachment_added: "added an attachment", attachment_removed: "removed an attachment", reference_links_changed: "updated the references",
   instagram_url_changed: "updated the Instagram link", facebook_url_changed: "updated the Facebook link", linkedin_url_changed: "updated the LinkedIn link",
@@ -4734,8 +4734,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const upload = (files: FileList | File[], kind: "creative" | "reference" | "attachment" = "creative") =>
     (kind === "reference" ? qRef : kind === "attachment" ? qAtt : qCre).add(files);
   const uploading = qCre.busy || qRef.busy || qAtt.busy;
-  const removeCreative = async (id: string) => {
-    const res = await removeTaskFile(id);
+  const removeCreative = async (id: string, why?: string) => {
+    const res = await removeTaskFile(id, why);
     if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't remove that file" }); return; }
     await loadDetail();
   };
@@ -4865,14 +4865,14 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                   (components/FilesCard), so a task's files look the same everywhere. */}
               <div className="space-y-3 py-2">
                 <div onMouseOver={() => { pasteKind.current = "creative"; }}>
-                  <FilesCard icon={<IconPhoto size={15} stroke={1.8} />} title="Creatives & files" drop numbered
+                  <FilesCard icon={<IconPhoto size={15} stroke={1.8} />} title="Creatives & files" drop numbered splitPdf askWhy
                     count={`${creatives.length} file${creatives.length === 1 ? "" : "s"}${(detail?.outputLink ?? row.outputLink) ? " · 1 link" : ""}`}
                     accept="image/*,video/*,.pdf" onFiles={(f) => upload(f)} busyText={qCre.busy ? qCre.status : undefined}
                     tiles={creatives.map((c, i): FileTile => {
                       const k = creativeKind(c.name, c.type);
                       return { key: c.id || `${c.url}-${i}`, name: c.name, url: c.url, kind: k,
                         onOpen: k === "image" || k === "video" ? () => setLightbox({ items: creatives, index: i }) : undefined,
-                        onRemove: c.removable && c.id ? () => removeCreative(c.id!) : undefined };
+                        onRemove: c.removable && c.id ? (why) => removeCreative(c.id!, why) : undefined };
                     })}
                     pending={qCre.pending} onDismiss={qCre.dismiss}
                     onReorder={creatives.length > 1 && creatives.every((c) => c.id) ? async (ids) => {

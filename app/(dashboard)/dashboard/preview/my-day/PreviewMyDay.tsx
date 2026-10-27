@@ -541,16 +541,17 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   const q = useUploadQueue({ postId, kind: "creative", uploadedBy, onSaved,
     existing: creatives.map((c) => c.name),
     onError: (name, msg) => showToast({ who: `Couldn't add ${name}`, body: msg, color: "#C03221", av: "!" }) });
-  const remove = async (attId: string) => {
-    const res = await removeTaskFile(attId);
+  const remove = async (attId: string, why?: string) => {
+    const res = await removeTaskFile(attId, why);
     if (!res.ok) { const j = await res.json().catch(() => ({})); showToast({ who: "Couldn't remove it", body: (j as { error?: string }).error || `HTTP ${res.status}`, color: "#C03221", av: "!" }); }
+    else showToast({ who: "Moved to the Recycle bin", body: "It can be restored from System → Recycle bin.", color: "#3A57E8", av: "✓" });
     onSaved();
   };
   const openPreview = (c: CreativeItem) => { const idx = viewable.indexOf(c); if (idx >= 0) setPreview(idx); };
   const nFiles = creatives.length;
   return (
     <div className="up-wrap">
-      <FilesCard icon={<IconUpload size={15} stroke={1.8} />} title="Creatives & files" drop numbered
+      <FilesCard icon={<IconUpload size={15} stroke={1.8} />} title="Creatives & files" drop numbered splitPdf askWhy
         count={`${nFiles} file${nFiles === 1 ? "" : "s"}${link ? " · 1 link" : ""}`}
         accept={UPLOAD_ACCEPT} onFiles={(f) => q.add(f)} busyText={q.busy ? q.status : undefined}
         tiles={creatives.map((f, i): FileTile => {
@@ -558,7 +559,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
           return { key: f.attId || f.url || String(i), name: f.name, url: f.url,
             kind: pdf ? "pdf" : f.type === "video" ? "video" : f.type === "image" ? "image" : "file",
             onOpen: !pdf && f.url && f.type !== "doc" ? () => openPreview(f) : undefined,
-            onRemove: f.attId ? () => remove(f.attId!) : undefined };
+            onRemove: f.attId ? (why) => remove(f.attId!, why) : undefined };
         })}
         pending={q.pending} onDismiss={q.dismiss}
         onReorder={nFiles > 1 && creatives.every((c) => c.attId) ? async (ids) => {

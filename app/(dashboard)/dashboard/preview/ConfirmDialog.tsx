@@ -14,6 +14,10 @@ import { Overlay } from "./Overlay";
 export type DialogOpts = {
   title: string; body?: React.ReactNode; action?: string; danger?: boolean; cancel?: string;
   kind?: "confirm" | "notice" | "prompt"; defaultValue?: string; placeholder?: string;
+  /** prompt only: the action stays off until something is typed (e.g. "why are you deleting it?"). */
+  required?: boolean;
+  /** prompt only: a label above the box. */
+  label?: string;
 };
 type Pending = DialogOpts & { resolve: (v: boolean | string | null) => void };
 
@@ -56,16 +60,17 @@ export function DialogHost() {
             <h2 className="text-[16px] font-medium text-[#232D42] break-words">{cur.title}</h2>
             {cur.body && <div className="text-[14px] text-[#8A92A6] mt-1 break-words">{cur.body}</div>}
             {cur.kind === "prompt" && (
+              <>{cur.label && <div className="mt-3 -mb-1.5 text-[12px] text-[#8A92A6]">{cur.label}</div>}
               <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} placeholder={cur.placeholder}
-                onKeyDown={(e) => { if (e.key === "Enter") done(true); }}
-                className="mt-3 w-full h-9 px-2.5 rounded border border-gray-200 text-[14px] text-[#232D42] outline-none focus:border-brand" />
+                onKeyDown={(e) => { if (e.key === "Enter" && !(cur.required && !value.trim())) done(true); }}
+                className="mt-3 w-full h-9 px-2.5 rounded border border-gray-200 text-[14px] text-[#232D42] outline-none focus:border-brand" /></>
             )}
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-4 mt-4 border-t border-gray-100">
           {cur.kind !== "notice" && <button onClick={() => done(false)} className="h-9 px-3 rounded text-[14px] font-medium text-gray-600 hover:text-gray-900">{cur.cancel || "Cancel"}</button>}
-          <button autoFocus={cur.kind !== "prompt"} onClick={() => done(true)}
-            className={`h-9 px-4 rounded text-[14px] font-medium text-white hover:brightness-110 ${cur.danger && cur.kind !== "notice" ? "bg-[#C0392B]" : "bg-brand"}`}>
+          <button autoFocus={cur.kind !== "prompt"} onClick={() => done(true)} disabled={cur.kind === "prompt" && cur.required && !value.trim()}
+            className={`h-9 px-4 rounded text-[14px] font-medium text-white hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed ${cur.danger && cur.kind !== "notice" ? "bg-[#C0392B]" : "bg-brand"}`}>
             {cur.action || (cur.kind === "notice" ? "OK" : cur.kind === "prompt" ? "Save" : "Confirm")}
           </button>
         </div>

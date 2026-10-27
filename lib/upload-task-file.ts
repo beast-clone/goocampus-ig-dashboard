@@ -84,8 +84,8 @@ export async function reorderTaskFiles(postId: string, ids: string[]): Promise<R
 }
 
 /** Remove a task file; says so if that sent an approved post back to review. */
-export async function removeTaskFile(id: string): Promise<Response> {
-  const res = await fetch(`/api/marketing-hub/attach?id=${id}`, { method: "DELETE" });
+export async function removeTaskFile(id: string, reason?: string): Promise<Response> {
+  const res = await fetch(`/api/marketing-hub/attach?id=${id}${reason ? `&reason=${encodeURIComponent(reason.slice(0, 300))}` : ""}`, { method: "DELETE" });
   if (res.ok) {
     const j = await res.clone().json().catch(() => ({})) as { sentBack?: boolean };
     if (j.sentBack) sentBackNotice();

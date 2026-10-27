@@ -137,6 +137,8 @@ export async function DELETE(req: Request) {
       actor_key: getSessionUserId() || null,   // who removed it, not "System"
       action: row.data.kind === "reference" || row.data.kind === "attachment" ? `${row.data.kind}_removed` : "creative_removed",
       to_value: row.data.filename,
+      // Why it was deleted (asked before deleting, 27 Oct) — shown in the task's history.
+      ...(url.searchParams.get("reason") ? { detail: String(url.searchParams.get("reason")).slice(0, 300) } : {}),
     });
     const sentBack = row.data.kind === "reference" || row.data.kind === "attachment"
       ? false : await sendBackForReview(sb, row.data.post_id, getSessionUserId() || null, row.data.filename);

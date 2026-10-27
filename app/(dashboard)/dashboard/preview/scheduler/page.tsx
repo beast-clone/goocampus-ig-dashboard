@@ -19,7 +19,7 @@ import { Overlay } from "@/app/(dashboard)/dashboard/preview/Overlay";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 import { PreviewDatePicker, ymdStr } from "../PreviewDatePicker";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
-import { alertDialog, confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { compressImage } from "@/lib/compress-image";
 import { nextPublisherCheck, clockText, durationText, SEND_AHEAD_MIN } from "@/lib/publisher-clock";
 
@@ -1160,7 +1160,7 @@ function Scheduler() {
                               </div>
                               <div>
                                 <label className="text-xs uppercase tracking-wide text-gray-500 font-medium">Creatives</label>
-                                <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} /></div>
+                                <div className="mt-1"><MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} taskId={schedulingTaskId} /></div>
                               </div>
                               {/* Same Format choice as the modal. This row is how produced work
                                   actually gets scheduled, so leaving it out here meant a story
@@ -1582,7 +1582,7 @@ function Scheduler() {
           )}
 
           <Card title="Media" subtitle={mediaLocked ? "Reposting the original creatives — locked. Only the caption is editable." : "Drop your files here. Images go to Instagram & Facebook, a PDF goes to LinkedIn as a carousel."}>
-            <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} />
+            <MediaUploader mediaUrls={mediaUrls} setMediaUrls={setMediaUrls} locked={mediaLocked} taskId={schedulingTaskId} />
           </Card>
 
           {/* Always on screen, with whatever this creative cannot be greyed out and a
@@ -3016,7 +3016,7 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
 // publishes through still caps carousels at 10 items — so 10 is the hard max here.
 // (When Meta raises the API limit, bump this one constant.)
 const MAX_MEDIA = 10;
-function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[]; setMediaUrls: (urls: string[]) => void; locked?: boolean }) {
+function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls: string[]; setMediaUrls: (urls: string[]) => void; locked?: boolean; taskId?: string | null }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -3027,6 +3027,23 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
   const media = mediaUrls.map((u) => u.trim()).filter(Boolean);
   const isVideo = (u: string) => /\.(mp4|mov|webm)(\?|$)/i.test(u);
   const removeAt = (i: number) => { const nc = media.filter((_, j) => j !== i); setMediaUrls(nc.length ? nc : [""]); };
+  // ✕ used to drop a file at once, with no record — a carousel's LinkedIn PDF, shown as
+  // "slide 11", went that way (Praveen, 27 Oct). Now it asks first, wants a reason, and
+  // the reason goes in the task's history. The file itself stays on the task.
+  const fileName = (u: string) => (isPdfUrl(u) ? pdfName(u) : decodeURIComponent(u.split("?")[0].split("/").pop() || "file"));
+  const askRemove = async (i: number) => {
+    const u = media[i], pdf = isPdfUrl(u);
+    const slides = media.filter((x) => !isPdfUrl(x));
+    const why = await promptDialog({
+      title: `Remove "${fileName(u)}" from this post?`,
+      body: pdf ? "This is the LinkedIn PDF — the whole carousel as one document, not an extra slide. Without it LinkedIn gets no carousel. The file stays on the task."
+        : `This is slide ${slides.indexOf(u) + 1} of ${slides.length}. The slides after it move up. The file stays on the task.`,
+      action: "Remove", danger: true, required: true, label: "Why are you removing it?", placeholder: "e.g. Wrong version — uploading the corrected slide",
+    });
+    if (!why || !why.trim()) return;
+    removeAt(i);
+    if (taskId) fetch("/api/marketing-hub/media-removed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId: taskId, file: fileName(u), reason: why.trim() }) }).catch(() => {});
+  };
   // Only Meta media counts toward the carousel cap — the PDF goes to LinkedIn.
   const metaCount = media.filter((u) => !isPdfUrl(u)).length;
   // Drag-to-reorder the carousel: move the dragged thumbnail into the drop slot.
@@ -3064,6 +3081,36 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
     }
   }
 
+  const tile = (url: string, i: number, no: number | null) => (
+              <div key={url + i}
+                draggable={!locked}
+                onDragStart={locked ? undefined : () => { dragIdxRef.current = i; setDragIdx(i); }}
+                onDragEnter={locked ? undefined : () => setOverIdx(i)}
+                onDragOver={locked ? undefined : (e) => e.preventDefault()}
+                onDrop={locked ? undefined : () => { const from = dragIdxRef.current; if (from !== null) reorder(from, i); dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
+                onDragEnd={locked ? undefined : () => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
+                title={locked ? undefined : "Drag to reorder"}
+                className={`relative group w-16 h-16 flex-shrink-0 rounded overflow-hidden border transition ${locked ? "cursor-default border-gray-200" : "cursor-grab active:cursor-grabbing"} ${!locked && overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${!locked && dragIdx === i ? "opacity-40" : ""}`}>
+                {/* A PDF has nothing an <img> can render — it used to fade to a
+                    blank tile. Draw it as a labelled document instead. */}
+                {isPdfUrl(url)
+                  ? <div className="w-full h-full pointer-events-none">
+                      <PdfThumb url={url} width={64} fallback={
+                        <div className="w-full h-full bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-0.5">
+                          <IconFileTypePdf size={22} stroke={1.6} />
+                          <span className="text-[9px] font-semibold tracking-wide">PDF</span>
+                        </div>} />
+                    </div>
+                  : isVideo(url)
+                  ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
+                  : <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.15"; }} />}
+                {no !== null && <span className="absolute bottom-0 left-0 text-xs font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{no}</span>}
+                {!locked && (
+                  <button type="button" onClick={() => void askRemove(i)} title="Remove"
+                    className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
+                )}
+              </div>
+  );
   return (
     <div className="space-y-3">
       {/* Big upload zone — shown only before any media is added (and never when locked) */}
@@ -3114,37 +3161,14 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
       {/* Thumbnails fill the full box width; drag to reorder; + tile adds more. */}
       {media.length > 0 && (
         <div>
+          {/* Slides and the LinkedIn PDF in separate rows (27 Oct): the PDF is the whole
+              carousel as one document, not "slide 11". */}
+          {media.some(isPdfUrl) && (
+            <div className="flex items-center gap-1.5 text-[12px] mb-1.5"><span className="font-medium text-[#232D42]">Carousel slides</span><span className="text-[#8A92A6]">· {metaCount}</span>
+              <span className="text-[10.5px] font-medium rounded-full px-2 py-px bg-brand-light text-[#2138B0]">For Instagram · Facebook</span></div>
+          )}
           <div className="flex flex-wrap gap-1.5">
-            {media.map((url, i) => (
-              <div key={url + i}
-                draggable={!locked}
-                onDragStart={locked ? undefined : () => { dragIdxRef.current = i; setDragIdx(i); }}
-                onDragEnter={locked ? undefined : () => setOverIdx(i)}
-                onDragOver={locked ? undefined : (e) => e.preventDefault()}
-                onDrop={locked ? undefined : () => { const from = dragIdxRef.current; if (from !== null) reorder(from, i); dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
-                onDragEnd={locked ? undefined : () => { dragIdxRef.current = null; setDragIdx(null); setOverIdx(null); }}
-                title={locked ? undefined : "Drag to reorder"}
-                className={`relative group w-16 h-16 flex-shrink-0 rounded overflow-hidden border transition ${locked ? "cursor-default border-gray-200" : "cursor-grab active:cursor-grabbing"} ${!locked && overIdx === i && dragIdx !== i ? "border-brand ring-2 ring-brand" : "border-gray-200"} ${!locked && dragIdx === i ? "opacity-40" : ""}`}>
-                {/* A PDF has nothing an <img> can render — it used to fade to a
-                    blank tile. Draw it as a labelled document instead. */}
-                {isPdfUrl(url)
-                  ? <div className="w-full h-full pointer-events-none">
-                      <PdfThumb url={url} width={64} fallback={
-                        <div className="w-full h-full bg-[#FDECEA] text-[#C0392B] flex flex-col items-center justify-center gap-0.5">
-                          <IconFileTypePdf size={22} stroke={1.6} />
-                          <span className="text-[9px] font-semibold tracking-wide">PDF</span>
-                        </div>} />
-                    </div>
-                  : isVideo(url)
-                  ? <video src={url} className="w-full h-full object-cover pointer-events-none" muted />
-                  : <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.15"; }} />}
-                <span className="absolute bottom-0 left-0 text-xs font-medium bg-black/55 text-white px-1 rounded-tr leading-tight">{i + 1}</span>
-                {!locked && (
-                  <button type="button" onClick={() => removeAt(i)} title="Remove"
-                    className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-black/55 text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600">×</button>
-                )}
-              </div>
-            ))}
+            {media.map((u, i) => ({ u, i })).filter((x) => !isPdfUrl(x.u)).map((x, k) => tile(x.u, x.i, k + 1))}
             {!locked && metaCount < MAX_MEDIA && (
               <label
                 onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -3158,6 +3182,13 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked }: { mediaUrls: string[
               </label>
             )}
           </div>
+          {media.some(isPdfUrl) && (
+            <div className="mt-3 pt-2.5 border-t border-gray-100">
+              <div className="flex items-center gap-1.5 text-[12px] mb-1.5"><span className="font-medium text-[#232D42]">LinkedIn PDF</span>
+                <span className="text-[10.5px] font-medium rounded-full px-2 py-px bg-[#E8F1FB] text-[#0A66C2]">For LinkedIn</span></div>
+              <div className="flex flex-wrap gap-1.5">{media.map((u, i) => ({ u, i })).filter((x) => isPdfUrl(x.u)).map((x) => tile(x.u, x.i, null))}</div>
+            </div>
+          )}
           <div className="text-xs text-gray-400 mt-0.5">{locked ? <><IconLock size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{`${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost`}</> : `${metaCount}/${MAX_MEDIA} images · drag to reorder${metaCount < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
         </div>
       )}

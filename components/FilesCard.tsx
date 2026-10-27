@@ -4,7 +4,7 @@ import { IconUpload, IconLink, IconFileText } from "@tabler/icons-react";
 import { PdfThumb } from "@/components/PdfThumb";
 import type { PendingUpload } from "@/lib/use-upload-queue";
 import { openRefPreview } from "@/components/RefPreview";
-import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 
 // One files card for every place a task takes files — My Day, the task window and the
 // New task form (Praveen, 22 Oct: "do it like how we did it for My Day"). A header
@@ -26,7 +26,8 @@ export type FileTile = {
   key: string; name: string; url?: string; preview?: string;
   kind: "image" | "video" | "pdf" | "file";
   onOpen?: () => void;      // fallback when there's no preview panel on the page
-  onRemove?: () => void;
+  /** Gets the reason when the card asks why (askWhy). */
+  onRemove?: (reason?: string) => void;
 };
 
 const host = (u: string): string => {
@@ -46,6 +47,7 @@ const linkHref = (s: string) => s.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 export function FilesCard({
   icon, title, count, drop, accept, onFiles, busyText, tiles, numbered, pending = [], onDismiss,
   links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, confirmRemove = true, addLabel = "+ Add file", addSub = "drop or paste here", hint, onReorder,
+  splitPdf, askWhy,
 }: {
   icon?: React.ReactNode; title: string; count?: string;
   /** Big drop zone under the header (Creatives). Otherwise a dashed Add tile ends the row. */
@@ -60,6 +62,11 @@ export function FilesCard({
   addLabel?: string; addSub?: string; hint?: string;
   /** Turns on drag-to-reorder; gets the tile keys in their new order. */
   onReorder?: (keys: string[]) => void;
+  /** Creatives: the slides in one row, the LinkedIn PDF in its own row (27 Oct — a
+   *  10-slide carousel's PDF showed as "slide 11" and was deleted as a stray slide). */
+  splitPdf?: boolean;
+  /** Deleting a file asks why; the reason goes to the task's history. */
+  askWhy?: boolean;
 }) {
   const [url, setUrl] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
@@ -146,6 +153,15 @@ export function FilesCard({
   const askRemove = async (title: string, body: string, go: () => void) => {
     if (!confirmRemove || await confirmDialog({ title, body, action: "Delete", cancel: "Cancel", danger: true })) go();
   };
+  const askRemoveTile = async (t: FileTile, slideNo: number | null, slideCount: number) => {
+    if (!askWhy || !confirmRemove) return askRemove(`Delete "${t.name}"?`, "It goes to the Recycle bin, where it can be restored.", () => t.onRemove!());
+    const what = t.kind === "pdf" && splitPdf
+      ? "This is the LinkedIn PDF — the whole carousel as one document, not an extra slide. Without it LinkedIn gets no carousel."
+      : slideNo ? `This is slide ${slideNo} of ${slideCount}. The slides after it move up.` : "";
+    const why = await promptDialog({ title: `Delete "${t.name}"?`, body: `${what} It goes to the Recycle bin, where it can be restored.`.trim(),
+      action: "Delete", danger: true, required: true, label: "Why are you deleting it?", placeholder: "e.g. Wrong version — uploading the corrected slide" });
+    if (why && why.trim()) t.onRemove!(why.trim());
+  };
   const openTile = (e: React.MouseEvent, t: FileTile) => {
     if (justDragged.current) { e.preventDefault(); return; }
     if (!plain(e)) return;
@@ -157,6 +173,31 @@ export function FilesCard({
     const href = linkHref(l);
     if (href && plain(e) && openRefPreview({ url: href, title: host(l), from: title })) e.preventDefault();
   };
+  const pdfs = splitPdf ? shown.filter((t) => t.kind === "pdf") : [];
+  const slides = splitPdf ? shown.filter((t) => t.kind !== "pdf") : shown;
+  const slideCount = slides.length;
+  const showPdfRow = splitPdf && (pdfs.length > 0 || slides.filter((t) => t.kind === "image").length >= 2);
+  const tile = (t: FileTile, no: number | null) => {
+              const inner = t.kind === "pdf" && t.url
+                ? <PdfThumb url={t.url} width={96} fallback={<span className="gcf-doc"><IconFileText size={20} stroke={1.7} /></span>} />
+                : t.kind === "file" || (t.kind === "pdf" && !t.url)
+                  ? <span className="gcf-doc"><IconFileText size={20} stroke={1.7} /><i>{(t.name.split(".").pop() || "file").slice(0, 5)}</i></span>
+                  : t.kind === "video" ? <span className="gcf-play">▶</span> : null;
+              const style = t.kind === "image" && (t.preview || t.url) ? { backgroundImage: `url(${t.preview || t.url})` } : undefined;
+              return (
+                <div key={t.key} className={`gcf-tile${drag === t.key ? " drag" : ""}${over === t.key && drag !== t.key ? " over" : ""}`} title={canDrag ? `${t.name} — drag to change the order` : t.name}
+                  data-tile-key={t.key} data-movable={canDrag || undefined}
+                  onPointerDown={canDrag ? (e) => startDrag(e, t.key) : undefined}
+                  onDragStart={canDrag ? (e) => e.preventDefault() : undefined}>
+                  {t.url
+                    ? <a className="gcf-im" draggable={false} href={t.url} target="_blank" rel="noreferrer" style={style} onClick={(e) => openTile(e, t)}>{inner}</a>
+                    : <div className={`gcf-im${t.onOpen ? " clk" : ""}`} style={style} onClick={t.onOpen ? () => { if (!justDragged.current) t.onOpen!(); } : undefined}>{inner}</div>}
+                  {no !== null && <span className="gcf-n">{no}</span>}
+                  <div className="gcf-nm">{t.name}</div>
+                  {t.onRemove && <button type="button" className="gcf-x" onClick={() => askRemoveTile(t, no, slideCount)} title="Delete">✕</button>}
+                </div>
+              );
+              };
   return (
     <div className="gcf" ref={cardRef} onMouseEnter={() => { pasteTarget = cardRef.current; }} onPointerDown={() => { pasteTarget = cardRef.current; }}>
       <style dangerouslySetInnerHTML={{ __html: GCF_CSS }} />
@@ -172,29 +213,12 @@ export function FilesCard({
           <span><span className="gcf-dt">{busyText || <>Drop or paste files here, or <span className="gcf-browse">browse</span></>}</span>
             <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 2 GB each (Instagram posts reels up to 300 MB)"}</span></span>
         </>)}
+        {showTiles && showPdfRow && (
+          <div className="gcf-sec"><b>Carousel slides</b><span className="gcf-cnt">· {slideCount}</span><span className="gcf-chip">For Instagram · Facebook</span></div>
+        )}
         {showTiles && (
           <div className="gcf-tiles">
-            {shown.map((t, i) => {
-              const inner = t.kind === "pdf" && t.url
-                ? <PdfThumb url={t.url} width={96} fallback={<span className="gcf-doc"><IconFileText size={20} stroke={1.7} /></span>} />
-                : t.kind === "file" || (t.kind === "pdf" && !t.url)
-                  ? <span className="gcf-doc"><IconFileText size={20} stroke={1.7} /><i>{(t.name.split(".").pop() || "file").slice(0, 5)}</i></span>
-                  : t.kind === "video" ? <span className="gcf-play">▶</span> : null;
-              const style = t.kind === "image" && (t.preview || t.url) ? { backgroundImage: `url(${t.preview || t.url})` } : undefined;
-              return (
-                <div key={t.key} className={`gcf-tile${drag === t.key ? " drag" : ""}${over === t.key && drag !== t.key ? " over" : ""}`} title={canDrag ? `${t.name} — drag to change the order` : t.name}
-                  data-tile-key={t.key} data-movable={canDrag || undefined}
-                  onPointerDown={canDrag ? (e) => startDrag(e, t.key) : undefined}
-                  onDragStart={canDrag ? (e) => e.preventDefault() : undefined}>
-                  {t.url
-                    ? <a className="gcf-im" draggable={false} href={t.url} target="_blank" rel="noreferrer" style={style} onClick={(e) => openTile(e, t)}>{inner}</a>
-                    : <div className={`gcf-im${t.onOpen ? " clk" : ""}`} style={style} onClick={t.onOpen ? () => { if (!justDragged.current) t.onOpen!(); } : undefined}>{inner}</div>}
-                  {numbered && <span className="gcf-n">{i + 1}</span>}
-                  <div className="gcf-nm">{t.name}</div>
-                  {t.onRemove && <button type="button" className="gcf-x" onClick={() => askRemove(`Delete "${t.name}"?`, "It goes to the Recycle bin, where it can be restored.", t.onRemove!)} title="Delete">✕</button>}
-                </div>
-              );
-            })}
+            {slides.map((t, i) => tile(t, numbered ? i + 1 : null))}
             {pending.map((p, i) => {
               const C = 2 * Math.PI * 15;
               return (
@@ -211,13 +235,22 @@ export function FilesCard({
                       )}
                     </span>
                   </div>
-                  {numbered && <span className="gcf-n">{tiles.length + i + 1}</span>}
+                  {numbered && <span className="gcf-n">{slideCount + i + 1}</span>}
                   <div className="gcf-nm">{p.state === "err" ? "Didn't upload" : p.state === "waiting" ? "Waiting…" : p.state === "done" ? p.name : `${p.pct}% · ${p.name}`}</div>
                   {p.state === "err" && onDismiss && <button type="button" className="gcf-x on" onClick={() => onDismiss(p.key)} title="Dismiss">✕</button>}
                 </div>
               );
             })}
             {!drop && picker("gcf-add", <><span className="gcf-add-t">{busyText || addLabel}</span><span className="gcf-add-s">{addSub}</span></>)}
+          </div>
+        )}
+        {showPdfRow && (
+          <div className="gcf-pdfrow">
+            <div className="gcf-sec"><b>LinkedIn PDF</b><span className="gcf-chip li">For LinkedIn</span></div>
+            {pdfs.length ? (
+              <div className="gcf-tiles">{pdfs.map((t) => tile(t, null))}</div>
+            ) : picker("gcf-pdfadd", <>+ Add the LinkedIn PDF <span>the same slides as one document</span></>)}
+            <div className="gcf-ds">The whole carousel as one document — LinkedIn keeps the slides in order. Not a slide.</div>
           </div>
         )}
         {links && links.map((l) => (
@@ -262,6 +295,15 @@ html[data-theme="dark"] .gcf{--ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--
 .gcf-browse{color:var(--brand)}
 .gcf-ds{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .gcf-tiles{display:flex;gap:.7rem;flex-wrap:wrap}
+.gcf-sec{display:flex;align-items:center;gap:.45rem;font-size:12.5px;margin-bottom:-.2rem}
+.gcf-sec b{font-weight:500;color:var(--ink)}
+.gcf-chip{font-size:11px;font-weight:500;border-radius:999px;padding:1px 8px;background:var(--brand-soft);color:var(--brand-ink)}
+.gcf-chip.li{background:#E8F1FB;color:#0A66C2}
+html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6EE}
+.gcf-pdfrow{display:flex;flex-direction:column;gap:.6rem;border-top:1px solid var(--line);padding-top:.7rem}
+.gcf-pdfrow .gcf-tile{border-color:#F3C9C3}
+.gcf-pdfadd{border:1.5px dashed var(--drop-line);background:var(--drop);border-radius:10px;padding:.55rem .8rem;font-size:12.5px;font-weight:500;color:var(--brand);cursor:pointer;align-self:flex-start}
+.gcf-pdfadd span{font-weight:400;color:var(--muted);margin-left:.35rem}
 .gcf-tile{position:relative;width:96px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
 .gcf-im{display:block;height:96px;background-size:cover;background-position:center;background-color:var(--im);position:relative;overflow:hidden}
 .gcf-im.clk{cursor:zoom-in}
