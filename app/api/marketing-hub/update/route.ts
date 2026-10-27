@@ -13,6 +13,7 @@ import { freshPublishState } from "@/lib/scheduler-lock";
 import { rosterById } from "@/lib/team-db";
 import { siblingOf } from "@/lib/notifications";
 import { defaultCollaboratorFor } from "@/lib/task-create";
+import { rulesEngineOn } from "@/lib/rules-engine";
 import { fetchRoster } from "@/lib/team-db";
 import { fetchContentTypes } from "@/lib/content-types-db";
 
@@ -501,7 +502,9 @@ export async function PATCH(req: Request) {
     // fixed it. docs/THUMBNAIL_FLOW_SPEC.md.
     const beforeCustom = (before.data as { custom?: Record<string, unknown> }).custom;
     const isOwnedThumbnail = !!(beforeCustom && typeof beforeCustom.thumbnail_for === "string" && beforeCustom.thumbnail_for);
-    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved" && !deferHandoff && !isOwnedThumbnail) {
+    // With the rules engine on (sql/037), the Rules page decides this in the database —
+    // this hard-coded hand-off stands down so it can't overrule a rule.
+    if (clean.status === "Content - Approved" && before.data.status !== "Content - Approved" && !deferHandoff && !isOwnedThumbnail && !(await rulesEngineOn())) {
       const isVideo = VIDEO_TYPES.has(String(data.type || ""));
       const oldOwner = before.data.owner_key;
       // A video an editor filed (so it started on them as its creator) goes to the

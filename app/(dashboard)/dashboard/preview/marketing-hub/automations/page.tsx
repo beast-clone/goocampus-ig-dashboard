@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { IconArrowRight, IconBolt } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { RULE_TABS, TASK_FLOW, type RuleEditability } from "./rules";
-import { RuleEditor } from "./RuleEditor";
+import { RuleBuilder } from "./RuleBuilder";
 
 // Rules (was "Automations").
 //
@@ -75,7 +75,7 @@ export default function RulesPage() {
             </section>
           )}
 
-          {cur.key === "my-day" && <RuleEditor />}
+          {cur.key === "my-day" && <RuleBuilder />}
 
           <section className="bg-white border border-gray-100 rounded-xl">
             <div className="px-4 py-3.5 border-b border-gray-100 flex items-center gap-2.5">

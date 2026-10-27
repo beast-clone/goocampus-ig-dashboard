@@ -6,6 +6,7 @@ import { VIDEO_TYPES } from "@/lib/mh-content-types";
 import { TEAM_NAMES } from "@/lib/team-names";
 import { fetchRoster } from "@/lib/team-db";
 import { fetchContentTypes } from "@/lib/content-types-db";
+import { rulesEngineOn } from "@/lib/rules-engine";
 
 // Creates ONE task (mh_posts row) — shared by the New task form
 // (app/api/marketing-hub/create) and the Claude connector (app/api/mcp), so both
@@ -115,9 +116,12 @@ export async function createTask(t: TaskInput, actorId: string | null, source: s
   // Attach the default collaborator. Best-effort for the same reason as the
   // activity row below: the task is already committed, and a task missing a
   // collaborator is fixable by hand — a duplicate task is not.
+  // With the rules engine on, the database already added the rule's collaborator.
   try {
-    const collab = await defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key, t.type);
-    if (collab) await sb.from("mh_post_collaborators").insert({ post_id: data.id, member_key: collab });
+    if (!(await rulesEngineOn())) {
+      const collab = await defaultCollaboratorFor(t.sbu, (data as CreatedTask).owner_key, t.type);
+      if (collab) await sb.from("mh_post_collaborators").insert({ post_id: data.id, member_key: collab });
+    }
   } catch { /* the + control can add them by hand */ }
   // Best-effort: the task is committed; a logging hiccup must not fail the create
   // (the caller would retry → duplicate task).
