@@ -170,7 +170,11 @@ export function RuleBuilder() {
     const body = { ...fromSimple(s, prev, sbus), name: "" };
     const fake = { ...(prev || { id: "", active: true, position: 0, note: null }), ...body } as Rule;
     body.name = (() => { const d = describe(fake); return d.length > 118 ? d.slice(0, 117) + "…" : d; })();
-    if (await (prev ? call("PATCH", { id: prev.id, ...body }) : call("POST", body))) setEditing(null);
+    if (await (prev ? call("PATCH", { id: prev.id, ...body }) : call("POST", body))) {
+      setEditing(null);
+      // Say it worked, and what the rule now does (it was saved silently — Praveen, 27 Oct).
+      showToast({ who: prev ? "Rule saved" : "Rule added", body: body.name, color: "#1AA053", av: "✓" });
+    }
   };
   const move = (r: Rule, d: number) => {
     const group = r.actions.some((a) => a.type === "owner") ? owners : followers;
@@ -179,7 +183,7 @@ export function RuleBuilder() {
     const ids = rules.map((x) => x.id);
     const a = ids.indexOf(group[i].id), b = ids.indexOf(group[j].id);
     [ids[a], ids[b]] = [ids[b], ids[a]];
-    void call("PATCH", { order: ids });
+    void call("PATCH", { order: ids }).then((ok) => { if (ok) showToast({ who: "Order changed", body: "Rules are checked from the top.", color: "#3A57E8", av: "✓" }); });
   };
 
   const Row = ({ r, n, group }: { r: Rule; n: number; group: Rule[] }) => (
@@ -194,9 +198,9 @@ export function RuleBuilder() {
       {canEdit && (
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <button disabled={busy} onClick={() => setEditing({ rule: r, s: toSimple(r, sbus) })} className="text-[13px] font-medium text-brand px-1 disabled:opacity-50">Edit</button>
-          <Toggle on={r.active} disabled={busy} onChange={() => void call("PATCH", { id: r.id, active: !r.active })} />
+          <Toggle on={r.active} disabled={busy} onChange={async () => { if (await call("PATCH", { id: r.id, active: !r.active })) showToast({ who: r.active ? "Rule paused" : "Rule switched on", body: describe(r), color: "#3A57E8", av: "✓" }); }} />
           <RowMenu first={n === 1} last={n === group.length} onUp={() => move(r, -1)} onDown={() => move(r, 1)}
-            onDelete={async () => { if (await confirmDialog({ title: "Delete this rule?", body: "Tasks already assigned are not changed.", action: "Delete", cancel: "Cancel", danger: true })) void call("DELETE", undefined, `?id=${r.id}`); }} />
+            onDelete={async () => { if (await confirmDialog({ title: "Delete this rule?", body: "Tasks already assigned are not changed.", action: "Delete", cancel: "Cancel", danger: true })) { if (await call("DELETE", undefined, `?id=${r.id}`)) showToast({ who: "Rule deleted", body: describe(r), color: "#C03221", av: "×" }); } }} />
         </div>
       )}
     </li>
