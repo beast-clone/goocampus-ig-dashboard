@@ -40,12 +40,6 @@ export default function RulesPage() {
     >
       {() => (
         <div className="preview-scope flex flex-col gap-4">
-          <div className="flex items-center gap-2 flex-wrap text-[12px] text-[#8A92A6]">
-            {(Object.keys(BADGE) as RuleEditability[]).map((k) => (
-              <span key={k} className={`rounded-full px-2.5 py-0.5 ${BADGE[k].cls}`}>{BADGE[k].label}{k === "code" ? " — ask a developer" : ""}</span>
-            ))}
-          </div>
-
           <div className="flex gap-1.5 flex-wrap bg-white border border-gray-100 rounded-xl p-2">
             {RULE_TABS.map((t) => (
               <button key={t.key} onClick={() => pick(t.key)}
