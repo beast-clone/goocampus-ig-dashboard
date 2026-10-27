@@ -4388,9 +4388,19 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
         )}
       </div>
 
+      {/* The chat column is for chats only (Praveen, 26–27 Oct). Notifications live
+          under the bell / Notifications page. The one thing kept on screen is the task
+          timer's "time is up — completed or extend?", which needs an answer while
+          you work, so it floats in the corner instead. */}
+      {notifs.some((n) => n.timeUp) && (
+        <div style={{ position: "fixed", right: 24, bottom: 88, width: 340, zIndex: 70 }}>
+          <NotificationStack notifs={notifs.filter((n) => n.timeUp)} onAccept={onAcceptNotif} onDismiss={dismissNotif}
+            onClearAll={() => setNotifs((ns) => ns.filter((n) => !n.timeUp))} onTimeUp={onTimeUpChoice} />
+        </div>
+      )}
+
       {/* TEAM CHAT — collapsible slide-in panel */}
       <aside className={`chatpanel ${chatOpen ? "open" : ""}`}>
-        <NotificationStack notifs={notifs} onAccept={onAcceptNotif} onDismiss={dismissNotif} onClearAll={() => setNotifs([])} onTimeUp={onTimeUpChoice} />
         {(() => {
           const active = activeChat ? convos[activeChat] : null;
           return (
