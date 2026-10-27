@@ -310,9 +310,9 @@ function Review() {
               </span>
             </div>
           )}
-          {(p.caption || p.content) && (
-            <p className="text-xs text-[#8A92A6] line-clamp-2">{plainText(p.caption || p.content)}</p>
-          )}
+          {p.caption
+            ? <p className="text-xs text-[#8A92A6] line-clamp-2">{plainText(p.caption)}</p>
+            : <p className="text-xs text-amber-700">No caption yet</p>}
           {!p.hasCreative && (
             <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1">
               No creative attached — add media before scheduling.
@@ -602,12 +602,14 @@ function Review() {
                   <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Publishing</div><div className="text-sm text-[#232D42]">{p.publishingDate ? fmtDate(p.publishingDate) : "—"}</div></div>
                   <div><div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-0.5">Creative</div><div className="text-sm text-[#232D42]">{p.hasCreative ? "Attached" : "None yet"}</div></div>
                 </div>
-                {(p.caption || p.content) && (
+                {/* Only the real caption is shown as the caption — the brief used to stand
+                    in for it here, so a post with no caption looked ready (27 Oct). */}
+                {p.caption ? (
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A92A6] mb-1">Caption</div>
-                    <div className="text-sm text-[#232D42]"><Markdown value={p.caption || p.content || ""} /></div>
+                    <div className="text-sm text-[#232D42]"><Markdown value={p.caption} /></div>
                   </div>
-                )}
+                ) : <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">No caption yet — add the text that goes out with the post before Push to Schedule. The brief isn&apos;t posted.</div>}
                 {!p.hasCreative && <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2">No creative attached — add media before it can go to the Scheduler.</div>}
                 </div>
               </div>

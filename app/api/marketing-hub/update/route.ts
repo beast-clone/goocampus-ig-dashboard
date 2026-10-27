@@ -151,7 +151,7 @@ export async function PATCH(req: Request) {
     // Full before-state so we can log a precise, attributed diff for every field.
     const before = await sb
       .from("mh_posts")
-      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom, created_by, publish_status")
+      .select("id, status, type, owner_key, particulars, sbu, publishing_date, due_date, priority, content, caption, additional_info, platforms, needs_review, output_link, start_at, end_at, created_at, custom, created_by, publish_status, media_urls")
       .eq("id", body.id)
       .single();
     if (before.error) throw new Error(before.error.message);
@@ -265,9 +265,22 @@ export async function PATCH(req: Request) {
     // could push an empty shell straight into the queue.
     if (newStatus === "Ready to Publish" && wasStatus !== "Ready to Publish") {
       const missing: string[] = [];
-      const { count: creativeCount } = await sb.from("mh_attachments").select("id", { count: "exact", head: true }).eq("post_id", body.id).eq("kind", "creative");
-      if (!filled(eff("output_link")) && !(creativeCount || 0)) missing.push("A creative file or an output link");
-      if (!filled(eff("caption")) && !filled(eff("content"))) missing.push("A caption (or the content to post)");
+      // Stricter since 27 Oct (Praveen): the brief no longer counts as the caption, a
+      // Drive/Canva link can't be posted to Instagram/Facebook, a carousel needs real
+      // slides, and the LinkedIn PDF is not a slide.
+      const isPdfName = (n: string) => /\.pdf(\?|#|$)/i.test(n.split("?")[0]);
+      const { data: creRows } = await sb.from("mh_attachments").select("filename").eq("post_id", body.id).eq("kind", "creative");
+      const mediaUrls = (Array.isArray(preRow.media_urls) ? (preRow.media_urls as string[]) : []).filter(Boolean);
+      const slideCount = Math.max((creRows || []).filter((r) => !isPdfName(String(r.filename || ""))).length, mediaUrls.filter((u) => !isPdfName(u)).length);
+      const pdfCount = (creRows || []).filter((r) => isPdfName(String(r.filename || ""))).length + mediaUrls.filter(isPdfName).length;
+      const platforms = (Array.isArray(eff("platforms")) ? (eff("platforms") as string[]) : []).map(String);
+      // Unset platforms = the usual Instagram/Facebook post.
+      const toMeta = !platforms.length || platforms.some((x) => /instagram|facebook/i.test(x));
+      const type = String(eff("type") || "");
+      if (toMeta && !slideCount) missing.push("The creative uploaded as a file — a Drive or Canva link can't be posted to Instagram or Facebook");
+      else if (!toMeta && !slideCount && !pdfCount && !filled(eff("output_link"))) missing.push("A creative file or an output link");
+      if (toMeta && type === "Carousel" && slideCount === 1) missing.push("At least 2 slides for a carousel (the LinkedIn PDF doesn't count as a slide)");
+      if (!filled(eff("caption"))) missing.push("A caption — the text that goes out with the post (the brief doesn't count)");
       if (!filled(eff("publishing_date"))) missing.push("Publishing date");
       if (missing.length) return NextResponse.json({ error: "Not ready to publish yet — some required fields are missing.", missing, gate: "publish" }, { status: 422 });
     }

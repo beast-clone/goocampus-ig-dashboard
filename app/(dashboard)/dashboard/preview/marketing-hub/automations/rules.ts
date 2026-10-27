@@ -68,7 +68,7 @@ export const RULE_TABS: RuleTab[] = [
     blurb: "The check between finished output and the Scheduler.",
     rules: [
       { id: "output-gate", when: "Output - Ready", what: "A task can only be marked Ready once a creative file or an output link is attached.", where: "/api/marketing-hub/update · output gate", editable: "code" },
-      { id: "push", when: "Push to Schedule", what: "Moves it to Ready to Publish — only if it has a creative, a caption and a publishing date.", where: "/api/marketing-hub/update · publish gate", editable: "code" },
+      { id: "push", when: "Push to Schedule", what: "Moves it to Ready to Publish — only with a real caption (the brief doesn't count), the creative uploaded as a file (a Drive or Canva link can't be posted to Instagram or Facebook), at least 2 slides for a carousel (the LinkedIn PDF isn't a slide), and a publishing date.", where: "/api/marketing-hub/update · publish gate", editable: "code" },
       { id: "send-back", when: "Send back", what: "Moves it to Incorporating Feedback with your note; the note is highlighted on the producer's task.", where: "content-review/page.tsx", editable: "code" },
       { id: "changed", when: "Creative changed", what: "If the creative is swapped after approval, the card says “Changed after approval” so it is checked again.", where: "content-review/page.tsx", editable: "code" },
     ],
