@@ -111,7 +111,7 @@ function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; tit
                 <button onClick={() => void sync()} disabled={!!busy || name.trim().length < 2} className={primary}>{busy === "sync" ? "Syncing…" : "Sync"}</button>
               </div>
             </>) : (<>
-              <div className="text-[13px] text-[#8A92A6] mt-1">Paste the eBook's payment page link. Its name fills in and its sales come in.</div>
+              <div className="text-[13px] text-[#8A92A6] mt-1">Paste the eBook&apos;s payment page link. Its name fills in and its sales come in.</div>
               <label className="block text-[12px] text-[#8A92A6] mt-4">Payment page link
                 <input autoFocus value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void find(); }} placeholder="e.g. https://rzp.io/rzp/QatarHandbook" className={field} />
               </label>

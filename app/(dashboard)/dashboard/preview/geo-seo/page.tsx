@@ -132,8 +132,8 @@ function GeoSeo() {
   };
 
   if (isLoading) return <LoadingBlock label="Loading GEO SEO…" />;
-  if (error || !data) return <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-[#C03221]">Couldn't load GEO SEO. {error?.message}</div>;
-  if (!data.connected) return <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-[#8A92A6]">DataForSEO isn't connected yet — add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD to the site settings.</div>;
+  if (error || !data) return <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-[#C03221]">Couldn&apos;t load GEO SEO. {error?.message}</div>;
+  if (!data.connected) return <div className="bg-white border border-gray-100 rounded-xl p-6 text-[14px] text-[#8A92A6]">DataForSEO isn&apos;t connected yet — add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD to the site settings.</div>;
 
   const pending = (data.runs || []).filter((r) => r.status === "running").reduce((s, r) => s + (r.counts?.pending || 0), 0);
   const listView = LIST_VIEWS.includes(view);
@@ -317,7 +317,7 @@ function QuestionPanel({ q, brand, onChanged }: { q: Question; brand: Brand; onC
             <div className="mt-3 rounded-xl border border-gray-100 p-4 text-[13px] text-[#C03221]">No answer: {cur.error}</div>
           ) : (<>
             <div className="text-[12px] text-[#8A92A6] mt-3">
-              {cur.named ? <span className="geo-chip ok">Named us{cur.position ? ` · #${cur.position}` : ""}</span> : <span className="geo-chip bad">Didn't name us</span>}
+              {cur.named ? <span className="geo-chip ok">Named us{cur.position ? ` · #${cur.position}` : ""}</span> : <span className="geo-chip bad">Didn&apos;t name us</span>}
               {cur.cited && <span className="geo-chip brand ml-1.5">Used our site as a source</span>}
               <span className="ml-2">Asked {when(cur.created_at)} · {cur.model} · India, English</span>
             </div>
@@ -430,7 +430,7 @@ function BrandModal({ onClose, onAdded }: { onClose: () => void; onAdded: (id: s
     <div className="preview-scope fixed inset-0 z-50 bg-[#232D42]/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-[460px] p-6" onClick={(e) => e.stopPropagation()}>
         <div className="text-[17px] font-medium text-[#232D42]">Add a brand</div>
-        <div className="text-[13px] text-[#8A92A6] mt-1">Its name and website, so we can spot it in the AIs' answers.</div>
+        <div className="text-[13px] text-[#8A92A6] mt-1">Its name and website, so we can spot it in the AIs&apos; answers.</div>
         <label className="block text-[12px] text-[#8A92A6] mt-4">Brand name, as an AI would write it<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Samvaya" className={field} /></label>
         <label className="block text-[12px] text-[#8A92A6] mt-3">Website<input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. samvaya.com" className={field} /></label>
         <label className="block text-[12px] text-[#8A92A6] mt-3">Other names that also count as us (comma-separated)<input value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="e.g. Samvaya Matrimony" className={field} /></label>
@@ -449,7 +449,7 @@ function History({ runs, brands }: { runs: Run[]; brands: Brand[] }) {
   const name = (id: string | null) => (id ? brands.find((b) => b.id === id)?.name || "—" : "All brands");
   return (<>
     <div className="geo-head"><div className="text-base font-medium text-[#232D42]">Run history</div><div className="text-xs text-[#8A92A6]">Every check, newest first</div></div>
-    {runs.length === 0 ? <div className="geo-empty">No checks yet. Press Check now, or wait for Monday's automatic one.</div> : (
+    {runs.length === 0 ? <div className="geo-empty">No checks yet. Press Check now, or wait for Monday&apos;s automatic one.</div> : (
       <table className="geo-table"><thead><tr><th>When</th><th>Started by</th><th>Brand</th><th>Questions × AIs</th><th>Answers back</th><th>Named us</th><th>Took</th><th>Cost</th><th>Status</th></tr></thead>
         <tbody>{runs.map((r) => {
           const c = r.counts;
@@ -493,7 +493,7 @@ function Usage({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => void }) 
   const line = (l: React.ReactNode, v: React.ReactNode) => <div className="flex justify-between px-4 py-2.5 border-t border-gray-100 text-[13px]"><span className="text-[#232D42]">{l}</span><span className="font-medium text-[#232D42]">{v}</span></div>;
   return (<>
     <div className="geo-head"><div className="text-base font-medium text-[#232D42]">Usage &amp; credits</div><div className="text-xs text-[#8A92A6]">Live from the DataForSEO account{a.login ? ` (${a.login})` : ""}</div></div>
-    {a.error && <div className="mx-4 mt-3 text-[13px] text-[#C03221]">Couldn't read the account: {a.error}</div>}
+    {a.error && <div className="mx-4 mt-3 text-[13px] text-[#C03221]">Couldn&apos;t read the account: {a.error}</div>}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-4">
       {tile(usd(a.balance), "Balance left on DataForSEO")}
       {tile(usd(a.totalAdded), "Total money added so far")}
@@ -543,9 +543,9 @@ function Errors() {
   const { data, isLoading } = useApi<ErrData>("/api/geo/errors");
   if (isLoading || !data) return <LoadingBlock label="Loading errors…" />;
   return (<>
-    <div className="geo-head"><div className="text-base font-medium text-[#232D42]">Errors</div><div className="text-xs text-[#8A92A6]">DataForSEO's own error log, and answers that failed in our checks</div></div>
+    <div className="geo-head"><div className="text-base font-medium text-[#232D42]">Errors</div><div className="text-xs text-[#8A92A6]">DataForSEO&apos;s own error log, and answers that failed in our checks</div></div>
     <div className="px-4 pt-4 text-[14px] font-medium text-[#232D42]">DataForSEO error log</div>
-    {data.dataforseo === null ? <div className="geo-empty">Couldn't read DataForSEO's log just now.</div> : data.dataforseo.length === 0 ? <div className="mx-4 mt-2 rounded-xl bg-[#E8F6EE] text-[#1AA053] text-[13px] px-4 py-2.5">No errors on the account.</div> : (
+    {data.dataforseo === null ? <div className="geo-empty">Couldn&apos;t read DataForSEO&apos;s log just now.</div> : data.dataforseo.length === 0 ? <div className="mx-4 mt-2 rounded-xl bg-[#E8F6EE] text-[#1AA053] text-[13px] px-4 py-2.5">No errors on the account.</div> : (
       <table className="geo-table"><thead><tr><th>When</th><th>What</th><th>Code</th><th>Message</th></tr></thead>
         <tbody>{data.dataforseo.map((e) => <tr key={e.id}><td>{e.at}</td><td className="break-all">{e.what}</td><td>{e.code}</td><td>{e.message}</td></tr>)}</tbody></table>
     )}
