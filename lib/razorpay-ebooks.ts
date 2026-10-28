@@ -20,7 +20,7 @@ type Payment = {
 };
 
 const PRODUCT: [RegExp, string][] = [
-  [/australia/i, "Australia"], [/zealand/i, "New Zealand"], [/canada/i, "Canada"], [/germany/i, "Germany"],
+  [/australia/i, "Australia"], [/zealand|\bnz\b/i, "New Zealand"], [/canada/i, "Canada"], [/germany/i, "Germany"],
   [/india|neet/i, "India (NEET-PG)"], [/ireland/i, "Ireland"], [/qatar/i, "Qatar"], [/saudi/i, "Saudi Arabia"], [/uae|emirates/i, "UAE"],
 ];
 const AU_PAGE_SINCE = 1762410413;                                   // "The Complete Australia Pathway Blueprint" created
@@ -84,8 +84,50 @@ function ebookOf(p: Payment, added: string[]): string | null {
   return null;
 }
 
+const rzpAuth = () => Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
+async function rzpGet<T>(path: string): Promise<T> {
+  const r = await fetch(`https://api.razorpay.com${path}`, { headers: { Authorization: `Basic ${rzpAuth()}` }, cache: "no-store" });
+  const j = await r.json().catch(() => null) as (T & { error?: { description?: string } }) | null;
+  if (!r.ok || !j) throw new Error(j?.error?.description || `Razorpay answered ${r.status}`);
+  return j;
+}
+
+// A pasted payment page link → the page (28 Oct). Takes a pl_… id or the page's
+// short link (rzp.io/rzp/QatarHandbook). Returns its name, price, Razorpay's sold
+// count and a suggested eBook name for the list.
+type RzpPage = { id: string; title: string; short_url?: string; status?: string; created_at: number;
+  payment_page_items?: { quantity_sold?: number; item?: { amount?: number } }[] };
+const bare = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
+export async function lookupEbookPage(link: string) {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) throw new Error("Razorpay isn't connected (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).");
+  const want = bare(link);
+  if (!want) throw new Error("Paste the eBook's payment page link.");
+  const id = want.match(/pl_[a-z0-9]+/i)?.[0];
+  let page: RzpPage | null = null;
+  if (id) page = await rzpGet<RzpPage>(`/v1/payment_pages/${id.replace(/^pl_/i, "pl_")}`).catch(() => null);
+  for (let skip = 0; !page && skip < 1000; skip += 100) {
+    const j = await rzpGet<{ items?: RzpPage[] }>(`/v1/payment_pages?count=100&skip=${skip}`);
+    page = (j.items || []).find((p) => p.short_url && bare(p.short_url) === want) || null;
+    if ((j.items || []).length < 100) break;
+  }
+  if (!page) throw new Error("No Razorpay payment page has that link. Copy it from the page's address bar and try again.");
+  if (!page.payment_page_items) page = await rzpGet<RzpPage>(`/v1/payment_pages/${page.id}`);
+  const items = page.payment_page_items || [];
+  const titles = await ebookTitles();
+  const suggested = PRODUCT.find(([re]) => re.test(page!.title))?.[1]
+    ?? titles.find((t) => page!.title.toLowerCase().includes(t.toLowerCase()))
+    ?? (page.title.replace(/\b(the|complete|medical|career|pg|pathway|guide|handbook|blueprint|for|imgs?|e-?books?|20\d\d)\b/gi, " ").replace(/\s+/g, " ").trim()
+    || page.title);
+  return {
+    id: page.id, title: page.title, url: page.short_url || "", active: page.status === "active",
+    price: items[0]?.item?.amount ? items[0].item.amount / 100 : null,
+    sold: items.reduce((n, i) => n + (i.quantity_sold || 0), 0),
+    ebook: suggested,
+  };
+}
+
 async function fetchPayments(since: number): Promise<Payment[]> {
-  const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
+  const auth = rzpAuth();
   const out: Payment[] = [];
   for (let skip = 0; skip < 20000; skip += 100) {
     const r = await fetch(`https://api.razorpay.com/v1/payments?count=100&skip=${skip}&from=${since}`, { headers: { Authorization: `Basic ${auth}` }, cache: "no-store" });
@@ -97,14 +139,15 @@ async function fetchPayments(since: number): Promise<Payment[]> {
   return out;
 }
 
-/** Add every missing eBook payment; refresh status/amount on ones already there. */
-export async function syncEbookOrders() {
+/** Add every missing eBook payment; refresh status/amount on ones already there.
+ *  `only` limits it to one eBook (the paste-a-link sync). */
+export async function syncEbookOrders(only?: string) {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) throw new Error("Razorpay isn't connected (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).");
   const sb = getSupabase();
   if (!sb) throw new Error("Database not configured");
   const payments = (await fetchPayments(AU_PAGE_SINCE - 86400)).filter((p) => STATUS[p.status]);
   const added = await addedTitles();
-  const rows = payments.map((p) => ({ p, ebook: ebookOf(p, added) })).filter((x): x is { p: Payment; ebook: string } => !!x.ebook).map(({ p, ebook }) => {
+  const rows = payments.map((p) => ({ p, ebook: ebookOf(p, added) })).filter((x): x is { p: Payment; ebook: string } => !!x.ebook && (!only || x.ebook === only)).map(({ p, ebook }) => {
     const n = (p.notes && !Array.isArray(p.notes) ? p.notes : {}) as Record<string, string>;
     const at = new Date(p.created_at * 1000);
     return {
@@ -135,5 +178,11 @@ export async function syncEbookOrders() {
   const byEbook: Record<string, { paid: number; added: number }> = {};
   for (const r of rows) { const b = (byEbook[r.ebook] ||= { paid: 0, added: 0 }); if (r.status === "Paid") b.paid++; }
   for (const r of fresh) byEbook[r.ebook].added++;
-  return { checked: payments.length, ebookPayments: rows.length, added: fresh.length, updated, byEbook };
+  // One eBook: how many paid orders the tab now shows for it (₹1 tests left out, like the cards).
+  let paidNow: number | null = null;
+  if (only) {
+    const { count } = await sb.from("mm_ebook_orders").select("id", { count: "exact", head: true }).eq("ebook", only).eq("status", "Paid").gte("amount", 10).is("deleted_at", null);
+    paidNow = count ?? 0;
+  }
+  return { checked: payments.length, ebookPayments: rows.length, added: fresh.length, updated, byEbook, paidNow };
 }

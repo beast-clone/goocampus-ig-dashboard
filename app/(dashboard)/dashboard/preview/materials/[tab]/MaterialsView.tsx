@@ -35,26 +35,96 @@ const isImage = (f: MFile) => (f.mime || "").startsWith("image/") || /\.(png|jpe
 const thumbUrl = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=400&resize=contain&quality=70` : u);
 const fileKind = (f: MFile): FileTile["kind"] => (isImage(f) ? "image" : isPdf(f.url, f.mime) ? "pdf" : (f.mime || "").startsWith("video/") ? "video" : "file");
 
-// eBook Orders: pull every eBook payment from Razorpay (lib/razorpay-ebooks.ts) —
-// the automations only log sales from the day they went live.
-function RazorpaySync({ onDone }: { onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
-    try {
-      const r = await fetch("/api/materials/ebooks/sync", { method: "POST" });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || "Couldn't read Razorpay");
-      showToast({ who: j.added ? `${j.added} order${j.added === 1 ? "" : "s"} added from Razorpay` : "Up to date with Razorpay", body: `${j.ebookPayments} eBook payments checked${j.updated ? ` · ${j.updated} updated` : ""}` });
-      onDone();
-    } catch (e) { showToast({ who: "Sync failed", body: (e as Error).message }); }
-    finally { setBusy(false); }
+// eBook Orders: pull eBook sales from Razorpay (lib/razorpay-ebooks.ts) — the
+// automations only log sales from the day they went live. Paste an eBook's payment
+// page link: the page's name fills in the eBook, then its sales are synced and
+// checked against Razorpay's own sold count. "Sync every eBook" does them all.
+type RzpPage = { id: string; title: string; url: string; active: boolean; price: number | null; sold: number; ebook: string };
+type SyncResult = { added: number; updated: number; ebookPayments: number; paidNow: number | null; ebook?: string; titles?: string[]; page?: RzpPage | null };
+function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; titles: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [link, setLink] = useState("");
+  const [page, setPage] = useState<RzpPage | null>(null);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState<"find" | "sync" | "all" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<SyncResult | null>(null);
+  const reset = () => { setLink(""); setPage(null); setName(""); setErr(null); setDone(null); setBusy(null); };
+  const close = () => { setOpen(false); reset(); };
+  const post = async (body: object) => {
+    const r = await fetch("/api/materials/ebooks/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if (!r || !r.ok) throw new Error((j as { error?: string }).error || "Couldn't reach Razorpay");
+    return j;
   };
+  const find = async () => {
+    if (!link.trim()) return;
+    setBusy("find"); setErr(null);
+    try { const { page: p } = await post({ link }) as { page: RzpPage }; setPage(p); setName(p.ebook); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
+  };
+  const sync = async (all?: boolean) => {
+    setBusy(all ? "all" : "sync"); setErr(null);
+    try {
+      const j = await post(all ? {} : { ebook: name, link }) as SyncResult;
+      setDone(j); onDone(j);
+      if (all) { showToast({ who: j.added ? `${j.added} order${j.added === 1 ? "" : "s"} added from Razorpay` : "Up to date with Razorpay", body: `${j.ebookPayments} eBook payments checked${j.updated ? ` · ${j.updated} updated` : ""}` }); close(); }
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
+  };
+  const isNew = !!name.trim() && !titles.some((t) => t.toLowerCase() === name.trim().toLowerCase());
+  const field = "mt-1 w-full h-10 px-3 rounded-lg border border-gray-200 text-[13px] text-[#232D42] outline-none focus:border-brand placeholder:text-[#8A92A6]";
+  const ghost = "h-9 px-3.5 rounded-lg border border-[#EEF0F4] bg-white text-[13px] font-medium text-[#232D42] hover:border-brand hover:text-brand disabled:opacity-60";
+  const primary = "h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0] disabled:opacity-50";
   return (
-    <button onClick={run} disabled={busy} title="Add any eBook sale from Razorpay that isn't here yet"
-      className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-[#EEF0F4] bg-white text-[13px] font-medium text-[#232D42] hover:border-brand hover:text-brand disabled:opacity-60">
-      <IconRefresh size={15} stroke={1.8} className={busy ? "animate-spin" : ""} />{busy ? "Syncing…" : "Sync from Razorpay"}
-    </button>
+    <>
+      <button onClick={() => setOpen(true)} title="Paste an eBook's payment page link to pull its sales from Razorpay"
+        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-[#EEF0F4] bg-white text-[13px] font-medium text-[#232D42] hover:border-brand hover:text-brand">
+        <IconRefresh size={15} stroke={1.8} />Sync from Razorpay
+      </button>
+      {open && createPortal(
+        <div data-overlay className="preview-scope fixed inset-0 z-[300] bg-[#232D42]/40 flex items-center justify-center p-4" onClick={() => !busy && close()}>
+          <div className="bg-white rounded-2xl w-full max-w-[480px] p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[17px] font-medium text-[#232D42]">Sync from Razorpay</div>
+            {done && page ? (<>
+              <div className="text-[13px] text-[#8A92A6] mt-1">{done.ebook} is up to date.</div>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="rounded-xl border border-[#EEF0F4] px-4 py-3"><div className="text-[12px] text-[#8A92A6]">Razorpay says sold</div><div className="text-[20px] font-medium text-[#232D42]">{page.sold}</div></div>
+                <div className="rounded-xl border border-[#EEF0F4] px-4 py-3"><div className="text-[12px] text-[#8A92A6]">Paid orders here</div><div className="text-[20px] font-medium text-[#232D42]">{done.paidNow ?? "—"}</div></div>
+              </div>
+              <div className={`mt-3 text-[13px] ${done.paidNow === page.sold ? "text-[#1AA053]" : "text-[#F16A1B]"}`}>
+                {done.paidNow === page.sold ? "The numbers match." : "The numbers don't match. Some sales may name a different eBook in Razorpay's Product field, or were removed here."}
+              </div>
+              <div className="mt-1 text-[12px] text-[#8A92A6]">{done.added ? `${done.added} new order${done.added === 1 ? "" : "s"} added` : "No new orders"}{done.updated ? ` · ${done.updated} updated` : ""}</div>
+              <div className="flex justify-end mt-5"><button onClick={close} className={primary}>Done</button></div>
+            </>) : page ? (<>
+              <div className="mt-4 rounded-xl border border-[#EEF0F4] px-4 py-3">
+                <div className="text-[14px] font-medium text-[#232D42]">{page.title}</div>
+                <div className="text-[12px] text-[#8A92A6] mt-0.5">{page.url}{page.price != null ? ` · ₹${page.price.toLocaleString("en-IN")}` : ""} · {page.sold} sold{page.active ? "" : " · page is off"}</div>
+              </div>
+              <label className="block text-[12px] text-[#8A92A6] mt-4">eBook
+                <input value={name} onChange={(e) => setName(e.target.value)} className={field} />
+              </label>
+              {isNew && <div className="mt-1.5 text-[12px] text-[#8A92A6]">New eBook. It will be added to the list.</div>}
+              {err && <div className="mt-3 text-[13px] text-[#C03221]">{err}</div>}
+              <div className="flex justify-end gap-2 mt-5">
+                <button onClick={() => { setPage(null); setErr(null); }} disabled={!!busy} className={ghost}>Back</button>
+                <button onClick={() => void sync()} disabled={!!busy || name.trim().length < 2} className={primary}>{busy === "sync" ? "Syncing…" : "Sync"}</button>
+              </div>
+            </>) : (<>
+              <div className="text-[13px] text-[#8A92A6] mt-1">Paste the eBook's payment page link. Its name fills in and its sales come in.</div>
+              <label className="block text-[12px] text-[#8A92A6] mt-4">Payment page link
+                <input autoFocus value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void find(); }} placeholder="e.g. https://rzp.io/rzp/QatarHandbook" className={field} />
+              </label>
+              {err && <div className="mt-3 text-[13px] text-[#C03221]">{err}</div>}
+              <div className="flex items-center gap-2 mt-5">
+                <button onClick={() => void sync(true)} disabled={!!busy} className="text-[13px] text-brand font-medium hover:underline disabled:opacity-50">{busy === "all" ? "Syncing every eBook…" : "Sync every eBook"}</button>
+                <button onClick={close} disabled={!!busy} className={`ml-auto ${ghost}`}>Cancel</button>
+                <button onClick={() => void find()} disabled={!!busy || !link.trim()} className={primary}>{busy === "find" ? "Finding…" : "Find page"}</button>
+              </div>
+            </>)}
+          </div>
+        </div>, document.body)}
+    </>
   );
 }
 
@@ -178,7 +248,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                         </button>
                       ))}
                     </div>
-                    {tab.key === "ebooks" && <RazorpaySync onDone={load} />}
+                    {tab.key === "ebooks" && <RazorpaySync onDone={(r) => { void load(); if (r.titles) setTitles(r.titles); if (r.ebook) setFilters((s) => ({ ...s, ebook: r.ebook! })); }} titles={titles} />}
                     {!viewRow && <button onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]"><IconPlus size={15} stroke={2} /> Add {tab.noun}</button>}
                   </div>
                   <div className="flex flex-wrap items-end gap-x-5 gap-y-2 px-4 mt-2">
@@ -226,7 +296,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                     ))}
                   </div>
                 )}
-                {tab.key === "ebooks" && <span className="ml-auto"><RazorpaySync onDone={load} /></span>}
+                {tab.key === "ebooks" && <span className="ml-auto"><RazorpaySync onDone={(r) => { void load(); if (r.titles) setTitles(r.titles); if (r.ebook) setFilters((s) => ({ ...s, ebook: r.ebook! })); }} titles={titles} /></span>}
                 {!viewRow && <button onClick={() => setEditing("new")} className={`${tab.viewer || tab.key === "ebooks" ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]`}>
                   <IconPlus size={15} stroke={2} /> {tab.folders ? "New folder" : `Add ${tab.noun}`}
                 </button>}
