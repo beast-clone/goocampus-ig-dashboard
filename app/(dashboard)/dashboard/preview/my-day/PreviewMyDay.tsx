@@ -16,6 +16,7 @@ import { uploadTaskFile, removeTaskFile, reorderTaskFiles } from "@/lib/upload-t
 import { useUploadQueue } from "@/lib/use-upload-queue";
 import { openRefPreview, closeRefPreview } from "@/components/RefPreview";
 import { FilesCard, type FileTile } from "@/components/FilesCard";
+import { WhereTheyGo } from "@/components/WhereTheyGo";
 import { useDraft } from "@/lib/use-draft";
 import { isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
@@ -532,7 +533,7 @@ const UPLOAD_ACCEPT = "image/*,video/*,.pdf,application/pdf";
 // Creatives & files — the task's post media + uploaded creative files. Upload (click
 // or drag-drop) persists to mh_attachments (kind='creative') and shows immediately;
 // click any creative to open the preview (image / carousel slideshow / video play).
-function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }: { creatives: CreativeItem[]; outputLink?: string; postId: string; uploadedBy: string; onSaved: () => void }) {
+function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved, title }: { creatives: CreativeItem[]; outputLink?: string; postId: string; uploadedBy: string; onSaved: () => void; title?: string }) {
   const [preview, setPreview] = useState<number | null>(null);
   const [link, setLink] = useState(outputLink || "");   // the output link (Drive/Canva) — output_link
   const viewable = creatives.filter((c) => c.url && c.type !== "doc");
@@ -555,7 +556,7 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
   const nFiles = creatives.length;
   return (
     <div className="up-wrap">
-      <FilesCard icon={<IconUpload size={15} stroke={1.8} />} title="Creatives & files" drop numbered splitPdf askWhy
+      <FilesCard icon={<IconUpload size={15} stroke={1.8} />} title="Creatives & files" drop numbered splitPdf askWhy zipName={title ? `${title} - creatives` : undefined}
         count={`${nFiles} file${nFiles === 1 ? "" : "s"}${link ? " · 1 link" : ""}`}
         accept={UPLOAD_ACCEPT} onFiles={(f) => q.add(f)} busyText={q.busy ? q.status : undefined}
         tiles={creatives.map((f, i): FileTile => {
@@ -573,38 +574,10 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved }
         } : undefined}
         links={link ? [link] : []} singleLink linkPlaceholder="Paste the output link (Drive / Canva)…"
         onAddLink={(v) => saveLink(v)} onRemoveLink={() => saveLink("")} />
-      <WhereTheyGo creatives={creatives} />
+      <WhereTheyGo files={creatives.map((c) => ({ kind: !!c.url && (c.type === "doc" || isPdf(c.url, null)) ? "pdf" as const : c.type === "video" ? "video" as const : c.type === "image" ? "image" as const : "file" as const }))} />
       {preview !== null && viewable.length > 0 && (
         <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
       )}
-    </div>
-  );
-}
-
-// Where the uploaded creatives will be posted, the same split the Scheduler makes
-// (Praveen, 28 Oct): a PDF is LinkedIn's carousel; pictures go to Instagram and
-// Facebook; one video goes to both; a carousel with any video slide is Instagram
-// only, because Facebook posts it as a still.
-function WhereTheyGo({ creatives }: { creatives: CreativeItem[] }) {
-  const isPdfC = (c: CreativeItem) => !!c.url && (c.type === "doc" || isPdf(c.url, null));
-  const pdfs = creatives.filter(isPdfC).length;
-  const meta = creatives.filter((c) => !isPdfC(c) && (c.type === "image" || c.type === "video"));
-  const videos = meta.filter((c) => c.type === "video").length;
-  if (!pdfs && !meta.length) return null;
-  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
-  const rows: { where: string; what: string; warn?: boolean }[] = [];
-  if (meta.length > 1 && videos) rows.push({ where: "Instagram only", what: `${n(meta.length, "slide", "slides")} with video — Facebook doesn't take carousels with video slides`, warn: true });
-  else if (meta.length) rows.push({ where: "Instagram + Facebook", what: videos ? "1 video" : n(meta.length, "picture", "pictures") });
-  if (pdfs) rows.push({ where: "LinkedIn", what: n(pdfs, "PDF carousel", "PDF carousels") });
-  return (
-    <div className="mt-2 rounded-xl border border-[#EEF0F4] bg-white px-3 py-2 text-[12px] space-y-1">
-      <div className="text-[11px] text-[#8A92A6]">Where these will be posted</div>
-      {rows.map((r) => (
-        <div key={r.where} className="flex gap-2">
-          <span className={`w-[140px] shrink-0 font-medium ${r.warn ? "text-[#F16A1B]" : "text-[#232D42]"}`}>{r.where}</span>
-          <span className="text-[#4A5468]">{r.what}</span>
-        </div>
-      ))}
     </div>
   );
 }
@@ -1459,7 +1432,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
           : <Markdown value={task.detail.content || ""} />}
       </div>
 
-      <CreativesSection key={`cr-${task.id}`} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
+      <CreativesSection key={`cr-${task.id}`} title={task.title} creatives={task.detail.creatives} outputLink={task.detail.outputLink} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 
       <ReferencesSection key={task.id} initial={task.detail.references || []} postId={task.id} uploadedBy={uploadedBy || "maheen"} onSaved={onSaved || (() => {})} />
 

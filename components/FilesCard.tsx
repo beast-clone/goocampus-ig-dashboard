@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { IconUpload, IconLink, IconFileText } from "@tabler/icons-react";
+import { IconUpload, IconLink, IconFileText, IconDownload } from "@tabler/icons-react";
+import { makeZip, downloadHref, saveBlob } from "@/lib/zip";
 import { PdfThumb } from "@/components/PdfThumb";
 import type { PendingUpload } from "@/lib/use-upload-queue";
 import { openRefPreview } from "@/components/RefPreview";
@@ -47,7 +48,7 @@ const linkHref = (s: string) => s.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 export function FilesCard({
   icon, title, count, drop, accept, onFiles, busyText, tiles, numbered, pending = [], onDismiss,
   links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, confirmRemove = true, addLabel = "+ Add file", addSub = "drop or paste here", hint, onReorder,
-  splitPdf, askWhy,
+  splitPdf, askWhy, zipName,
 }: {
   icon?: React.ReactNode; title: string; count?: string;
   /** Big drop zone under the header (Creatives). Otherwise a dashed Add tile ends the row. */
@@ -67,6 +68,8 @@ export function FilesCard({
   splitPdf?: boolean;
   /** Deleting a file asks why; the reason goes to the task's history. */
   askWhy?: boolean;
+  /** File name for "Download all" (without .zip); defaults to the card's title. */
+  zipName?: string;
 }) {
   const [url, setUrl] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
@@ -175,6 +178,25 @@ export function FilesCard({
     const href = linkHref(l);
     if (href && plain(e) && openRefPreview({ url: href, title: host(l), from: title })) e.preventDefault();
   };
+  // Download every file as one .zip, or each one on its own (Praveen, 28 Oct). Slides
+  // keep their order in the zip (01-, 02-…); the LinkedIn PDF comes last.
+  const [zipping, setZipping] = useState<string | null>(null);
+  const downloadable = (splitPdf ? [...shown.filter((x) => x.kind !== "pdf"), ...shown.filter((x) => x.kind === "pdf")] : shown).filter((x) => x.url);
+  const downloadAll = async () => {
+    if (zipping) return;
+    try {
+      const files: { name: string; data: Blob }[] = [];
+      for (const [i, t] of downloadable.entries()) {
+        setZipping(`Zipping ${i + 1} of ${downloadable.length}…`);
+        const r = await fetch(t.url!);
+        if (!r.ok) throw new Error(`Couldn't fetch ${t.name}`);
+        files.push({ name: `${String(i + 1).padStart(2, "0")}-${t.name}`, data: await r.blob() });
+      }
+      saveBlob(await makeZip(files), `${(zipName || title).replace(/[\\/:*?"<>|]+/g, "-").trim() || "files"}.zip`);
+    } catch (e) {
+      await confirmDialog({ title: "Couldn't make the zip", body: `${(e as Error).message}. You can still download the files one by one.`, action: "OK", cancel: "Close" });
+    } finally { setZipping(null); }
+  };
   const pdfs = splitPdf ? shown.filter((t) => t.kind === "pdf") : [];
   const slides = splitPdf ? shown.filter((t) => t.kind !== "pdf") : shown;
   const slideCount = slides.length;
@@ -197,6 +219,7 @@ export function FilesCard({
                     : <div className={`gcf-im${t.onOpen ? " clk" : ""}`} style={style} onClick={t.onOpen ? () => { if (!justDragged.current) t.onOpen!(); } : undefined}>{inner}</div>}
                   {no !== null && <span className="gcf-n">{no}</span>}
                   <div className="gcf-nm">{t.name}</div>
+                  {t.url && <a className="gcf-dl" href={downloadHref(t.url, t.name)} download={t.name} title={`Download ${t.name}`} onClick={(e) => e.stopPropagation()}><IconDownload size={12} stroke={2} /></a>}
                   {t.onRemove && <button type="button" className="gcf-x" onClick={() => askRemoveTile(t, no, slideCount)} title="Delete">✕</button>}
                 </div>
               );
@@ -208,7 +231,12 @@ export function FilesCard({
         <span className="gcf-ico">{icon || <IconUpload size={15} stroke={1.8} />}</span>
         <b>{title}</b>
         {count && <span className="gcf-cnt">{count}</span>}
-        {picker("gcf-btn", <><IconUpload size={14} stroke={1.8} /> Upload</>)}
+        {downloadable.length > 1 && (
+          <button type="button" className="gcf-btn" onClick={() => void downloadAll()} disabled={!!zipping} title="Download every file as one .zip">
+            <IconDownload size={14} stroke={1.8} /> {zipping || "Download all (.zip)"}
+          </button>
+        )}
+        {picker(`gcf-btn${downloadable.length > 1 ? " gcf-btn-next" : ""}`, <><IconUpload size={14} stroke={1.8} /> Upload</>)}
       </div>
       <div className="gcf-b">
         {drop && picker("gcf-drop", <>
@@ -318,6 +346,11 @@ html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6
 .gcf-n{position:absolute;top:6px;left:6px;font-size:10.5px;background:rgba(35,45,66,.6);color:#fff;border-radius:5px;padding:0 5px;z-index:2}
 .gcf-x{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:6px;border:none;background:rgba(35,45,66,.6);color:#fff;font-size:11px;display:grid;place-items:center;cursor:pointer;opacity:0;transition:opacity .12s;z-index:2}
 .gcf-tile:hover .gcf-x,.gcf-x.on{opacity:1}
+.gcf-dl{position:absolute;top:6px;right:30px;width:20px;height:20px;border-radius:6px;background:rgba(35,45,66,.6);color:#fff;display:grid;place-items:center;opacity:0;transition:opacity .12s;z-index:2}
+.gcf-tile:hover .gcf-dl{opacity:1}
+.gcf-dl:hover{background:var(--brand)}
+.gcf-btn-next{margin-left:.4rem}
+.gcf-btn:disabled{opacity:.7;cursor:progress}
 .gcf-tile[data-movable]{cursor:grab;touch-action:none;user-select:none}
 .gcf-tile.drag{opacity:.4}
 .gcf-tile.over{border-color:var(--brand);outline:2px solid var(--brand);outline-offset:-1px}
