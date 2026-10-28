@@ -3136,6 +3136,18 @@ export function MasterTab({ allRows, facets, range, setRange, onOpen, onSaved, l
     setSorts(c.config.sorts || []); setHiddenCols(c.config.hiddenCols || []); setColorField(c.config.color || ""); setGroupField(c.config.group || "");
     if (c.config.rangeDays) setRange(daysRange(c.config.rangeDays));
   };
+  // The latest saved version of a view wins (Praveen, 28 Oct): reopening the sheet on
+  // a saved view used to run this browser's old copy of it, so a teammate's change
+  // didn't show and your next edit saved the old copy back over theirs. Once the
+  // views have loaded, the remembered view is opened from what's saved. Ad-hoc
+  // filters ("draft") and built-in views still come back from this browser.
+  const syncedView = useRef(false);
+  useEffect(() => {
+    if (!restored || !viewsData || syncedView.current) return;
+    syncedView.current = true;
+    const c = custom.find((v) => v.id === activeId);
+    if (c) selectCustom(c);
+  }, [restored, viewsData]); // eslint-disable-line react-hooks/exhaustive-deps
   // Like Airtable: changing the filter/sort/colour/group while on a view you can edit
   // changes THAT view (saved a moment later). On a built-in or locked view it becomes
   // an unsaved draft you can "Save as view".
