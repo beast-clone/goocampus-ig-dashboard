@@ -237,6 +237,29 @@ function highlight(text: string, ours: string[], others: string[]) {
   });
 }
 
+// The AIs answer in markdown. Show it as plain reading text: headings as headings,
+// bullets as bullets, links as their words, citation markers and table rules dropped.
+function Readable({ text, ours, others }: { text: string; ours: string[]; others: string[] }) {
+  const lines = text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[\[\d+\]\]\([^)]*\)/g, "").replace(/\[(\d+)\]/g, "")
+    .replace(/\[([^\]]+)\]\((https?:[^)]*)\)/g, "$1").replace(/`/g, "").replace(/\\([^\w\s])/g, "$1")
+    .split("\n").map((l) => l.trimEnd()).filter((l) => !/^\s*\|?[\s:|-]+\|?\s*$/.test(l) || !l.includes("-"));
+  return (<>{lines.map((raw, i) => {
+    if (!raw.trim()) return <div key={i} className="h-2" />;
+    const head = /^\s*#{1,6}\s+/.test(raw);
+    const bullet = /^\s*[-*•]\s+/.test(raw);
+    const num = raw.match(/^\s*(\d+)[.)]\s+/);
+    let t = raw.replace(/^\s*#{1,6}\s+/, "").replace(/^\s*[-*•]\s+/, "").replace(/^\s*\d+[.)]\s+/, "").replace(/\*\*|__/g, "");
+    if (t.includes("|")) t = t.split("|").map((c) => c.trim()).filter(Boolean).join("  ·  ");
+    return (
+      <div key={i} className={head ? "font-medium text-[14px] mt-2" : bullet || num ? "flex gap-2 pl-1" : ""}>
+        {bullet && <span className="text-[#8A92A6]">•</span>}{num && <span className="text-[#8A92A6]">{num[1]}.</span>}
+        <span>{highlight(t, ours, others)}</span>
+      </div>
+    );
+  })}</>);
+}
+
 function QuestionPanel({ q, brand, onChanged }: { q: Question; brand: Brand; onChanged: () => void }) {
   const { data, isLoading } = useApi<{ answers: Answer[] }>(`/api/geo/answers?question=${q.id}`);
   const [eng, setEng] = useState<Engine>("chatgpt");
@@ -299,7 +322,7 @@ function QuestionPanel({ q, brand, onChanged }: { q: Question; brand: Brand; onC
               <span className="ml-2">Asked {when(cur.created_at)} · {cur.model} · India, English</span>
             </div>
             {cur.competitors.length > 0 && <div className="text-[13px] text-[#232D42] mt-2"><span className="text-[#8A92A6]">Also named: </span>{cur.competitors.join(", ")}</div>}
-            <div className="geo-answer">{cur.answer ? highlight(cur.answer, ours, cur.competitors) : <span className="text-[#8A92A6]">{cur.error || "No answer text."}</span>}</div>
+            <div className="geo-answer">{cur.answer ? <Readable text={cur.answer} ours={ours} others={cur.competitors} /> : <span className="text-[#8A92A6]">{cur.error || "No answer text."}</span>}</div>
             {cur.sources.length > 0 && (<>
               <div className="geo-lbl">Sources this AI used</div>
               {cur.sources.slice(0, 10).map((s, i) => (
@@ -503,7 +526,6 @@ function Usage({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => void }) 
     <div className="mx-4 mb-4 rounded-xl border border-gray-100">
       <div className="px-4 py-3 text-[14px] font-medium text-[#232D42]">Account</div>
       {line("Spent on DataForSEO today", usd(a.spentToday, 3))}
-      {line("Requests today", a.requestsToday ?? "—")}
       {line("Daily spending cap on the account", usd(a.dayLimitUsd, 0))}
       {line("Top up", <a href="https://app.dataforseo.com/api-dashboard" target="_blank" rel="noreferrer" className="text-brand inline-flex items-center gap-1">Open DataForSEO <IconExternalLink size={13} /></a>)}
     </div>
@@ -615,7 +637,7 @@ const CSS = `
 .geo-btn:hover{border-color:#3A57E8;color:#3A57E8}
 .geo-eng{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:8px;border:1px solid #EEF0F4;background:#fff;font-size:13px;color:#232D42}
 .geo-eng.on{border-color:#3A57E8;background:#E9ECFB;color:#3A57E8}
-.geo-answer{margin-top:12px;background:#F6F7FB;border:1px solid #EEF0F4;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.65;color:#232D42;white-space:pre-wrap;max-height:520px;overflow:auto}
+.geo-answer{margin-top:12px;background:#F6F7FB;border:1px solid #EEF0F4;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.65;color:#232D42;max-height:520px;overflow:auto}
 .geo-answer mark{background:#FEF1E8;color:#232D42;border-radius:3px;padding:0 2px}
 .geo-answer mark.us{background:#E9ECFB;color:#2138B0}
 .geo-lbl{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#8A92A6;margin:18px 0 6px}

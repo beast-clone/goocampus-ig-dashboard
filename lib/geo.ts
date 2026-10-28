@@ -157,7 +157,10 @@ function parse(engine: Engine, r: Record<string, unknown>): Parsed {
     const sec = ((r.items as { sections?: { text?: string; annotations?: Src[] }[] }[]) || []).flatMap((i) => i.sections || []);
     return { text: sec.map((s) => s.text || "").join("\n\n"), sources: srcs(sec.flatMap((s) => s.annotations || [])), model: String(r.model_name || "sonar"), entities: [] };
   }
-  const ents = ((r.brand_entities as { markdown?: string; title?: string }[]) || []).map((e) => e.markdown || e.title || "").filter(Boolean);
+  // ChatGPT's own list of brands it mentioned — only the ones it files as a business.
+  const ents = ((r.brand_entities as { markdown?: string; title?: string; category?: string }[]) || [])
+    .filter((e) => ["organization", "local_business", "brand", "company"].includes(String(e.category)))
+    .map((e) => (e.markdown || e.title || "").replace(/\*\*/g, "").trim()).filter((n) => n.length > 2);
   return { text: String(r.markdown || ""), sources: srcs(r.sources as Src[]), model: String(r.model || engine), entities: ents };
 }
 
@@ -171,9 +174,12 @@ function score(p: Parsed, brand: Brand, known: string[]) {
   const ourAt = firstAt(ours);
   const named = ourAt !== Infinity;
   const cited = !!brand.domain && p.sources.some((s) => s.domain.endsWith(brand.domain!));
-  // Others: known competitors found in the text, ChatGPT's own brand list, and bold names.
-  const bold = Array.from(p.text.matchAll(/\*\*([^*\n]{2,40})\*\*/g)).map((m) => m[1].trim())
-    .filter((b) => /^[A-Z0-9]/.test(b) && b.split(/\s+/).length <= 4 && !/[:?]/.test(b));
+  // Others: known competitors found in the text, ChatGPT's own brand list, and bold
+  // names that match a website the answer used ("**ZyNerd**" + zynerd.com). Bold on
+  // its own isn't enough — answers bold plenty of things that aren't companies.
+  const roots = p.sources.map((s) => s.domain.split(".")[0].replace(/[^a-z0-9]/g, "")).filter((r) => r.length > 2);
+  const bold = Array.from(p.text.matchAll(/\*\*([^*\n]{2,40})\*\*/g)).map((m) => m[1].trim().replace(/[:.]$/, ""))
+    .filter((b) => { const k = b.toLowerCase().replace(/[^a-z0-9]/g, ""); return k.length > 2 && roots.includes(k); });
   const cands = Array.from(new Set([...known.filter((k) => firstAt([norm(k)]) !== Infinity), ...p.entities, ...bold]))
     .filter((c) => !ours.some((o) => norm(c).includes(o)));
   const placed = cands.map((c) => ({ c, at: firstAt([norm(c)]) })).filter((x) => x.at !== Infinity).sort((a, b) => a.at - b.at);
