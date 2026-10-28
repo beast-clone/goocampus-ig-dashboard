@@ -44,7 +44,6 @@ import { needsDateApproval, needsDateReason, hasCapability, canEditCalendar } fr
 import { shiftStartMin } from "@/lib/team-roles";
 import { useAppSettings } from "@/lib/use-app-settings";
 import { SoundVideo } from "@/components/SoundVideo";
-import { WhereTheyGo } from "@/components/WhereTheyGo";
 
 export type Row = {
   id: string;
@@ -4989,7 +4988,6 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     links={(detail?.outputLink ?? row.outputLink) ? [String(detail?.outputLink ?? row.outputLink)] : []} singleLink
                     linkPlaceholder="Paste the output link (Drive / Canva)…"
                     onAddLink={(v) => { saveOne("output_link", v); }} onRemoveLink={() => saveOne("output_link", null)} />
-                  <WhereTheyGo files={creatives.map((c) => ({ kind: creativeKind(c.name, c.type) }))} />
                 </div>
                 <div onMouseOver={() => { pasteKind.current = "reference"; }}>
                   <FilesCard icon={<IconBookmark size={15} stroke={1.8} />} title="References"

@@ -16,7 +16,6 @@ import { uploadTaskFile, removeTaskFile, reorderTaskFiles } from "@/lib/upload-t
 import { useUploadQueue } from "@/lib/use-upload-queue";
 import { openRefPreview, closeRefPreview } from "@/components/RefPreview";
 import { FilesCard, type FileTile } from "@/components/FilesCard";
-import { WhereTheyGo } from "@/components/WhereTheyGo";
 import { useDraft } from "@/lib/use-draft";
 import { isPdf } from "@/components/PdfThumb";
 import { RichTextField } from "@/components/RichTextField";
@@ -574,7 +573,6 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved, 
         } : undefined}
         links={link ? [link] : []} singleLink linkPlaceholder="Paste the output link (Drive / Canva)…"
         onAddLink={(v) => saveLink(v)} onRemoveLink={() => saveLink("")} />
-      <WhereTheyGo files={creatives.map((c) => ({ kind: !!c.url && (c.type === "doc" || isPdf(c.url, null)) ? "pdf" as const : c.type === "video" ? "video" as const : c.type === "image" ? "image" as const : "file" as const }))} />
       {preview !== null && viewable.length > 0 && (
         <CreativePreview items={viewable} index={preview} onIndex={setPreview} onClose={() => setPreview(null)} />
       )}

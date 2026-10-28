@@ -201,6 +201,10 @@ export function FilesCard({
   const slides = splitPdf ? shown.filter((t) => t.kind !== "pdf") : shown;
   const slideCount = slides.length;
   const showPdfRow = splitPdf && (pdfs.length > 0 || slides.filter((t) => t.kind === "image").length >= 2);
+  // Where the slides go, said on the slides themselves (Praveen, 28 Oct): pictures →
+  // Instagram + Facebook; a carousel with any video slide → Instagram only, because
+  // Facebook posts it as a still; one video on its own is a reel, which both take.
+  const igOnly = slides.length > 1 && slides.some((t) => t.kind === "video");
   const tile = (t: FileTile, no: number | null) => {
               const inner = t.kind === "pdf" && t.url
                 ? <PdfThumb url={t.url} width={96} fallback={<span className="gcf-doc"><IconFileText size={20} stroke={1.7} /></span>} />
@@ -244,8 +248,12 @@ export function FilesCard({
           <span><span className="gcf-dt">{busyText || <>Drop or paste files here, or <span className="gcf-browse">browse</span></>}</span>
             <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 2 GB each (Instagram posts reels up to 300 MB)"}</span></span>
         </>)}
-        {showTiles && showPdfRow && (
-          <div className="gcf-sec"><b>Carousel slides</b><span className="gcf-cnt">· {slideCount}</span><span className="gcf-chip">For Instagram · Facebook</span></div>
+        {showTiles && splitPdf && slideCount > 0 && (
+          <div className="gcf-sec"><b>{slideCount > 1 ? "Carousel slides" : slides[0]?.kind === "video" ? "Video" : "Picture"}</b><span className="gcf-cnt">· {slideCount}</span>
+            {igOnly
+              ? <><span className="gcf-chip ig">For Instagram only</span><span className="gcf-ds">Facebook doesn&apos;t take carousels with video slides</span></>
+              : <span className="gcf-chip">For Instagram · Facebook</span>}
+          </div>
         )}
         {showTiles && (
           <div className="gcf-tiles">
@@ -330,6 +338,7 @@ html[data-theme="dark"] .gcf{--ink:#E8EBF3;--ink-soft:#C2C8D6;--muted:#959DB1;--
 .gcf-sec b{font-weight:500;color:var(--ink)}
 .gcf-chip{font-size:11px;font-weight:500;border-radius:999px;padding:1px 8px;background:var(--brand-soft);color:var(--brand-ink)}
 .gcf-chip.li{background:#E8F1FB;color:#0A66C2}
+.gcf-chip.ig{background:rgba(241,106,27,.12);color:#F16A1B}
 html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6EE}
 .gcf-pdfrow{display:flex;flex-direction:column;gap:.6rem;border-top:1px solid var(--line);padding-top:.7rem}
 .gcf-pdfrow .gcf-tile{border-color:#F3C9C3}
