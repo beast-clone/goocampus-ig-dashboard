@@ -6,11 +6,12 @@ import { getSupabase } from "@/lib/supabase";
 // so Netlify's ~6 MB request limit no longer decides what can be posted — a reel or
 // LinkedIn PDF over it used to come back as Netlify's plain-text "edge function…"
 // page, which the composer showed as "Unexpected token 'e' … is not valid JSON"
-// (27 Oct). The post-media bucket enforces this same type list and a 300 MB cap on
-// its own; 300 MB is also the largest reel Instagram will publish through the API.
+// (27 Oct). The post-media bucket enforces this same type list and a 1 GB cap on its
+// own (raised 28 Oct). 1 GB is Facebook's limit for a video posted by link; Instagram's
+// is 300 MB, so a video between the two goes to Facebook only (enqueue route).
 
 export const BUCKET = "post-media";
-export const MAX_MB = Number(process.env.UPLOAD_MAX_MB || 300);
+export const MAX_MB = Number(process.env.UPLOAD_MAX_MB || 1024);
 export const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 // webp / mov / webm dropped — we don't post those, and offering them invited
@@ -25,7 +26,7 @@ export const ALLOWED_MIME = new Set([
 export const ALLOWED_LABEL = "jpg/png/gif/mp4, or pdf for LinkedIn";
 
 export const tooBig = (bytes: number) =>
-  `That file is ${(bytes / 1024 / 1024).toFixed(0)} MB. The limit is ${MAX_MB} MB — compress the video first.`;
+  `That file is ${(bytes / 1024 / 1024).toFixed(0)} MB. Facebook takes videos up to 1 GB from here and Instagram up to 300 MB, so this one can't be posted.`;
 
 // Same bytes, same file — don't store it twice.
 //

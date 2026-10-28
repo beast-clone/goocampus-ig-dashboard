@@ -119,6 +119,22 @@ export async function POST(req: Request) {
     else if (vids.length > 1) channels = ["instagram"];
     else if (pics.length > 1) mediaFb = pics;
     if (media.length > 10 || (mediaFb && mediaFb.length > 10)) return NextResponse.json({ error: "Instagram and Facebook take at most 10 slides — remove some and try again." }, { status: 400 });
+    // Video size (28 Oct): Instagram publishes videos up to 300 MB from outside its app,
+    // Facebook up to 1 GB by link. Bigger than 300 MB → Facebook only; bigger than 1 GB
+    // → neither will take it. Sizes come from the files themselves (HEAD), so every
+    // screen and old draft is held to it.
+    const sizeOf = async (u: string) => {
+      const r = await fetch(u, { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(8000) }).catch(() => null);
+      return Number(r?.headers.get("content-length") || 0);
+    };
+    const vidSizes = await Promise.all(vids.map(sizeOf));
+    const MB = 1024 * 1024;
+    if (vidSizes.some((n) => n > 1024 * MB)) return NextResponse.json({ error: "A video is over 1 GB — Facebook takes up to 1 GB from here and Instagram up to 300 MB, so it can't be posted." }, { status: 400 });
+    if (vidSizes.some((n) => n > 300 * MB)) {
+      // A carousel of video slides only goes to Instagram, so with one too big nothing can take it.
+      if (vids.length > 1 && !pics.length) return NextResponse.json({ error: "A video slide is over 300 MB — Instagram doesn't take that from here, and Facebook doesn't take carousels with video slides." }, { status: 400 });
+      channels = ["facebook"];
+    }
     const fbCaption = (b.captionFb || "").trim();
     const customPatch = {
       publish_format: format,

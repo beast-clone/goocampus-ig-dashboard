@@ -200,7 +200,7 @@ function Scheduler() {
   // Which of Meta's two channels this goes to. A brand implies an Instagram account
   // AND one or more Facebook pages; until now both always fired. Meta lets you tick
   // them separately, and people do — a reel to Instagram only is a normal thing to want.
-  const [toInstagram, setToInstagram] = useState(true);
+  const [igPref, setToInstagram] = useState(true);
   const [fbPref, setToFacebook] = useState(true);
   // Facebook takes pictures, a picture carousel or one video — not a carousel with
   // video slides (motion graphics with audio). Instagram posted one fine for 12thPlus;
@@ -236,9 +236,13 @@ function Scheduler() {
       if (saved) { const v = JSON.parse(saved); setToInstagram(v.ig !== false); setToFacebook(v.fb !== false); }
     } catch { /* no preference stored */ }
   }, []);
+  // Opening a draft sets the ticks to that post's networks; that isn't the person's
+  // default for the next post, so it isn't saved as one.
+  const draftTicks = useRef(false);
   useEffect(() => {
-    try { localStorage.setItem("gc.scheduler.channels", JSON.stringify({ ig: toInstagram, fb: fbPref })); } catch { /* private mode */ }
-  }, [toInstagram, fbPref]);
+    if (draftTicks.current) { draftTicks.current = false; return; }
+    try { localStorage.setItem("gc.scheduler.channels", JSON.stringify({ ig: igPref, fb: fbPref })); } catch { /* private mode */ }
+  }, [igPref, fbPref]);
 
   const linkedInPages = useMemo(
     () => Array.from(new Set(composePages.map(linkedInKeyFor).filter((k): k is string => !!k))),
@@ -463,11 +467,13 @@ function Scheduler() {
     setMediaUrls(media.length ? media : [""]);
     setComposePages(p.pages && p.pages.length ? p.pages : [p.publishToPage].filter(Boolean));
     const ch = p.channels && p.channels.length ? p.channels : ["instagram", "facebook"];
-    setToInstagram(ch.includes("instagram"));
     // A video carousel was saved Instagram-only by the Facebook rule, not by choice;
     // leave the Facebook preference alone so the next post isn't left unticked.
     const meta = media.filter((u) => !isPdfUrl(u));
-    if (!(meta.length > 1 && meta.some(isVideoUrl))) setToFacebook(ch.includes("facebook"));
+    const nextFb = meta.length > 1 && meta.some(isVideoUrl) ? fbPref : ch.includes("facebook");
+    if (ch.includes("instagram") !== igPref || nextFb !== fbPref) draftTicks.current = true;
+    setToInstagram(ch.includes("instagram"));
+    setToFacebook(nextFb);
     setCollab((p.collaborators || []).join(", "));
     setSbu(p.primaryInterest || "");
     setCaptionFb(p.captionFbOverride || "");
@@ -679,9 +685,11 @@ function Scheduler() {
 
   const cleanMediaUrls = useMemo(() => mediaUrls.map((u) => u.trim()).filter(Boolean), [mediaUrls]);
   const mediaSizes = useMediaSizes(cleanMediaUrls);
-  const tooBigForIg = toInstagram
-    ? cleanMediaUrls.filter((u) => (mediaSizes[u] || 0) > IG_MAX_BYTES).map((u) => ({ name: decodeURIComponent(u.split("/").pop() || "video").replace(/^\d{10,}-/, ""), size: mediaSizes[u] }))
-    : [];
+  // Instagram publishes videos up to 300 MB from outside its app (Meta's API limit);
+  // Facebook takes up to 1 GB. A bigger video goes to Facebook only — no compressing
+  // (Praveen, 28 Oct). The enqueue route makes the same call from the file sizes.
+  const tooBigForIg = cleanMediaUrls.filter((u) => (mediaSizes[u] || 0) > IG_MAX_BYTES).map((u) => ({ name: decodeURIComponent(u.split("/").pop() || "video").replace(/^\d{10,}-/, ""), size: mediaSizes[u] }));
+  const toInstagram = igPref && tooBigForIg.length === 0;
   // A PDF is a LinkedIn document carousel (a deck posted as separate images gets
   // reordered by LinkedIn; as one PDF the slides keep their order). Meta has no
   // equivalent and rejects PDFs, so they are split out and never sent there.
@@ -822,12 +830,6 @@ function Scheduler() {
 
   async function submit() {
     if (missingToPublish.length) { setGate({ gate: "schedule", missing: missingToPublish, title: particulars.trim() || "This post" }); return; }
-    // Instagram rejects reels over 300 MB — say so before it goes, not after (22 Oct).
-    if (tooBigForIg.length && !(await confirmDialog({
-      title: "Instagram will most likely reject this",
-      body: <>{tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram only accepts videos up to 300 MB when posting from here. Export it at 1080 × 1920, H.264, about 10–15 Mbps, under 300 MB.</>,
-      action: "Publish anyway", cancel: "Go back",
-    }))) return;
     let scheduleTimeISO: string | undefined;
     if (scheduleEnabled && scheduleDate && scheduleTime) {
       const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
@@ -921,7 +923,7 @@ function Scheduler() {
   const channelTicks = (
     <div>
       <div className="flex items-center gap-4 flex-wrap">
-        {([["Instagram", toInstagram, setToInstagram, false], ["Facebook", toFacebook, setToFacebook, videoCarousel]] as const).map(([label, on, set, off]) => (
+        {([["Instagram", toInstagram, setToInstagram, tooBigForIg.length > 0], ["Facebook", toFacebook, setToFacebook, videoCarousel]] as const).map(([label, on, set, off]) => (
           <label key={label} className={`flex items-center gap-2 ${off ? "cursor-not-allowed" : "cursor-pointer"}`}>
             <input type="checkbox" checked={on} disabled={off} onChange={(e) => set(e.target.checked)} className="w-4 h-4 accent-[#3A57E8] disabled:opacity-40" />
             <span className={`text-sm ${off ? "text-gray-400" : "text-gray-800"}`}>{label}</span>
@@ -940,6 +942,9 @@ function Scheduler() {
       {videoCarousel && (
         <div className="text-xs text-[#F16A1B] mt-1">Facebook doesn&apos;t take carousels with video slides, so this goes to Instagram only.</div>
       )}
+      {tooBigForIg.length > 0 && (
+        <div className="text-xs text-[#F16A1B] mt-1">Over 300 MB ({tooBigForIg.map((t) => fmtSize(t.size)).join(", ")}) — Instagram doesn&apos;t take videos that big from outside its app, so this goes to Facebook only.</div>
+      )}
       {!toInstagram && !toFacebook && !(alsoLinkedIn && linkedInAvailable) && (
         <div className="text-xs text-[#C0392B] mt-1">Tick at least one, or this goes nowhere.</div>
       )}
@@ -956,7 +961,7 @@ function Scheduler() {
           </div>
           </>) : (
           <div className="flex gap-2">
-            <span className="text-gray-500 w-[150px] shrink-0">{videoCarousel ? "Instagram only" : "Instagram + Facebook"}</span>
+            <span className="text-gray-500 w-[150px] shrink-0">{videoCarousel ? "Instagram only" : tooBigForIg.length ? "Facebook only" : "Instagram + Facebook"}</span>
             <span className={metaMediaUrls.length && (toInstagram || toFacebook) ? "text-[#232D42]" : "text-gray-400"}>
               {!toInstagram && !toFacebook ? "not posting"
                 : videoCarousel ? `${metaMediaUrls.length} slides with video`
@@ -1500,7 +1505,7 @@ function Scheduler() {
                           )}
                           {tooBigForIg.length > 0 && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
-                              <b className="font-medium">Too big for Instagram:</b> {tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram only takes videos up to 300 MB from here — export at 1080 × 1920, H.264, about 10–15 Mbps.
+                              <b className="font-medium">Facebook only:</b> {tooBigForIg.map((t) => `${t.name} is ${fmtSize(t.size)}`).join(", ")}. Instagram takes videos up to 300 MB from outside its app, so this goes to Facebook.
                             </div>
                           )}
                           <div className="flex items-center justify-between border-t border-gray-100 pt-3">
@@ -3519,7 +3524,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
                 <IconPaperclip size={15} stroke={1.9} className="text-brand" />
                 Drag, paste or click to upload a file
               </div>
-              <div className="text-[11px] text-[#8A92A6] mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 300 MB</div>
+              <div className="text-[11px] text-[#8A92A6] mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 1 GB (videos over 300 MB go to Facebook only)</div>
             </>
           )}
         </div>
