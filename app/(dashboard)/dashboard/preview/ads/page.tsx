@@ -144,6 +144,10 @@ function fmtINR(n: number) {
   return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
+// Cost per click is often under a rupee — show paise there instead of "₹0".
+function fmtPer(n: number) {
+  return n > 0 && n < 10 ? `₹${n.toFixed(2)}` : fmtINR(n);
+}
 function fmtNum(n: number) {
   return n.toLocaleString("en-IN");
 }
@@ -171,6 +175,8 @@ function Ads({ range }: { range: { from: string; to: string } }) {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   // Which campaign the analyst panel is focused on (null = whole account).
   const [focusCampaign, setFocusCampaign] = useState<string | null>(null);
+  // …or on one ad inside it (28 Oct): its own numbers beside its campaign's.
+  const [focusAd, setFocusAd] = useState<string | null>(null);
 
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
@@ -235,12 +241,17 @@ function Ads({ range }: { range: { from: string; to: string } }) {
           <LiveAdsSection
             ads={data.liveAds}
             rangeLabel={`${fmtDay(range.from)} – ${fmtDay(range.to)}`}
-            selected={focusCampaign}
-            onSelect={setFocusCampaign}
+            selected={focusAd ? null : focusCampaign}
+            onSelect={(name) => { setFocusAd(null); setFocusCampaign(name); }}
+            selectedAd={focusAd}
+            onSelectAd={(ad) => { setFocusAd(ad?.ad_id ?? null); if (ad) setFocusCampaign(ad.campaign_name); }}
           />
         )}
         <div className="xl:sticky xl:top-4">
-          <AdsAnalyst range={range} campaign={focusCampaign} onClear={() => setFocusCampaign(null)} />
+          {focusAd && data.liveAds?.some((a) => a.ad_id === focusAd)
+            ? <AdPanel ad={data.liveAds.find((a) => a.ad_id === focusAd)!} siblings={data.liveAds.filter((a) => a.campaign_name === data.liveAds!.find((x) => x.ad_id === focusAd)!.campaign_name)}
+                onBack={() => setFocusAd(null)} onAll={() => { setFocusAd(null); setFocusCampaign(null); }} />
+            : <AdsAnalyst range={range} campaign={focusCampaign} onClear={() => setFocusCampaign(null)} />}
         </div>
       </div>
 
@@ -469,11 +480,14 @@ function BreakdownCard({ title, rows, showLeads, pretty, spanClass = "", wide = 
 // Deliberately plain: a count, then one row per running ad. No deltas, no
 // scoring, no advice — the rest of the page does that. This section only
 // answers "which ads are switched on".
-function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
+function LiveAdsSection({ ads, rangeLabel, selected, onSelect, selectedAd, onSelectAd }: {
   ads: LiveAd[]; rangeLabel: string;
   // Which campaign the analyst panel beside this list is describing.
   selected?: string | null;
   onSelect?: (name: string | null) => void;
+  // Or which single ad (its row is highlighted instead).
+  selectedAd?: string | null;
+  onSelectAd?: (ad: LiveAd | null) => void;
 }) {
   // Grouped by campaign: 7 campaign rows read at a glance where 26 flat ad rows
   // do not, and the campaign is the level you actually move budget at.
@@ -604,7 +618,7 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
                       </>
                     ) : (
                       <>
-                        <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{g.count > 0 ? fmtINR(g.costPer) : g.spend > 0 ? "—" : "not spent yet"}</div>
+                        <div className="text-[13px] font-medium text-[#232D42] tabular-nums">{g.count > 0 ? fmtPer(g.costPer) : g.spend > 0 ? "—" : "not spent yet"}</div>
                         <div className="text-[11px] text-gray-400">{g.count > 0 ? (g.goal === "clicks" ? "per click" : "per lead") : g.spend > 0 ? `no ${g.goal}` : ""}</div>
                       </>
                     )}
@@ -614,7 +628,8 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
                 {isOpen && (
                   <div className="bg-gray-50/60 divide-y divide-gray-100">
                     {g.ads.map((a) => (
-                      <div key={a.ad_id} className="flex items-center gap-3 pl-12 pr-5 py-2.5">
+                      <button type="button" key={a.ad_id} onClick={() => onSelectAd?.(selectedAd === a.ad_id ? null : a)} aria-pressed={selectedAd === a.ad_id}
+                        className={`w-full text-left flex items-center gap-3 pl-12 pr-5 py-2.5 transition ${selectedAd === a.ad_id ? "bg-brand-light" : "hover:bg-gray-100/70"}`}>
                         <div className="w-9 h-9 rounded-md bg-white overflow-hidden flex-shrink-0 border border-gray-200">
                           {a.thumbnail
                             // eslint-disable-next-line @next/next/no-img-element
@@ -633,12 +648,12 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
                               <div className="text-right w-20 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">{g.untracked ? "—" : fmtNum(n)}</div>
                               {/* A live ad with no spend yet is normal — say so instead of "₹0". */}
                               <div className="text-right w-24 flex-shrink-0 text-[12.5px] text-gray-600 tabular-nums">
-                                {g.untracked ? "not tracked" : n > 0 ? fmtINR(per) : a.spend > 0 ? "—" : "not spent yet"}
+                                {g.untracked ? "not tracked" : n > 0 ? fmtPer(per) : a.spend > 0 ? "—" : "not spent yet"}
                               </div>
                             </>
                           );
                         })()}
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -647,6 +662,108 @@ function LiveAdsSection({ ads, rangeLabel, selected, onSelect }: {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------- One ad (28 Oct) ----------------
+// Picking an ad inside a campaign shows that ad on its own: what it spent and got,
+// how it compares with the other ads in the same campaign, and how often people saw
+// it. Straight from Meta's numbers — the same goal (leads or clicks) as its campaign.
+function AdPanel({ ad, siblings, onBack, onAll }: { ad: LiveAd; siblings: LiveAd[]; onBack: () => void; onAll: () => void }) {
+  const goal = goalOf(ad.objective);
+  const word = goal === "clicks" ? "click" : "lead";
+  const n = goal === "clicks" ? ad.clicks : ad.leads;
+  const per = goal === "clicks" ? ad.costPerClick : ad.costPerLead;
+  const campSpend = siblings.reduce((s, x) => s + x.spend, 0);
+  const campN = siblings.reduce((s, x) => s + (goal === "clicks" ? x.clicks : x.leads), 0);
+  const campPer = campN > 0 ? campSpend / campN : 0;
+  const share = campSpend > 0 ? Math.round((ad.spend / campSpend) * 100) : 0;
+  const freq = ad.reach > 0 ? ad.impressions / ad.reach : 0;
+  const ranked = siblings.filter((x) => (goal === "clicks" ? x.clicks : x.leads) > 0)
+    .sort((x, y) => (goal === "clicks" ? x.costPerClick - y.costPerClick : x.costPerLead - y.costPerLead));
+  const rank = ranked.findIndex((x) => x.ad_id === ad.ad_id);
+  const vs = campPer > 0 && n > 0 ? Math.round(((per - campPer) / campPer) * 100) : null;
+  const st = startedLabel(ad.startedAt);
+  const untracked = goal === "leads" && ad.leads === 0 && ad.offPixel;
+
+  const lines: { tone: "good" | "warn" | "plain"; text: string }[] = [];
+  if (ad.spend === 0) lines.push({ tone: "plain", text: "It hasn't spent anything yet in this period — Meta may still be holding it back or it has only just started." });
+  else if (untracked) lines.push({ tone: "warn", text: `It sends people to ${ad.destination}, where the Meta pixel isn't installed — so signups there can't be counted. Zero leads here doesn't mean zero interest.` });
+  else if (n === 0) lines.push({ tone: "warn", text: `It has spent ${fmtINR(ad.spend)} and brought no ${word}s yet.` });
+  else {
+    lines.push({ tone: "plain", text: `It spent ${fmtINR(ad.spend)} and brought ${fmtNum(n)} ${word}${n === 1 ? "" : "s"} — ${fmtPer(per)} each.` });
+    if (vs != null && siblings.length > 1) lines.push({
+      tone: vs <= -10 ? "good" : vs >= 15 ? "warn" : "plain",
+      text: vs <= -10 ? `That's ${Math.abs(vs)}% cheaper per ${word} than its campaign as a whole (${fmtPer(campPer)}).`
+        : vs >= 15 ? `That's ${vs}% dearer per ${word} than its campaign as a whole (${fmtPer(campPer)}).`
+        : `That's about the same as its campaign as a whole (${fmtPer(campPer)} per ${word}).`,
+    });
+    if (ranked.length > 1 && rank >= 0) lines.push({ tone: rank === 0 ? "good" : "plain", text: rank === 0 ? `Cheapest of the ${ranked.length} ads in this campaign.` : `Number ${rank + 1} of ${ranked.length} ads in this campaign by cost per ${word}.` });
+  }
+  if (siblings.length > 1 && ad.spend > 0) lines.push({ tone: "plain", text: `It took ${share}% of the campaign's ${fmtINR(campSpend)} spend.` });
+  if (ad.reach > 0) lines.push({
+    tone: freq > 3.5 ? "warn" : "plain",
+    text: `Seen ${fmtNum(ad.impressions)} times by ${fmtNum(ad.reach)} people — about ${freq.toFixed(1)} times each${freq > 3.5 ? ", which is a lot; people start ignoring an ad they keep seeing" : ""}.`,
+  });
+  if (ad.impressions > 0) lines.push({ tone: ad.ctr > 0 && ad.ctr < 1 ? "warn" : "plain", text: `${ad.ctr.toFixed(2)}% of the people who saw it clicked${ad.ctr > 0 && ad.ctr < 1 ? " — under 1% usually means the picture or first line isn't stopping people" : ""}.` });
+
+  const tile = (v: string, l: string) => (
+    <div className="bg-white rounded-xl border border-gray-100 px-3 py-2.5"><div className="text-[17px] font-medium text-[#232D42] tabular-nums">{v}</div><div className="text-[11px] text-[#8A92A6]">{l}</div></div>
+  );
+  return (
+    <div className="rounded-2xl border-[1.5px] border-brand overflow-hidden mb-4" style={{ background: "linear-gradient(180deg,#E9ECFB,#ffffff)" }}>
+      <div className="px-5 py-4">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-12 h-12 rounded-lg bg-white overflow-hidden flex-shrink-0 border border-gray-200">
+            {ad.thumbnail
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={ad.thumbnail} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full grid place-items-center text-gray-300"><IconPhoto size={18} stroke={1.6} /></div>}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-[#232D42] truncate" title={ad.ad_name}>{ad.ad_name}</div>
+            <div className="text-[11px] text-brand-ink truncate" title={ad.campaign_name}>Ad in {ad.campaign_name}</div>
+            <div className="text-[11px] text-[#8A92A6] truncate">
+              {goal === "clicks" ? "Optimised for clicks" : "Optimised for leads"}{st ? ` · running ${st.age} (since ${st.date})` : ""}{ad.destination ? ` · ${ad.destination}` : ""}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5 shrink-0">
+            <button onClick={onBack} className="text-xs font-semibold text-brand border border-brand rounded-lg px-3 py-1.5 bg-white hover:bg-brand-light">← Campaign</button>
+            <button onClick={onAll} className="text-[11px] text-[#8A92A6] hover:text-brand">All campaigns</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {tile(fmtINR(ad.spend), "spent")}
+          {tile(untracked ? "—" : fmtNum(n), `${word}s`)}
+          {tile(untracked || n === 0 ? "—" : fmtPer(per), `per ${word}`)}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
+          {lines.map((l, i) => (
+            <div key={i} className="flex gap-2.5 items-start px-3.5 py-2.5 text-[13px] text-[#232D42] leading-relaxed">
+              {l.tone === "good" ? <IconCircleCheck size={16} className="text-[#1AA053] mt-0.5 shrink-0" />
+                : l.tone === "warn" ? <IconAlertTriangle size={16} className="text-[#F16A1B] mt-0.5 shrink-0" />
+                : <span className="w-4 shrink-0" />}
+              <span>{l.text}</span>
+            </div>
+          ))}
+        </div>
+        {siblings.length > 1 && (
+          <div className="mt-3 bg-white rounded-xl border border-gray-100">
+            <div className="px-3.5 py-2 text-[11px] uppercase tracking-wide text-[#8A92A6]">Other ads in this campaign</div>
+            {siblings.filter((x) => x.ad_id !== ad.ad_id).sort((x, y) => y.spend - x.spend).slice(0, 6).map((x) => {
+              const xn = goal === "clicks" ? x.clicks : x.leads;
+              return (
+                <div key={x.ad_id} className="flex items-center gap-2 px-3.5 py-2 border-t border-gray-100 text-[12.5px]">
+                  <span className="flex-1 truncate text-[#232D42]">{x.ad_name}</span>
+                  <span className="tabular-nums text-[#8A92A6]">{fmtINR(x.spend)}</span>
+                  <span className="tabular-nums text-[#8A92A6] w-24 text-right">{xn > 0 ? `${fmtPer(goal === "clicks" ? x.costPerClick : x.costPerLead)}/${word}` : `no ${word}s`}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
