@@ -491,11 +491,11 @@ function DetailSidebar({ card, isPlan, onClose, onAccept, accepted, busy }: { ca
 
         <div className="max-h-[calc(100vh-140px)] overflow-y-auto">
           {/* Creative */}
-          <div className="bg-gray-900 relative aspect-square flex items-center justify-center">
+          <div className={`bg-gray-900 relative flex items-center justify-center ${cur ? "mx-auto w-fit max-w-full" : "aspect-square"}`}>
             {cur ? (
               isVideo(cur)
-                ? <video key={cur} src={cur} controls autoPlay playsInline className="max-w-full max-h-full" />
-                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="max-w-full max-h-full object-contain" />
+                ? <video key={cur} src={cur} controls autoPlay playsInline className="block w-auto max-w-full max-h-[70vh]" />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="block w-auto max-w-full max-h-[70vh]" />
             ) : (
               <div className="text-center px-4">
                 <div className="text-gray-600 text-4xl mb-2"><IconPhoto size={40} stroke={1.3} className="mx-auto" /></div>

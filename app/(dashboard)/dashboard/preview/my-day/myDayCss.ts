@@ -442,8 +442,8 @@ export const MY_DAY_CSS = `
 .hmd .cv-box{position:relative;max-width:min(560px,92vw);width:100%}
 .hmd .cv-x{position:absolute;top:-34px;right:0;border:none;background:none;color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;opacity:.85}
 .hmd .cv-x:hover{opacity:1}
-.hmd .cv-stage{position:relative;background:#0F1222;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;max-height:74vh}
-.hmd .cv-el{width:100%;max-height:74vh;object-fit:contain;display:block}
+.hmd .cv-stage{position:relative;background:#0F1222;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;max-height:74vh;width:fit-content;max-width:100%;margin:0 auto}
+.hmd .cv-el{width:auto;max-width:100%;max-height:74vh;object-fit:contain;display:block}
 .hmd .cv-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;border:none;font-size:1.3rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1}
 .hmd .cv-nav.prev{left:10px}.hmd .cv-nav.next{right:10px}
 .hmd .cv-nav:hover{background:rgba(0,0,0,.68)}

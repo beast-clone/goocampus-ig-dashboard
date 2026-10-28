@@ -305,7 +305,7 @@ function CreativeMedia({
 
   if (vid && !videoFailed) {
     return (
-      <div className="bg-black flex items-center justify-center">
+      <div className="bg-black mx-auto w-fit max-w-full">
         <video
           src={vid}
           poster={poster || undefined}
@@ -313,7 +313,7 @@ function CreativeMedia({
           autoPlay
           playsInline
           preload="metadata"
-          className="w-full h-auto max-h-[70vh] object-contain"
+          className="block w-auto max-w-full max-h-[70vh]"
           onError={() => setVideoFailed(true)}
         />
       </div>
