@@ -50,6 +50,7 @@ export const RELEASES: Release[] = [
       { kind: "new", what: "Video and picture ads open in full", detail: "Clicking an ad on the Ads page plays its video or shows its full picture.", where: "Ads" },
       { kind: "fixed", what: "Quora, MouthShut and ValueMD get their own search", detail: "They always read 0 because one search covered all four sites and Reddit filled every result. Each site is now searched on its own.", where: "Content Radar" },
       { kind: "changed", what: "Tab icon follows your browser's theme", detail: "A white M in dark mode, blue in light mode.", where: "System" },
+      { kind: "new", what: "Search finds pages", detail: "Type a tab's name in Ask / search — \"content calendar\", \"ebook\", \"reels\" — and it shows the page, including tabs inside folders. Enter opens the top one. You only see pages you have access to.", where: "System" },
     ],
   },
   {
