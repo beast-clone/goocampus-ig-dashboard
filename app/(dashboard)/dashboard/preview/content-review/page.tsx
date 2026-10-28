@@ -562,7 +562,7 @@ function Review() {
                               fallback={<a href={sl.url} target="_blank" rel="noreferrer" className="text-sm text-white underline">Open PDF</a>} />
                           ) : isVideoUrl(sl.url, p.type) ? (
                             Math.abs(i - slide) <= 1
-                              ? <SoundVideo src={sl.url} autoPlay={i === slide} className="w-full h-full object-contain" />
+                              ? <SoundVideo src={sl.url} autoPlay={i === slide} open className="w-full h-full object-contain" />
                               : null
                           ) : (
                             // eslint-disable-next-line @next/next/no-img-element

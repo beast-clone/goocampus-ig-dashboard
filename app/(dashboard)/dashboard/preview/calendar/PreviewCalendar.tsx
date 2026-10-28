@@ -548,7 +548,7 @@ function MediaPreview({ post, pane }: { post: ScheduledPost; pane?: boolean }) {
     <div className={`hcal-media ${pane ? "pane" : ""}`}>
       <div className={`hcal-media-stage ${isReel ? "reel" : ""}`}>
         {isVideo
-          ? <SoundVideo className="hcal-media-el" src={cur} poster={post.coverUrl || undefined} />
+          ? <SoundVideo className="hcal-media-el" src={cur} poster={post.coverUrl || undefined} open />
           : <img className="hcal-media-el" src={cur} alt={post.particulars} />}
         {isReel && !isVideo && (
           post.instagramUrl

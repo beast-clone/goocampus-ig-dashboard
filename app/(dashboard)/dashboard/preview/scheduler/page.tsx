@@ -2997,7 +2997,7 @@ function PostPreviewContent({ item }: { item: CalendarItem }) {
           ? (
             <div className="w-full relative" style={{ aspectRatio: boxRatio }}>
               {isVideo(cur)
-                ? <SoundVideo src={cur} className="w-full h-full object-cover"
+                ? <SoundVideo src={cur} open className="w-full h-full object-cover"
                     onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth) setRatio(`${v.videoWidth} / ${v.videoHeight}`); }} />
                 : /* eslint-disable-next-line @next/next/no-img-element */ <img src={cur} alt="" className="w-full h-full object-cover"
                     onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setRatio(`${i.naturalWidth} / ${i.naturalHeight}`); }} />}

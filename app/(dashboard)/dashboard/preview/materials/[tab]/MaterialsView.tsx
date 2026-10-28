@@ -646,7 +646,7 @@ function Viewer({ tab, row, pos, onStep, onEdit, onClose }: { tab: MTab; row: Ro
           : isPdf(f.url, f.mime) ? <iframe key={f.url} src={`${f.url}#view=FitH`} title={f.name} className="w-full h-full border-0 block" />
           // eslint-disable-next-line @next/next/no-img-element
           : isImage(f) ? <img key={f.url} src={f.url} alt={f.name} className="w-full h-full object-contain" />
-          : (f.mime || "").startsWith("video/") ? <video key={f.url} src={f.url} controls className="w-full h-full" />
+          : (f.mime || "").startsWith("video/") ? <video key={f.url} src={f.url} controls autoPlay playsInline className="w-full h-full" />
           : <div className="h-full grid place-items-center text-center text-[13px] text-white/80"><div>This file can&apos;t be shown here.<br /><a href={f.url} download className="inline-flex mt-3 h-8 px-3 items-center rounded-lg bg-brand text-white font-medium">Download</a></div></div>}
       </div>
       <div className="border-t border-gray-100 px-4 py-3 grid grid-cols-4 gap-x-4 gap-y-2.5">

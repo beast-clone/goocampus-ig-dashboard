@@ -434,7 +434,7 @@ function PostModal({ p, onClose }: { p: Post; onClose: () => void }) {
             there are no letterbox bars and nothing gets cropped. */}
         <div className="relative bg-gray-900 shrink-0 flex items-center justify-center overflow-hidden">
           {s.type === "VIDEO" && s.url
-            ? <video src={s.url} poster={s.thumb} controls className="block max-h-[58vh] md:max-h-[86vh] w-auto max-w-full md:max-w-[480px] object-contain" />
+            ? <video src={s.url} poster={s.thumb} controls autoPlay playsInline className="block max-h-[58vh] md:max-h-[86vh] w-auto max-w-full md:max-w-[480px] object-contain" />
             : (s.url || s.thumb)
               ? <img src={s.url || s.thumb} alt="" referrerPolicy="no-referrer" className="block max-h-[58vh] md:max-h-[86vh] w-auto max-w-full md:max-w-[480px] object-contain" />
               : <div className="flex items-center justify-center min-h-[300px] w-[300px] text-gray-300 text-sm p-10">Media preview unavailable</div>}
