@@ -203,3 +203,11 @@ Note the standalone **KEA UGNEET 2026 Notification Watcher** is a separate n8n
 workflow that watches the same KEA and MCC pages and sends its own Slack and
 email alerts. It runs around the clock and is untouched by any of this. Worth
 deciding whether both should exist.
+
+
+## GEO SEO — added 28 October 2026, active
+
+| Workflow | ID | Schedule |
+| --- | --- | --- |
+| GC Dashboard — GEO SEO weekly check | `IvdWsPVGfeg22nBM` | Mondays 09:00 IST → `/api/cron/geo?do=weekly` |
+| GC Dashboard — GEO SEO collect answers | `1KPa0lvH0WsOIZMR` | every 10 min, 6:00–23:50 IST → `/api/cron/geo?do=collect` |
