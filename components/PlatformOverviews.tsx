@@ -294,8 +294,8 @@ export function FacebookOverview({ accountId, range }: { accountId: string; rang
                 <a key={p.id} href={p.permalink ?? undefined} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-gray-100 hover:border-gray-300">
                   <div className="relative">
                     {p.fullPicture
-                      ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
-                      : <div className="w-full aspect-[4/3] bg-gray-50" />}
+                      ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/5] object-contain bg-gray-100" loading="lazy" />
+                      : <div className="w-full aspect-[4/5] bg-gray-50" />}
                     <span className="absolute top-1.5 left-1.5 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
                   </div>
                   <div className="p-2">

@@ -274,7 +274,7 @@ function Card({ post, rank, onClick }: { post: Post; rank: number; onClick: () =
         {post.docUrl && <span className="absolute top-2 right-2 text-[10px] font-semibold bg-black/60 text-white rounded-full px-2 py-0.5"><IconFileText size={11} stroke={2} className="inline -mt-0.5 mr-0.5" />Document</span>}
       </div>
       <div className="p-3">
-        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">{post.text || "(no text)"}</div>
+        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2lh]">{post.text || "(no text)"}</div>
         <div className="text-[10px] text-gray-400 mt-1">{dateLabel(post.date)} · {post.type}</div>
         <div className="text-[11px] text-gray-600 mt-1.5 flex gap-3 tabular-nums">
           <span><IconEye size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(post.impressions)}</span>

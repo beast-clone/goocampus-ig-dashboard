@@ -104,12 +104,12 @@ function Inner({ accountId, range }: { accountId: string; range: { from: string;
               className="block bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300 cursor-pointer">
               <div className="relative">
                 {p.fullPicture
-                  ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
-                  : <div className="w-full aspect-[4/3] bg-gray-50 flex items-center justify-center text-xs text-gray-400 p-3 text-center">{(p.message || "Post").slice(0, 80)}</div>}
+                  ? <img src={p.fullPicture} alt="" className="w-full aspect-[4/5] object-contain bg-gray-100" loading="lazy" />
+                  : <div className="w-full aspect-[4/5] bg-gray-50 flex items-center justify-center text-xs text-gray-400 p-3 text-center">{(p.message || "Post").slice(0, 80)}</div>}
                 <span className="absolute top-1.5 left-1.5 text-[10px] font-semibold bg-white/90 rounded-full px-2 py-0.5 text-gray-700">#{i + 1}</span>
               </div>
               <div className="p-3">
-                <div className="text-[12px] text-gray-800 leading-snug line-clamp-2 min-h-[32px]">{p.message || "(no text)"}</div>
+                <div className="text-[12px] text-gray-800 leading-snug line-clamp-2 min-h-[2lh]">{p.message || "(no text)"}</div>
                 <div className="text-[11px] text-gray-500 mt-2 flex gap-3 tabular-nums">
                   <span><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.likes)}</span>
                   <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{fmt(p.comments)}</span>

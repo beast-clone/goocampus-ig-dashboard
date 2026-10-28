@@ -302,7 +302,7 @@ function VideoCards({ videos }: { videos: Video[] }) {
             )}
           </div>
           <div className="p-3">
-            <div className="text-[13px] text-gray-900 leading-snug line-clamp-2 min-h-[2.4rem]">{v.title}</div>
+            <div className="text-[13px] text-gray-900 leading-snug line-clamp-2 min-h-[2lh]">{v.title}</div>
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               <Metric icon={IconEye} value={fmt(v.views)} label="Views" />
               <Metric icon={IconClock} value={`${fmt(v.watchHours)}h · ${duration(v.avgViewDurationSec)} avg`} label="Watch time · avg view" />

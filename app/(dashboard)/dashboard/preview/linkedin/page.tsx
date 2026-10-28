@@ -351,7 +351,7 @@ function PostPerformance({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) =
                   {i === 0 && <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded-full font-medium text-white" style={{ background: LI }}>Top post</span>}
                 </div>
                 <div className="p-3">
-                  <div className="text-sm text-gray-800 line-clamp-2 min-h-[2.5rem]">{p.text ? cleanText(p.text) : <span className="text-gray-400 italic">No caption</span>}</div>
+                  <div className="text-sm text-gray-800 line-clamp-2 min-h-[2lh]">{p.text ? cleanText(p.text) : <span className="text-gray-400 italic">No caption</span>}</div>
                   <div className="text-xs text-gray-400 mt-1">{p.date}</div>
                   <div className="mt-3 grid grid-cols-3 gap-1 text-center">
                     <MiniMetric label="Impr." value={fmt(p.impressions)} />

@@ -398,15 +398,15 @@ function PostCard({ p, onOpen }: { p: Post; onOpen: () => void }) {
   const src = p.thumbnail_url || p.media_url;
   return (
     <button onClick={onOpen} className="text-left bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-brand hover:shadow-sm transition group">
-      <div className="relative aspect-square bg-gray-100">
+      <div className="relative aspect-[4/5] bg-gray-100">
         {src
-          ? <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+          ? <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-contain" />
           : <div className="w-full h-full flex items-center justify-center text-gray-300"><IconPhoto size={24} /></div>}
         <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-black/55 text-white text-[10px] rounded-md px-1.5 py-0.5"><TypeIcon t={p.media_type} /> {p.media_type === "CAROUSEL_ALBUM" ? "Carousel" : p.media_type === "VIDEO" ? "Video" : "Image"}</span>
       </div>
       <div className="p-2.5">
         <div className="flex items-center gap-1.5 mb-1"><Avatar url={p.authorPic} name={p.author} /><span className="text-[11.5px] font-medium text-[#232D42] truncate">{p.author}</span><span className="text-[10.5px] text-gray-400 ml-auto shrink-0">{ago(p.timestamp)}</span></div>
-        <div className="text-[11.5px] text-gray-600 line-clamp-2 leading-snug min-h-[30px]">{p.caption?.replace(/\n/g, " ") || "(no caption)"}</div>
+        <div className="text-[11.5px] text-gray-600 line-clamp-2 leading-snug min-h-[2lh]">{p.caption?.replace(/\n/g, " ") || "(no caption)"}</div>
         <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-500">
           <span className="inline-flex items-center gap-0.5"><IconHeart size={12} /> {nfmt(p.like_count)}</span>
           <span className="inline-flex items-center gap-0.5"><IconMessageCircle size={12} /> {nfmt(p.comments_count)}</span>
@@ -477,7 +477,7 @@ function YtCard({ v, onOpen }: { v: YtVid; onOpen: () => void }) {
         </span>
       </div>
       <div className="p-2.5">
-        <div className="text-[12px] font-medium text-[#232D42] line-clamp-2 leading-snug min-h-[32px]">{v.title}</div>
+        <div className="text-[12px] font-medium text-[#232D42] line-clamp-2 leading-snug min-h-[2lh]">{v.title}</div>
         <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-500">
           <span className="truncate">{v.channel}</span>
           <span className="ml-auto shrink-0">{nfmt(v.views)} views</span>

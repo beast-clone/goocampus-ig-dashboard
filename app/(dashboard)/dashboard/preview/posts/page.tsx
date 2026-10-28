@@ -299,10 +299,11 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
       onClick={onClick}
       className="text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-brand hover:shadow-md transition group"
     >
-      {/* Thumbnail — 1:1 square */}
-      <div className="relative bg-gray-100 aspect-square overflow-hidden">
+      {/* Thumbnail — 4:5, Instagram's post shape, and never cropped: a square box cut
+          the top and bottom off every portrait creative (28 Oct). */}
+      <div className="relative bg-gray-100 aspect-[4/5] overflow-hidden">
         {post.mediaUrl ? (
-          <img src={post.mediaUrl} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200" />
+          <img src={post.mediaUrl} alt="" className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-200" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
             {TYPE_ICON[post.type] ?? "?"}
@@ -325,7 +326,7 @@ function PostCard({ post, isTop, insightsLoaded, onClick }: {
         <div className="text-xs text-gray-500 uppercase tracking-wide">
           {fmtDateShort(post.timestamp)}
         </div>
-        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">
+        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2lh]">
           {post.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
         </div>
         {/* Quick stats — 4 columns */}

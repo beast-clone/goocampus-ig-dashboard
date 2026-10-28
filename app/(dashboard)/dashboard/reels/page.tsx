@@ -274,7 +274,7 @@ function ReelCard({ reel, isTop, insightsLoaded, onClick }: {
         <div className="text-[10px] text-gray-500 uppercase tracking-wide">
           {format(parseISO(reel.timestamp), "d MMM yyyy")}
         </div>
-        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">
+        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2lh]">
           {reel.caption?.trim() || <span className="italic text-gray-400">(no caption)</span>}
         </div>
         {/* Quick stats */}

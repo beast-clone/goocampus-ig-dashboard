@@ -177,15 +177,15 @@ function PostCard({ post }: { post: Post }) {
   const body = (
     <>
       {post.fullPicture
-        ? <img src={post.fullPicture} alt="" className="w-full aspect-[4/3] object-cover bg-gray-100" loading="lazy" />
+        ? <img src={post.fullPicture} alt="" className="w-full aspect-[4/5] object-contain bg-gray-100" loading="lazy" />
         : (
-          <div className="w-full aspect-[4/3] bg-gray-50 flex items-center justify-center">
+          <div className="w-full aspect-[4/5] bg-gray-50 flex items-center justify-center">
             <span className="text-[11px] text-gray-300">No image</span>
           </div>
         )}
       <div className="p-3">
         <div className="text-xs text-gray-400 mb-1">{date}</div>
-        <p className="text-xs text-gray-700 line-clamp-3 min-h-[3em]">{post.message || <span className="text-gray-400 italic">No caption</span>}</p>
+        <p className="text-xs text-gray-700 line-clamp-3 min-h-[3lh]">{post.message || <span className="text-gray-400 italic">No caption</span>}</p>
         <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50 text-xs text-gray-500 tabular-nums">
           <span title="Likes — not readable with the current page token"><IconThumbUp size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.likes)}</span>
           <span title="Comments — not readable with the current page token"><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5 text-gray-400" />{metric(post.comments)}</span>

@@ -227,7 +227,7 @@ function VideoCard({ v, isTop, onClick }: { v: Video; isTop: boolean; onClick: (
       </div>
       <div className="p-3 space-y-2">
         <div className="text-[10px] text-gray-500 uppercase tracking-wide">{dateLabel(v.publishedAt)}</div>
-        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2.5rem]">{v.title}</div>
+        <div className="text-xs text-gray-800 leading-snug line-clamp-2 min-h-[2lh]">{v.title}</div>
         <div className="grid grid-cols-3 gap-1 pt-2 border-t border-gray-100 text-center">
           <Mini icon={<IconEye size={13} />} value={fmt(v.views)} />
           <Mini icon={<IconThumbUp size={13} />} value={fmt(v.likes)} />

@@ -1168,16 +1168,16 @@ function CompetitorDetail({ c, medianER, onBack }: { c: Competitor; medianER: nu
               const chip = mediaChip(m.media_type);
               return (
                 <div key={m.id} onClick={() => setPost(m)} className={`border rounded-xl overflow-hidden bg-white cursor-pointer hover:shadow-md hover:border-brand/40 transition ${i === 0 ? "border-amber-300 ring-1 ring-amber-300" : "border-gray-100"}`}>
-                  <div className="relative aspect-square bg-gray-100">
+                  <div className="relative aspect-[4/5] bg-gray-100">
                     {m.thumbnail_url || m.media_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
+                      <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-contain" />
                     ) : null}
                     <span className={`absolute top-2 left-2 rounded-full text-white text-[11px] font-semibold grid place-items-center shadow ${i === 0 ? "px-2 h-6 bg-amber-500" : "w-6 h-6 bg-brand"}`}>{i === 0 ? <><IconTrophy size={11} stroke={2} className="inline -mt-0.5 mr-0.5" />Top</> : i + 1}</span>
                     <span className={`absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${chip.cls}`}>{chip.label}</span>
                   </div>
                   <div className="p-3">
-                    <div className="text-[12px] text-gray-700 line-clamp-2 h-9">{m.caption ? m.caption.replace(/\s+/g, " ").trim() : "(no caption)"}</div>
+                    <div className="text-[12px] text-gray-700 line-clamp-2 h-[2lh]">{m.caption ? m.caption.replace(/\s+/g, " ").trim() : "(no caption)"}</div>
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500 tabular-nums">
                       <span><IconHeart size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.like_count)}</span>
                       <span><IconMessageCircle size={12} stroke={1.8} className="inline -mt-0.5 mr-0.5" />{fmt(m.comments_count)}</span>
