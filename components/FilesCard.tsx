@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { IconUpload, IconLink, IconFileText, IconDownload } from "@tabler/icons-react";
 import { makeZip, downloadHref, saveBlob } from "@/lib/zip";
 import { PdfThumb } from "@/components/PdfThumb";
@@ -205,6 +205,16 @@ export function FilesCard({
   // Instagram + Facebook; a carousel with any video slide → Instagram only, because
   // Facebook posts it as a still; one video on its own is a reel, which both take.
   const igOnly = slides.length > 1 && slides.some((t) => t.kind === "video");
+  // Videos AND pictures on one task are two versions of the same post, never one
+  // carousel: the motion/video slides are the Instagram carousel, the pictures are
+  // what Facebook gets (Praveen, 28 Oct). Shown as two groups, each numbered from 1.
+  const vidSlides = slides.filter((t) => t.kind === "video");
+  const picSlides = slides.filter((t) => t.kind !== "video");
+  const mixed = !!splitPdf && vidSlides.length > 0 && picSlides.length > 0;
+  const groups: { head: React.ReactNode; items: FileTile[] }[] = mixed ? [
+    { items: vidSlides, head: <div className="gcf-sec"><b>Video slides</b><span className="gcf-cnt">· {vidSlides.length}</span><span className="gcf-chip ig">For Instagram</span><span className="gcf-ds">the Instagram carousel</span></div> },
+    { items: picSlides, head: <div className="gcf-sec"><b>Picture slides</b><span className="gcf-cnt">· {picSlides.length}</span><span className="gcf-chip">For Facebook</span><span className="gcf-ds">Facebook can&apos;t take the video slides, so it gets these</span></div> },
+  ] : [{ items: slides, head: null }];
   const tile = (t: FileTile, no: number | null) => {
               const inner = t.kind === "pdf" && t.url
                 ? <PdfThumb url={t.url} width={96} fallback={<span className="gcf-doc"><IconFileText size={20} stroke={1.7} /></span>} />
@@ -248,17 +258,19 @@ export function FilesCard({
           <span><span className="gcf-dt">{busyText || <>Drop or paste files here, or <span className="gcf-browse">browse</span></>}</span>
             <span className="gcf-ds">{hint || "Images, videos or PDFs · up to 2 GB each (Instagram posts reels up to 300 MB)"}</span></span>
         </>)}
-        {showTiles && splitPdf && slideCount > 0 && (
+        {showTiles && splitPdf && slideCount > 0 && !mixed && (
           <div className="gcf-sec"><b>{slideCount > 1 ? "Carousel slides" : slides[0]?.kind === "video" ? "Video" : "Picture"}</b><span className="gcf-cnt">· {slideCount}</span>
             {igOnly
               ? <><span className="gcf-chip ig">For Instagram only</span><span className="gcf-ds">Facebook doesn&apos;t take carousels with video slides</span></>
               : <span className="gcf-chip">For Instagram · Facebook</span>}
           </div>
         )}
-        {showTiles && (
+        {showTiles && groups.map((g, gi) => (
+          <Fragment key={gi}>
+          {g.head}
           <div className="gcf-tiles">
-            {slides.map((t, i) => tile(t, numbered ? i + 1 : null))}
-            {pending.map((p, i) => {
+            {g.items.map((t, i) => tile(t, numbered ? i + 1 : null))}
+            {gi === groups.length - 1 && pending.map((p, i) => {
               const C = 2 * Math.PI * 15;
               return (
                 <div key={p.key} className={`gcf-tile gcf-pend ${p.state}`} title={p.state === "err" ? `${p.name} — ${p.error}` : p.name}>
@@ -280,9 +292,10 @@ export function FilesCard({
                 </div>
               );
             })}
-            {!drop && picker("gcf-add", <><span className="gcf-add-t">{busyText || addLabel}</span><span className="gcf-add-s">{addSub}</span></>)}
+            {gi === groups.length - 1 && !drop && picker("gcf-add", <><span className="gcf-add-t">{busyText || addLabel}</span><span className="gcf-add-s">{addSub}</span></>)}
           </div>
-        )}
+          </Fragment>
+        ))}
         {showPdfRow && (
           <div className="gcf-pdfrow">
             <div className="gcf-sec"><b>LinkedIn PDF</b><span className="gcf-chip li">For LinkedIn</span></div>
