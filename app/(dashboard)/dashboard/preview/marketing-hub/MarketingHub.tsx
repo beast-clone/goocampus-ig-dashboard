@@ -1719,6 +1719,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   // back doesn't reset them.
   const [brandSel, setBrandSel] = useState<string[]>([]);
   const [statusSel, setStatusSel] = useState<string[]>([]);
+  const [channelPick, setChannel] = useState<CalChannel>("all");
   const [calReady, setCalReady] = useState(false);
   useEffect(() => {
     try {
@@ -1727,14 +1728,17 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         if (Array.isArray(v.brands)) setBrandSel(v.brands.filter((x: unknown) => typeof x === "string"));
         if (Array.isArray(v.statuses)) setStatusSel(v.statuses.filter((x: unknown) => typeof x === "string"));
       }
+      // The account: saved with the filters since 28 Oct; before that, read it off the
+      // calendar highlighted in the left list ("acc-goocampus" → GooCampus).
+      const ch = (v && typeof v === "object" && v.channel) || (localStorage.getItem(CAL_VIEW_KEY) || "").replace(/^acc-/, "") || "all";
+      if (CAL_CHANNELS.some((c) => c.value === ch)) setChannel(ch as CalChannel);
     } catch { /* private mode, or an older shape — open unfiltered */ }
     setCalReady(true);
   }, [filterKey]);
   useEffect(() => {
     if (!calReady) return;
-    try { localStorage.setItem(filterKey, JSON.stringify({ brands: brandSel, statuses: statusSel })); } catch { /* private mode */ }
-  }, [calReady, brandSel, statusSel, filterKey]);
-  const [channelPick, setChannel] = useState<CalChannel>("all");
+    try { localStorage.setItem(filterKey, JSON.stringify({ brands: brandSel, statuses: statusSel, channel: channelPick })); } catch { /* private mode */ }
+  }, [calReady, brandSel, statusSel, channelPick, filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const channel: CalChannel = worldOnly ? "goocampusworld" : channelPick;
   const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
   // A day showing every task instead of the first four. Creating a task on a busy
@@ -2293,7 +2297,9 @@ function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: Cal
   const Item = ({ id, label, f, color }: { id: string; label: string; f: CalFilters; color: string }) => {
     const on = active === id;
     return (
-      <button onClick={() => choose(id, f)}
+      // All tasks / an account only switch the account; the statuses you picked stay
+      // ("when I change the calendar it's coming back to the old filters", 28 Oct).
+      <button onClick={() => choose(id, { ...f, statuses: current.statuses })}
         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
         <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
         <span className="truncate flex-1 text-left">{label}</span>
