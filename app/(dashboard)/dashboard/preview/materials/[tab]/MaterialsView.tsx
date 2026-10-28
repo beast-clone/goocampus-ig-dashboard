@@ -90,7 +90,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
     for (const r of rows || []) { const v = r[f.key]; (Array.isArray(v) ? v : [v]).forEach((x) => { if (typeof x === "string" && x.trim()) seen.add(x.trim()); }); }
     return [...seen].sort((a, b) => a.localeCompare(b));
   };
-  const filterFields = tab.fields.filter((f) => (f.type === "select" || f.type === "multi") && f.col !== false && f.key !== "attendees").slice(0, 3);
+  const filterFields = tab.fields.filter((f) => (f.type === "select" || f.type === "multi") && f.col !== false && f.key !== "attendees" && !(tab.key === "ebooks" && f.key === "ebook")).slice(0, 3);
 
   // Search + filters; `skip` leaves one filter out (for the counts on the Level tabs).
   const matches = (r: Row, skip?: string) => {
@@ -142,7 +142,9 @@ export function MaterialsView({ tab }: { tab: MTab }) {
     <PreviewDashboardShell active="marketing-materials" title={tab.label} subtitle={tab.intro} hideAccountPicker hideRange>
       {() => (
         <div className="preview-scope space-y-4">
-          {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <>
+          {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <div className={tab.key === "ebooks" ? "flex gap-4 items-start" : ""}>
+            {tab.key === "ebooks" && <EbookColumn names={optionsFor(tab.fields.find((f) => f.key === "ebook")!)} rows={rows} value={filters.ebook || ""} onPick={(v) => setFilters((s) => ({ ...s, ebook: v }))} />}
+            <div className={tab.key === "ebooks" ? "flex-1 min-w-0 space-y-4" : "space-y-4"}>
             <Totals tab={tab} rows={list} all={rows} />
             {openRow ? <FolderView tab={tab} row={openRow} onBack={() => setOpenId(null)} onEdit={() => setEditing(openRow)} onSaved={upsert} /> :
             <div className={viewRow ? "flex gap-4 items-start" : ""}>
@@ -242,7 +244,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
             {viewRow && <Viewer tab={tab} row={viewRow} pos={`${list.findIndex((r) => r.id === viewRow.id) + 1} of ${list.length}`}
               onStep={step} onEdit={() => setEditing(viewRow)} onClose={() => setViewId(null)} />}
             </div>}
-          </>}
+            </div>
+          </div>}
           {editing && <Editor tab={tab} row={editing === "new" ? null : editing} optionsFor={optionsFor}
             onClose={() => setEditing(null)}
             onSaved={(row) => { const isNew = editing === "new"; upsert(row); setEditing(null); if (isNew && tab.folders) setOpenId(row.id); }}
@@ -256,6 +259,30 @@ export function MaterialsView({ tab }: { tab: MTab }) {
         </div>
       )}
     </PreviewDashboardShell>
+  );
+}
+
+// eBook Orders: every eBook down the left, Scheduler-style; a click shows only its
+// orders. The count is paid orders (₹1 tests left out, same as the cards).
+function EbookColumn({ names, rows, value, onPick }: { names: string[]; rows: Row[]; value: string; onPick: (v: string) => void }) {
+  const paid = (name: string) => rows.filter((r) => (!name || r.ebook === name) && r.status === "Paid" && (Number(r.amount) || 0) >= 10).length;
+  const item = (v: string, label: string) => {
+    const on = value === v; const n = paid(v);
+    return (
+      <button key={v || "all"} type="button" onClick={() => onPick(v)} aria-pressed={on}
+        className={`w-full flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] text-left ${on ? "bg-brand-light text-[#2138B0] font-medium" : n ? "text-[#232D42] hover:bg-[#F6F7FB]" : "text-[#8A92A6] hover:bg-[#F6F7FB]"}`}>
+        <span className="flex-1 truncate">{label}</span>
+        <span className={`text-[11px] rounded-full px-1.5 ${on ? "bg-white text-[#2138B0]" : "bg-[#F0F2F8] text-[#8A92A6]"}`}>{n}</span>
+      </button>
+    );
+  };
+  return (
+    <aside className="w-[220px] flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-2 sticky top-4">
+      <div className="px-3 pt-2 pb-1.5 text-[12px] text-[#8A92A6]">{names.length} eBooks</div>
+      {item("", "All eBooks")}
+      <div className="my-1.5 border-t border-[#EEF0F4]" />
+      {names.map((n) => item(n, n))}
+    </aside>
   );
 }
 
