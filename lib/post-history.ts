@@ -23,6 +23,10 @@ export type HistPost = {
   caption: string;
   mediaUrl: string;
   mediaUrls?: string[];
+  // The playable file (28 Oct): a reel/video's mp4, and per carousel slide the mp4
+  // for a video slide ("" for a picture), so the post popup plays it with sound.
+  videoUrl?: string;
+  slideVideos?: string[];
   permalink: string;
   type: string;
   timestamp: string;
@@ -95,12 +99,16 @@ export async function fetchPostsInRange(
           else if (ins.name === "ig_reels_avg_watch_time") avgWatch = v;
         }
       }
-      const childUrls = (m.children?.data ?? []).map((ch) => ch.thumbnail_url || ch.media_url || "").filter(Boolean);
+      const kids = (m.children?.data ?? []).filter((ch) => ch.thumbnail_url || ch.media_url);
+      const childUrls = kids.map((ch) => ch.thumbnail_url || ch.media_url || "");
+      const childVideos = kids.map((ch) => (ch.media_type === "VIDEO" ? ch.media_url || "" : ""));
       posts[idx] = {
         id: m.id,
         caption: m.caption ?? "",
         mediaUrl: m.thumbnail_url || m.media_url || "",
         mediaUrls: childUrls.length ? childUrls : undefined,
+        videoUrl: m.media_type === "VIDEO" && m.media_url ? m.media_url : undefined,
+        slideVideos: childVideos.some(Boolean) ? childVideos : undefined,
         permalink: m.permalink,
         type: m.media_product_type === "REELS" ? "REEL" : m.media_type,
         timestamp: m.timestamp,
@@ -221,13 +229,14 @@ async function refreshMediaUrls(acc: IGAccountConfig, posts: HistPost[]): Promis
   for (let i = 0; i < posts.length; i += CHUNK) chunks.push(posts.slice(i, i + CHUNK));
   await Promise.all(chunks.map(async (slice) => {
     const ids = slice.map((p) => p.id).join(",");
-    const url = `${GRAPH}/?ids=${ids}&fields=media_url,thumbnail_url,children{media_url,thumbnail_url}&access_token=${acc.pageAccessToken}`;
+    const url = `${GRAPH}/?ids=${ids}&fields=media_type,media_url,thumbnail_url,children{media_type,media_url,thumbnail_url}&access_token=${acc.pageAccessToken}`;
     try {
       const res = await metaLimiter(() => fetchWithTimeout(url, { cache: "no-store" }));
       const body = (await res.json()) as Record<string, {
+        media_type?: string;
         media_url?: string;
         thumbnail_url?: string;
-        children?: { data?: { media_url?: string; thumbnail_url?: string }[] };
+        children?: { data?: { media_type?: string; media_url?: string; thumbnail_url?: string }[] };
         error?: unknown;
       }>;
       for (const post of slice) {
@@ -235,10 +244,11 @@ async function refreshMediaUrls(acc: IGAccountConfig, posts: HistPost[]): Promis
         if (!fresh || fresh.error) continue;   // deleted post → keep what we stored
         const main = fresh.thumbnail_url || fresh.media_url;
         if (main) post.mediaUrl = main;
-        const kids = (fresh.children?.data ?? [])
-          .map((c) => c.thumbnail_url || c.media_url || "")
-          .filter(Boolean);
-        if (kids.length) post.mediaUrls = kids;
+        if (fresh.media_type === "VIDEO" && fresh.media_url) post.videoUrl = fresh.media_url;
+        const kids = (fresh.children?.data ?? []).filter((c) => c.thumbnail_url || c.media_url);
+        if (kids.length) post.mediaUrls = kids.map((c) => c.thumbnail_url || c.media_url || "");
+        const vids = kids.map((c) => (c.media_type === "VIDEO" ? c.media_url || "" : ""));
+        if (vids.some(Boolean)) post.slideVideos = vids;
       }
     } catch { /* leave the stored URLs — stale images beat no post at all */ }
   }));

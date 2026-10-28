@@ -48,6 +48,7 @@ export async function GET(req: Request) {
       permalink: s.permalink ?? "",
       timestamp: s.timestamp,
       mediaType: s.media_type ?? "IMAGE",
+      videoUrl: s.media_type === "VIDEO" ? s.media_url || "" : "",   // plays in the popup, with sound
     }));
 
     // Story insights are available WHILE the story is still active (<24h). Meta removed

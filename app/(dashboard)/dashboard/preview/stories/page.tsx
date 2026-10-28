@@ -8,7 +8,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { useApi } from "@/lib/use-api";
 import { PostDetailModal } from "@/components/PostDetailModal";
 
-type Story = { id: string; caption: string; mediaUrl: string; permalink: string; timestamp: string };
+type Story = { id: string; caption: string; mediaUrl: string; permalink: string; timestamp: string; videoUrl?: string };
 type StoryWithStats = Story & {
   views: number; reach: number; replies: number;
   // Modern v25 metrics — Meta removed taps_forward/taps_back/exits/completion
@@ -210,7 +210,7 @@ function StoryCard({ s, gradientIdx, isLive }: { s: StoryWithStats; gradientIdx:
       {open && (
         <PostDetailModal
           post={{
-            id: s.id, caption: s.caption, mediaUrl: s.mediaUrl, permalink: s.permalink,
+            id: s.id, caption: s.caption, mediaUrl: s.mediaUrl, videoUrl: s.videoUrl || undefined, permalink: s.permalink,
             type: "STORY", timestamp: s.timestamp, likes: 0, comments: 0, reach: s.reach,
           }}
           typeLabel="Story"

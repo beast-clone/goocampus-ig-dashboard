@@ -1,6 +1,7 @@
 "use client";
 import { IconHeart, IconMessageCircle, IconStar, IconTrophy, IconTrash, IconSettings, IconX } from "@tabler/icons-react";
 import { confirmDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
+import { SoundVideo } from "@/components/SoundVideo";
 import { useCallback, useEffect, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -1221,7 +1222,7 @@ function PostModal({ m, c, onClose }: { m: CompetitorMedia; c: Competitor; onClo
       <div className="bg-white rounded-2xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
         <div className="md:w-1/2 bg-gray-900 relative flex-shrink-0 flex items-center justify-center">
           {cur.media_type === "VIDEO" && cur.media_url ? (
-            <video src={cur.media_url} poster={cur.thumbnail_url} controls autoPlay muted playsInline className="w-full h-auto object-contain max-h-[45vh] md:max-h-[90vh]" />
+            <SoundVideo src={cur.media_url} poster={cur.thumbnail_url} open loop={false} className="w-full h-auto object-contain max-h-[45vh] md:max-h-[90vh]" />
           ) : (cur.thumbnail_url || cur.media_url) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={cur.thumbnail_url || cur.media_url} alt="" className="w-full h-auto object-contain max-h-[45vh] md:max-h-[90vh]" />

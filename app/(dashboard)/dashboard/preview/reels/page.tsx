@@ -7,11 +7,13 @@ import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { SoundVideo } from "@/components/SoundVideo";
 
 type ApiPost = {
   id: string;
   caption: string;
   mediaUrl: string;
+  videoUrl?: string;
   permalink: string;
   type: "IMAGE" | "VIDEO" | "REEL" | "CAROUSEL_ALBUM";
   timestamp: string;
@@ -368,9 +370,12 @@ function ReelDetailModal({ reel, insightsLoaded, onClose }: {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
-        {/* LEFT — vertical thumbnail */}
-        <div className="md:w-1/2 bg-black flex items-center justify-center min-h-[400px] py-4">
-          {reel.mediaUrl ? (
+        {/* LEFT — the reel itself, playing with sound (28 Oct); the cover if Meta
+            didn't send the video file. */}
+        <div className="relative md:w-1/2 bg-black flex items-center justify-center min-h-[400px] py-4">
+          {reel.videoUrl ? (
+            <SoundVideo src={reel.videoUrl} poster={reel.mediaUrl || undefined} open loop={false} className="max-w-full max-h-[80vh] object-contain" />
+          ) : reel.mediaUrl ? (
             <img src={reel.mediaUrl} alt="" className="max-w-full max-h-[80vh] object-contain" />
           ) : (
             <div className="text-white/70"><IconMovie size={56} stroke={1.2} /></div>

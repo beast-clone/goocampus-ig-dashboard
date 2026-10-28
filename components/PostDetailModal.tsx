@@ -2,6 +2,7 @@
 import { IconCarouselHorizontal, IconMovie, IconPhoto, IconPlayerPlay } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { fmtDateTime } from "@/lib/date";
+import { SoundVideo } from "@/components/SoundVideo";
 
 // Shared post-detail modal. Lifted out of the Posts tab so the Overview's
 // "Top performing posts" and "Latest posts" grids open the same thing rather
@@ -11,6 +12,8 @@ export type ModalPost = {
   caption: string;
   mediaUrl: string;
   mediaUrls?: string[];   // carousel slides, in order (when it's a carousel)
+  videoUrl?: string;      // a reel/video's playable file
+  slideVideos?: string[]; // per slide: the video file, or "" for a picture
   permalink: string;
   type: string;
   timestamp: string;
@@ -67,6 +70,7 @@ export function PostDetailModal({ post, insightsLoaded = true, metrics, typeLabe
   // Carousels carry all slides in mediaUrls; everything else is a single "slide".
   const [idx, setIdx] = useState(0);
   const slides = post.mediaUrls?.length ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
+  const playing = (post.mediaUrls?.length ? post.slideVideos?.[idx] : post.videoUrl) || "";
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -76,7 +80,17 @@ export function PostDetailModal({ post, insightsLoaded = true, metrics, typeLabe
           {/* The image sizes itself and the pane wraps it. Instagram allows 1:1,
               4:5 and 9:16; each now fills its frame exactly, where the old fixed
               half-width pane letterboxed everything that was not square. */}
-          {slides.length ? (
+          {/* Reels and video slides play here, with sound (28 Oct); if the browser
+              refuses, the player's "Tap for sound" button is there. */}
+          {playing ? (
+            <SoundVideo
+              src={playing}
+              poster={slides[Math.min(idx, slides.length - 1)]}
+              open
+              loop={false}
+              className="block w-full md:w-auto h-auto max-h-[45vh] md:max-h-[85vh] md:max-w-[min(58vw,620px)] bg-black"
+            />
+          ) : slides.length ? (
             <img
               src={slides[Math.min(idx, slides.length - 1)]}
               alt=""
