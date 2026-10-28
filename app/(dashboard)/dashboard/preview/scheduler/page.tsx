@@ -199,7 +199,16 @@ function Scheduler() {
   // AND one or more Facebook pages; until now both always fired. Meta lets you tick
   // them separately, and people do — a reel to Instagram only is a normal thing to want.
   const [toInstagram, setToInstagram] = useState(true);
-  const [toFacebook, setToFacebook] = useState(true);
+  const [fbPref, setToFacebook] = useState(true);
+  // Facebook takes pictures, a picture carousel or one video — not a carousel with
+  // video slides (motion graphics with audio). Instagram posted one fine for 12thPlus;
+  // Facebook turned it into a still image (Praveen, 28 Oct). So a carousel with any
+  // video goes to Instagram only; swap the videos for pictures and Facebook comes back.
+  const videoCarousel = useMemo(() => {
+    const meta = mediaUrls.map((u) => u.trim()).filter((u) => u && !isPdfUrl(u));
+    return meta.length > 1 && meta.some(isVideoUrl);
+  }, [mediaUrls]);
+  const toFacebook = fbPref && !videoCarousel;
   // A second caption for Facebook. Off by default: one caption is the common case,
   // and two boxes to fill is a tax on every post that doesn't need it.
   // The brand/business unit this post is for. Required on every Marketing Hub row,
@@ -224,8 +233,8 @@ function Scheduler() {
     } catch { /* no preference stored */ }
   }, []);
   useEffect(() => {
-    try { localStorage.setItem("gc.scheduler.channels", JSON.stringify({ ig: toInstagram, fb: toFacebook })); } catch { /* private mode */ }
-  }, [toInstagram, toFacebook]);
+    try { localStorage.setItem("gc.scheduler.channels", JSON.stringify({ ig: toInstagram, fb: fbPref })); } catch { /* private mode */ }
+  }, [toInstagram, fbPref]);
 
   const linkedInPages = useMemo(
     () => Array.from(new Set(composePages.map(linkedInKeyFor).filter((k): k is string => !!k))),
@@ -448,7 +457,10 @@ function Scheduler() {
     setComposePages(p.pages && p.pages.length ? p.pages : [p.publishToPage].filter(Boolean));
     const ch = p.channels && p.channels.length ? p.channels : ["instagram", "facebook"];
     setToInstagram(ch.includes("instagram"));
-    setToFacebook(ch.includes("facebook"));
+    // A video carousel was saved Instagram-only by the Facebook rule, not by choice;
+    // leave the Facebook preference alone so the next post isn't left unticked.
+    const meta = media.filter((u) => !isPdfUrl(u));
+    if (!(meta.length > 1 && meta.some(isVideoUrl))) setToFacebook(ch.includes("facebook"));
     setCollab((p.collaborators || []).join(", "));
     setSbu(p.primaryInterest || "");
     setCaptionFb(p.captionFbOverride || "");
@@ -897,10 +909,10 @@ function Scheduler() {
   const channelTicks = (
     <div>
       <div className="flex items-center gap-4 flex-wrap">
-        {([["Instagram", toInstagram, setToInstagram], ["Facebook", toFacebook, setToFacebook]] as const).map(([label, on, set]) => (
-          <label key={label} className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} className="w-4 h-4 accent-[#3A57E8]" />
-            <span className="text-sm text-gray-800">{label}</span>
+        {([["Instagram", toInstagram, setToInstagram, false], ["Facebook", toFacebook, setToFacebook, videoCarousel]] as const).map(([label, on, set, off]) => (
+          <label key={label} className={`flex items-center gap-2 ${off ? "cursor-not-allowed" : "cursor-pointer"}`}>
+            <input type="checkbox" checked={on} disabled={off} onChange={(e) => set(e.target.checked)} className="w-4 h-4 accent-[#3A57E8] disabled:opacity-40" />
+            <span className={`text-sm ${off ? "text-gray-400" : "text-gray-800"}`}>{label}</span>
           </label>
         ))}
         <label className={`flex items-center gap-2 ${linkedInAvailable ? "cursor-pointer" : "cursor-not-allowed"}`}>
@@ -913,6 +925,9 @@ function Scheduler() {
             : alsoLinkedIn ? `LinkedIn page: ${linkedInPages.map((k) => (k === "world" ? "GooCampus World" : "GooCampus")).join(" · ")}` : ""}
         </span>
       </div>
+      {videoCarousel && (
+        <div className="text-xs text-[#F16A1B] mt-1">Facebook doesn&apos;t take carousels with video slides, so this goes to Instagram only.</div>
+      )}
       {!toInstagram && !toFacebook && !(alsoLinkedIn && linkedInAvailable) && (
         <div className="text-xs text-[#C0392B] mt-1">Tick at least one, or this goes nowhere.</div>
       )}

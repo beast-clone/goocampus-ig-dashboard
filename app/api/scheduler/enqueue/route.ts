@@ -104,7 +104,11 @@ export async function POST(req: Request) {
 
     // Empty or missing channels means both, which is what every post did before this
     // existed — an old row must not suddenly publish nowhere.
-    const channels = (b.channels || []).filter((c) => c === "instagram" || c === "facebook");
+    let channels = (b.channels || []).filter((c) => c === "instagram" || c === "facebook");
+    // Facebook can't take a carousel with video slides (it posts a still instead), so
+    // one goes to Instagram only, whichever screen or old draft asked for Facebook.
+    const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+    if (media.length > 1 && media.some(isVideo)) channels = ["instagram"];
     const fbCaption = (b.captionFb || "").trim();
     const customPatch = {
       publish_format: format,
