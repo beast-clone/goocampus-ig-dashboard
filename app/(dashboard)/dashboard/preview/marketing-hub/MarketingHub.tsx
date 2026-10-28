@@ -18,7 +18,7 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { NewTaskDialog } from "@/components/new-task/NewTaskDialog";
 import { useSbus } from "@/lib/use-sbus";
 import { FilterBuilder } from "@/components/FilterBuilder";
-import { MultiPick } from "@/components/MultiPick";
+import { MultiPick, isPickNone } from "@/components/MultiPick";
 import { RichTextField } from "@/components/RichTextField";
 import { ClampBox } from "@/components/ClampBox";
 import { PdfThumb } from "@/components/PdfThumb";
@@ -1963,7 +1963,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
             <MultiPick label="SBUs" selected={brandSel} total={channelRows.length}
               // Stays on the account unless every SBU picked belongs to another one
               // (that would leave an empty calendar).
-              onChange={(next) => { setBrandSel(next); if (next.length && !worldOnly && channel !== "all" && !next.some((b) => channelOfSbu(b) === channel)) setChannel("all"); }}
+              onChange={(next) => { setBrandSel(next); if (next.length && !isPickNone(next) && !worldOnly && channel !== "all" && !next.some((b) => channelOfSbu(b) === channel)) setChannel("all"); }}
               options={Array.from(new Set([...allSbus, ...sbus])).filter((x) => !worldOnly || channelOfSbu(x) === "goocampusworld").sort((a, b) => a.localeCompare(b))
                 .map((x) => ({ value: x, count: channelRows.filter((r) => r.sbu === x).length }))} />
           </div>
@@ -2133,7 +2133,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
       {createDate && (
         <NewTaskDialog onClose={() => setCreateDate(null)}
           onCreated={() => { setExpandedDay(createDate); onSaved(); }}
-          initial={{ publishDate: createDate, sbu: (brandSel.length === 1 ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : channel === "goocampusworld" ? "Mentorship Platform" : undefined) }} />
+          initial={{ publishDate: createDate, sbu: (brandSel.length === 1 && !isPickNone(brandSel) ? brandSel[0] : "") || (channel === "12thplusdotcom" ? "12thPlus.com" : channel === "goocampusworld" ? "Mentorship Platform" : undefined) }} />
       )}
     </div>
     </div>

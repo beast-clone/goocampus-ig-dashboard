@@ -11,6 +11,12 @@ export type MultiPickOption = { value: string; count: number; swatch?: string };
 
 const fmt = (n: number) => n.toLocaleString("en-IN");
 
+/** "Unselect all" (Praveen, 28 Oct): nothing ticked, so you can tick just the few you
+ *  want. Empty already means "all", so none is this one marker value — it matches no
+ *  row wherever the list is used as an includes() filter. */
+export const PICK_NONE = "\u0000none";
+export const isPickNone = (sel: string[]) => sel.length === 1 && sel[0] === PICK_NONE;
+
 export function MultiPick({ label, options, selected, onChange, total }: {
   label: string;
   options: MultiPickOption[];
@@ -32,23 +38,23 @@ export function MultiPick({ label, options, selected, onChange, total }: {
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
   const all = total ?? options.reduce((n, o) => n + o.count, 0);
-  const shown = selected.length ? options.filter((o) => selected.includes(o.value)).reduce((n, o) => n + o.count, 0) : all;
+  const none = isPickNone(selected);
+  const shown = none ? 0 : selected.length ? options.filter((o) => selected.includes(o.value)).reduce((n, o) => n + o.count, 0) : all;
   // Unticking has to subtract from what is ON SCREEN, not from the stored list.
   // Empty means "all", so every box renders ticked while the list is empty — and a
   // naive toggle then ADDED the box you just unticked, leaving you looking at only
   // that one instead of everything except it.
   const toggle = (v: string) => {
-    const base = selected.length ? selected : options.map((o) => o.value);
+    const base = none ? [] : selected.length ? selected : options.map((o) => o.value);
     const next = base.includes(v) ? base.filter((x) => x !== v) : [...base, v];
-    // All ticked is the same as no filter; so is none ticked, since a list showing
-    // nothing helps no one. Both collapse back to "all".
-    onChange(next.length === options.length || next.length === 0 ? [] : next);
+    // All ticked is the same as no filter; unticking the last one leaves none.
+    onChange(next.length === options.length ? [] : next.length === 0 ? [PICK_NONE] : next);
   };
   return (
     <div className="gc-mp" ref={box}>
       <style dangerouslySetInnerHTML={{ __html: MP_CSS }} />
       <button type="button" className={`gc-mp-btn ${selected.length ? "on" : ""}`} onClick={() => setOpen((o) => !o)}>
-        <span>{selected.length === 0 ? `All ${label} (${fmt(all)})` : `${selected.length} of ${options.length} ${label} (${fmt(shown)})`}</span>
+        <span>{none ? `No ${label} (0)` : selected.length === 0 ? `All ${label} (${fmt(all)})` : `${selected.length} of ${options.length} ${label} (${fmt(shown)})`}</span>
         <IconChevronDown size={14} stroke={1.8} className="gc-mp-car" />
       </button>
       {open && (
@@ -56,10 +62,11 @@ export function MultiPick({ label, options, selected, onChange, total }: {
           <div className="gc-mp-acts">
             <button type="button" onClick={() => onChange([])}>Show all</button>
             <button type="button" onClick={() => onChange(options.map((o) => o.value))}>Select all</button>
+            <button type="button" onClick={() => onChange([PICK_NONE])}>Unselect all</button>
           </div>
           {options.map((o) => (
             <label key={o.value} className="gc-mp-row">
-              <input type="checkbox" checked={selected.length === 0 || selected.includes(o.value)} onChange={() => toggle(o.value)} />
+              <input type="checkbox" checked={!none && (selected.length === 0 || selected.includes(o.value))} onChange={() => toggle(o.value)} />
               {o.swatch && <span className="gc-mp-sw" style={{ background: o.swatch }} />}
               <span>{o.value}</span>
               <span className="gc-mp-n">{fmt(o.count)}</span>
