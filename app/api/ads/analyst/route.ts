@@ -28,6 +28,12 @@ const PLAIN_ISSUE: Record<string, string> = {
 
 type Diag = { key: string; label: string; status: "good" | "warn" | "crit"; evidence: string; fix: string; campaigns: string[] };
 
+// Same list as the Ads page's goalOf(): these campaigns aim for clicks, not leads,
+// so zero leads is expected and their cost is per click.
+const CLICK_OBJECTIVES = ["LINK_CLICKS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS", "OUTCOME_ENGAGEMENT", "POST_ENGAGEMENT", "REACH", "BRAND_AWARENESS", "VIDEO_VIEWS"];
+const isClicks = (c: { objective: string | null }) => CLICK_OBJECTIVES.includes(c.objective || "");
+const per = (n: number) => (n > 0 && n < 10 ? `₹${n.toFixed(2)}` : inr(n));
+
 const CACHE = new Map<string, { at: number; payload: unknown }>();
 const TTL = 6 * 60 * 60 * 1000;
 
@@ -72,8 +78,11 @@ export async function GET(req: Request) {
     // a running campaign against the other running campaigns, not against history.
     const live = campaigns.filter((c) => c.status === "ACTIVE");
     const stoppedCount = campaigns.length - live.length;
-    const liveSpend = live.reduce((s, c) => s + c.spend, 0);
-    const liveLeads = live.reduce((s, c) => s + c.leads, 0);
+    // Cost per lead is averaged over lead campaigns only — a traffic campaign's spend
+    // with its (expected) zero leads used to inflate the average.
+    const liveLeadCamps = live.filter((c) => !isClicks(c));
+    const liveSpend = liveLeadCamps.reduce((s, c) => s + c.spend, 0);
+    const liveLeads = liveLeadCamps.reduce((s, c) => s + c.leads, 0);
     const avgCPL_live = liveLeads > 0 ? liveSpend / liveLeads : 0;
     const avgCPM = live.length ? live.reduce((s, c) => s + c.cpm, 0) / live.length : 0;
     const withLeads = live.filter((c) => c.leads > 0);
@@ -165,6 +174,42 @@ export async function GET(req: Request) {
         return NextResponse.json(payload);
       }
       const mine = diagnostics.filter((d) => d.campaigns.includes(c.campaign_name));
+      if (isClicks(c)) {
+        // A traffic campaign: judged on clicks against the other running click campaigns.
+        const clickCamps = live.filter((x) => isClicks(x) && x.clicks > 0);
+        const avgCPC = clickCamps.length ? clickCamps.reduce((s, x) => s + x.spend, 0) / clickCamps.reduce((s, x) => s + x.clicks, 0) : 0;
+        const cpc = c.clicks > 0 ? c.spend / c.clicks : 0;
+        const vsC = avgCPC > 0 && cpc > 0 && clickCamps.length > 1 ? Math.round(((cpc - avgCPC) / avgCPC) * 100) : null;
+        const stats = { goal: "clicks" as const, spend: Math.round(c.spend), clicks: c.clicks, cpc: +cpc.toFixed(2), vsAvgPct: vsC, liveAvgCPC: +avgCPC.toFixed(2),
+          leads: c.leads, cpl: 0, liveAvgCPL: 0, frequency: +c.frequency.toFixed(1), ctr: +c.ctr.toFixed(2), cpm: Math.round(c.cpm) };
+        let csum: { verdict: string; recommendations: { title: string; detail: string }[] } | null = null;
+        let cAi = false;
+        if (hasAI()) {
+          csum = await askPerplexityJSON<{ verdict: string; recommendations: { title: string; detail: string }[] }>(
+            `You are explaining ONE Meta ads campaign to someone who has never run ads. Its goal is CLICKS — sending people to a website — not leads, so never judge it on leads or cost per lead and never say leads are missing. Use ONLY the facts given — never invent a number. All money is Indian rupees: write ₹, never $. Everyday words. Return JSON with:
+- "verdict": 1–2 plain sentences on how this campaign is doing on its goal (clicks and cost per click), and how the click rate looks.
+- "recommendations": 2 or 3 items, each {"title": the action in max 8 plain words, "detail": 1–2 sentences on why and what to do}. About THIS campaign only. Checking what visitors do on the website (signups, enquiries) is a fair suggestion; "fix lead tracking" is not.`,
+            `Campaign: ${c.campaign_name}\nFacts: ${JSON.stringify(stats)}\nProblems flagged: ${JSON.stringify(mine.map((d) => ({ label: d.label, evidence: d.evidence })))}`,
+            { model: "sonar", timeoutMs: 20_000, feature: "ads-analyst" },
+          ).catch(() => null);
+          if (csum?.verdict && Array.isArray(csum.recommendations) && csum.recommendations.filter((r) => r?.title && r?.detail).length >= 2) {
+            csum.recommendations = csum.recommendations.filter((r) => r?.title && r?.detail).slice(0, 3);
+            cAi = true;
+          } else csum = null;
+        }
+        if (!csum) {
+          const recs = mine.slice(0, 3).map((d) => ({ title: d.label, detail: `${d.fix} (${d.evidence})` }));
+          recs.push({ title: "Check what visitors do on the site", detail: "This campaign buys clicks, so its real value is what people do after they land — look at signups or enquiries on the website for the same days." });
+          csum = {
+            verdict: `${c.campaign_name} spent ${inr(c.spend)} and brought ${num(c.clicks)} clicks — about ${per(cpc)} each${avgCPC > 0 && clickCamps.length > 1 ? `, against ${per(avgCPC)} across the other click campaigns` : ""}. ${c.ctr.toFixed(2)}% of people who saw it clicked.`,
+            recommendations: recs.slice(0, 3),
+          };
+        }
+        const payload = { window: { from, to }, generatedAt: new Date().toISOString(), campaign: c.campaign_name,
+          stats, diagnostics: mine, summary: csum, aiUsed: cAi, cached: false };
+        CACHE.set(key, { at: Date.now(), payload });
+        return NextResponse.json(payload);
+      }
       const vsAvg = avgCPL_live > 0 && c.costPerLead > 0 ? Math.round(((c.costPerLead - avgCPL_live) / avgCPL_live) * 100) : null;
       const stats = {
         spend: Math.round(c.spend), leads: c.leads, cpl: Math.round(c.costPerLead),
@@ -176,7 +221,7 @@ export async function GET(req: Request) {
       let fAi = false;
       if (hasAI()) {
         fsum = await askPerplexityJSON<{ verdict: string; recommendations: { title: string; detail: string }[] }>(
-          `You are explaining ONE Meta ads campaign to someone who has never run ads. Use ONLY the facts given — never invent a number. Everyday words, no jargon without a plain explanation. Return JSON with:
+          `You are explaining ONE Meta ads campaign to someone who has never run ads. Use ONLY the facts given — never invent a number. All money is Indian rupees: write ₹, never $. Everyday words, no jargon without a plain explanation. Return JSON with:
 - "verdict": 1–2 plain sentences on how this ONE campaign is doing and whether it is good or bad value compared with the other running campaigns.
 - "recommendations": 2 or 3 items, each {"title": the action in max 8 plain words, "detail": 1–2 sentences saying why (what the number means) and what to do}. Every item must be about THIS campaign only.`,
           `Campaign: ${c.campaign_name}\nFacts: ${JSON.stringify(stats)}\nProblems flagged: ${JSON.stringify(mine.map((d) => ({ label: d.label, evidence: d.evidence })))}`,

@@ -148,6 +148,9 @@ export type CampaignRow = AdsTotals & {
   // When the campaign began. Needed to judge pacing: spend divided by the whole
   // reporting window makes anything launched mid-window look starved.
   start_time: string | null;
+  // Meta objective (OUTCOME_LEADS, OUTCOME_TRAFFIC…) — a traffic campaign is judged
+  // on clicks, not leads.
+  objective: string | null;
 };
 
 export type AdRow = AdsTotals & {
@@ -257,21 +260,22 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
       level: "campaign",
       limit: "200",
     }),
-    gget<{ data: { id: string; name: string; daily_budget?: string; lifetime_budget?: string; effective_status?: string; status?: string; start_time?: string }[] }>(`${acct.id}/campaigns`, acct.token, {
-      fields: "id,name,daily_budget,lifetime_budget,effective_status,status,start_time",
+    gget<{ data: { id: string; name: string; daily_budget?: string; lifetime_budget?: string; effective_status?: string; status?: string; start_time?: string; objective?: string }[] }>(`${acct.id}/campaigns`, acct.token, {
+      fields: "id,name,daily_budget,lifetime_budget,effective_status,status,start_time,objective",
       limit: "200",
     }),
   ]);
 
   // Build a budget lookup — Meta returns budgets in the smallest currency unit (paise for INR),
   // so we divide by 100 to get rupees.
-  const budgetById = new Map<string, { daily: number; lifetime: number; status: string; start_time: string | null }>();
+  const budgetById = new Map<string, { daily: number; lifetime: number; status: string; start_time: string | null; objective?: string | null }>();
   for (const c of cfgJson.data || []) {
     budgetById.set(c.id, {
       daily: parseFloat(c.daily_budget || "0") / 100,
       lifetime: parseFloat(c.lifetime_budget || "0") / 100,
       status: c.effective_status || c.status || "UNKNOWN",
       start_time: c.start_time || null,
+      objective: c.objective || null,
     });
   }
 
@@ -311,6 +315,7 @@ export async function fetchCampaigns(acct: AdAccountConfig, from: string, to: st
         lifetime_budget: budget.lifetime,
         status: budget.status,
         start_time: budget.start_time,
+        objective: budget.objective ?? null,
         ...mapInsightsRow(r),
       };
     })

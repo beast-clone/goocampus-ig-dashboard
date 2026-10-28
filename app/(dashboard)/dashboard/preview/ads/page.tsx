@@ -780,7 +780,7 @@ type AnalystData = {
   // Single-campaign mode.
   campaign?: string;
   notRunning?: boolean;
-  stats?: { spend: number; leads: number; cpl: number; vsAvgPct: number | null; liveAvgCPL: number; frequency: number; ctr: number; cpm: number };
+  stats?: { goal?: "clicks"; clicks?: number; cpc?: number; liveAvgCPC?: number; spend: number; leads: number; cpl: number; vsAvgPct: number | null; liveAvgCPL: number; frequency: number; ctr: number; cpm: number };
   summary: { verdict: string; recommendations: { title: string; detail: string }[] };
   // How many campaigns the advice actually covers, and how many were skipped for
   // being switched off — so the header can say so instead of implying it read all.
@@ -877,8 +877,9 @@ function AdsAnalyst({ range, campaign, onClear }: {
             <div className="grid grid-cols-3 gap-2 mb-3">
               {[
                 { l: "spent", v: fmtINR(data.stats.spend) },
-                { l: "leads", v: fmtNum(data.stats.leads) },
-                { l: "per lead", v: fmtINR(data.stats.cpl) },
+                ...(data.stats.goal === "clicks"
+                  ? [{ l: "clicks", v: fmtNum(data.stats.clicks || 0) }, { l: "per click", v: fmtPer(data.stats.cpc || 0) }]
+                  : [{ l: "leads", v: fmtNum(data.stats.leads) }, { l: "per lead", v: fmtINR(data.stats.cpl) }]),
               ].map((x) => (
                 <div key={x.l} className="bg-white border border-gray-100 rounded-lg px-3 py-2">
                   <div className="text-[15px] font-semibold text-[#232D42] tabular-nums">{x.v}</div>
@@ -891,7 +892,11 @@ function AdsAnalyst({ range, campaign, onClear }: {
               comparison that tells you whether its cost is actually a problem. */}
           {data.stats && data.stats.vsAvgPct !== null && (
             <div className={`text-[11.5px] mb-3 ${data.stats.vsAvgPct > 0 ? "text-[#C0392B]" : "text-[#2F9E6F]"}`}>
-              {data.stats.vsAvgPct > 0
+              {data.stats.goal === "clicks"
+                ? (data.stats.vsAvgPct > 0
+                  ? `${data.stats.vsAvgPct}% more expensive per click than the ${fmtPer(data.stats.liveAvgCPC || 0)} average across the running click campaigns.`
+                  : `${Math.abs(data.stats.vsAvgPct)}% cheaper per click than the ${fmtPer(data.stats.liveAvgCPC || 0)} average across the running click campaigns.`)
+                : data.stats.vsAvgPct > 0
                 ? `${data.stats.vsAvgPct}% more expensive per lead than the ${fmtINR(data.stats.liveAvgCPL)} average across everything running.`
                 : `${Math.abs(data.stats.vsAvgPct)}% cheaper per lead than the ${fmtINR(data.stats.liveAvgCPL)} average across everything running.`}
             </div>
