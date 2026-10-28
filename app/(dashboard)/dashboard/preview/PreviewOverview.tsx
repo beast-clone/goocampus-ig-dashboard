@@ -7,7 +7,7 @@ import {
   IconArrowUpRight, IconArrowDownRight, IconBrandInstagram, IconHeart,
   IconMessageCircle, IconEye, IconBrandFacebook, IconBrandLinkedin,
   IconBrandYoutube, IconChartBar, IconTrophy, IconBookmark, IconShare3,
-  IconChevronDown, IconCheck, IconClockHour4,
+  IconChevronDown, IconCheck, IconClockHour4, IconPower,
 } from "@tabler/icons-react";
 import { PreviewDatePicker } from "./PreviewDatePicker";
 import HubNotificationBell from "@/components/HubNotificationBell";
@@ -43,6 +43,42 @@ function clampToTodayISO(d: string): string {
 // Ticks every second, because a clock that doesn't tick reads as a stale timestamp.
 // It is a leaf component, so the second only re-renders these few spans.
 const IST = "Asia/Kolkata";
+
+// Same day control as My Day's header: when you signed in today (mh_attendance,
+// via /api/my-day/logins) and an End day button. End day opens My Day's wrap-up
+// (?endday=1) so rolled-over tasks still get their reasons before the logout.
+function DayControl() {
+  const [started, setStarted] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      fetch("/api/me", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/my-day/logins", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+    ]).then(([me, l]) => {
+      if (!alive) return;
+      const min = me?.user?.id ? l?.logins?.[me.user.id] : undefined;
+      if (typeof min !== "number") { setStarted(null); return; }
+      // Same as My Day's badge: a sign-in before 9 AM reads as 9:00.
+      const t = 9 * 60 + Math.max(0, min), h = Math.floor(t / 60), m = t % 60;
+      setStarted(`${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`);
+    }).catch(() => alive && setStarted(null));
+    return () => { alive = false; };
+  }, []);
+  if (started === undefined) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span title={started ? "When you signed in today" : "No sign-in recorded today"}
+        style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 36, padding: "0 11px", borderRadius: 8, border: `1px solid ${C.line}`, fontSize: 12.5, fontWeight: 500, color: C.heading, whiteSpace: "nowrap" }}>
+        <span style={{ width: 7, height: 7, borderRadius: 99, background: started ? C.success : C.muted }} />
+        {started ? `Started ${started}` : "Not signed in yet"}
+      </span>
+      <Link href="/dashboard/preview/my-day?endday=1"
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.line}`, fontSize: 12.5, fontWeight: 500, color: C.danger, textDecoration: "none", whiteSpace: "nowrap" }}>
+        <IconPower size={15} stroke={1.9} /> End day
+      </Link>
+    </div>
+  );
+}
 
 function HeaderClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -546,6 +582,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
             )}
           </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18, color: C.muted }}>
+            <DayControl />
             <HeaderClock />
             <HubNotificationBell />
             <HeaderProfile />

@@ -2178,6 +2178,14 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const [loggedOut, setLoggedOut] = useState(false);    // End day → demo logout overlay (no real session end)
   const [profileOpen, setProfileOpen] = useState(false); // header profile chip dropdown
   const [showEod, setShowEod] = useState(false);        // End-today wrap-up modal
+  // Overview's End day button lands here with ?endday=1 → open the same wrap-up.
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get("endday") !== "1") return;
+    setShowEod(true);
+    u.searchParams.delete("endday");
+    window.history.replaceState(null, "", u.toString());
+  }, []);
   const closedManually = useRef(false);
   // The claim pool surfaces PROMINENTLY on the right first; if ignored for 15s it
   // demotes into the 🔔 bell (badge only shows once demoted).
