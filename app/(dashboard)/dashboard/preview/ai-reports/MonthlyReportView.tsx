@@ -196,8 +196,8 @@ function InstagramTopContent({ from, to }: { from: string; to: string }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {d.posts.map((p, i) => (
               <a key={i} href={p.permalink} target="_blank" rel="noreferrer" className="group block">
-                <div className="aspect-square rounded-lg bg-gray-100 overflow-hidden border border-gray-100">
-                  {p.thumb ? <img src={p.thumb} alt="" className="w-full h-full object-cover transition group-hover:scale-105" /> : <div className="w-full h-full grid place-items-center text-2xl text-gray-300">▢</div>}
+                <div className="aspect-[4/5] rounded-lg bg-gray-100 overflow-hidden border border-gray-100">
+                  {p.thumb ? <img src={p.thumb} alt="" className="w-full h-full object-contain transition group-hover:scale-105" /> : <div className="w-full h-full grid place-items-center text-2xl text-gray-300">▢</div>}
                 </div>
                 <div className="text-[10.5px] text-gray-500 mt-1 flex items-center justify-between"><span>{p.type}</span><span className="tabular-nums">♥{fmtNum(p.likes)} · {fmtNum(p.comments)}</span></div>
               </a>

@@ -526,7 +526,7 @@ function Table({ tab, rows, all, onOpen }: { tab: MTab; rows: Row[]; all: Row[];
 function Thumb({ file }: { file?: MFile }) {
   if (!file) return <div className="h-full grid place-items-center text-[#C2C8D6]"><IconPhoto size={26} stroke={1.5} /></div>;
   // eslint-disable-next-line @next/next/no-img-element
-  if (isImage(file)) return <img src={thumbUrl(file.url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />;
+  if (isImage(file)) return <img src={thumbUrl(file.url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />;
   if (isPdf(file.url, file.mime)) return <PdfThumb url={file.url} width={240} fallback={<div className="h-full grid place-items-center text-[#8A92A6]"><IconFileText size={26} stroke={1.5} /></div>} />;
   return <div className="h-full grid place-items-center text-[#8A92A6] text-[11px] uppercase gap-1"><IconFileText size={26} stroke={1.5} />{file.name.split(".").pop()}</div>;
 }
@@ -568,7 +568,7 @@ function MiniThumb({ file }: { file?: MFile }) {
     <div className="w-[40px] h-[52px] rounded-md overflow-hidden bg-[#F0F2F8] border border-gray-100 flex-shrink-0">
       {!file ? null : isImage(file)
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={thumbUrl(file.url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        ? <img src={thumbUrl(file.url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
         : isPdf(file.url, file.mime)
           ? <PdfThumb url={file.url} width={40} badge={false} fallback={<div className="h-full grid place-items-center text-[9px] font-medium text-[#8A92A6]">PDF</div>} />
           : <div className="h-full grid place-items-center text-[9px] font-medium text-[#8A92A6] uppercase">{file.name.split(".").pop()}</div>}

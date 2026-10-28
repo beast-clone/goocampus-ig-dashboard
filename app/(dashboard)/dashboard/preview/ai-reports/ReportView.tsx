@@ -275,8 +275,8 @@ export function ReportView({ report, regenerating, storageKey, onSaved }: {
                 className="grid grid-cols-[36px_88px_1fr_auto] items-center gap-4 border border-gray-200 rounded-xl p-3 hover:border-brand transition"
               >
                 <div className="text-[22px] font-semibold tabular-nums text-gray-300 text-center">{p.rank}</div>
-                <div className="aspect-square rounded-md bg-gray-100 overflow-hidden">
-                  {p.mediaUrl ? <img src={p.mediaUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">▢</div>}
+                <div className="aspect-[4/5] rounded-md bg-gray-100 overflow-hidden">
+                  {p.mediaUrl ? <img src={p.mediaUrl} alt="" className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">▢</div>}
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold">

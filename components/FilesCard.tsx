@@ -390,11 +390,11 @@ html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6
 .gcf-pdfadd{border:1.5px dashed var(--drop-line);background:var(--drop);border-radius:10px;padding:.55rem .8rem;font-size:12.5px;font-weight:500;color:var(--brand);cursor:pointer;align-self:flex-start}
 .gcf-pdfadd span{font-weight:400;color:var(--muted);margin-left:.35rem}
 .gcf-tile{position:relative;width:96px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
-.gcf-im{display:block;height:96px;background-size:cover;background-position:center;background-color:var(--im);position:relative;overflow:hidden}
+.gcf-im{display:block;height:120px;background-size:contain;background-repeat:no-repeat;background-position:center;background-color:var(--im);position:relative;overflow:hidden}
 .gcf-im.clk{cursor:zoom-in}
 .gcf-doc{display:grid;place-items:center;align-content:center;gap:2px;height:100%;color:var(--muted)}
 .gcf-doc i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
-.gcf-vthumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;background:#0b1020}
+.gcf-vthumb{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;background:#0b1020}
 .gcf-play{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:20px;text-shadow:0 1px 6px rgba(0,0,0,.4)}
 .gcf-nm{font-size:11.5px;padding:.4rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-soft)}
 .gcf-n{position:absolute;top:6px;left:6px;font-size:10.5px;background:rgba(35,45,66,.6);color:#fff;border-radius:5px;padding:0 5px;z-index:2}
@@ -413,7 +413,7 @@ html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6
 .gcf-tile[data-movable]{cursor:grab;touch-action:none;user-select:none}
 .gcf-tile.drag{opacity:.4}
 .gcf-tile.over{border-color:var(--brand);outline:2px solid var(--brand);outline-offset:-1px}
-.gcf-add{width:96px;height:126px;border:1.5px dashed var(--drop-line);background:var(--drop);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;text-align:center;padding:0 .4rem}
+.gcf-add{width:96px;height:150px;border:1.5px dashed var(--drop-line);background:var(--drop);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;text-align:center;padding:0 .4rem}
 .gcf-add:hover{border-color:var(--brand)}
 .gcf-add-t{font-size:12.5px;font-weight:500;color:var(--brand)}
 .gcf-add-s{font-size:11px;color:var(--muted)}

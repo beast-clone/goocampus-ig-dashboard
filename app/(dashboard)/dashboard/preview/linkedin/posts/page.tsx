@@ -244,7 +244,7 @@ function DocViewer({ url, fallback }: { url: string; fallback: React.ReactNode }
 // The visual: real thumbnail, or a designed text creative for text-only posts.
 function Creative({ post, big }: { post: Post; big?: boolean }) {
   if (post.thumbnailUrl) {
-    return <img src={post.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" />;
+    return <img src={post.thumbnailUrl} alt="" className="w-full h-full object-contain" loading="lazy" />;
   }
   return (
     <div
@@ -266,7 +266,7 @@ function Card({ post, rank, onClick }: { post: Post; rank: number; onClick: () =
       onClick={onClick}
       className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-300 hover:shadow-sm text-left transition"
     >
-      <div className="relative bg-gray-100 aspect-square overflow-hidden">
+      <div className="relative bg-gray-100 aspect-[4/5] overflow-hidden">
         {post.docUrl
           ? <DocThumb url={post.docUrl} fallback={<Creative post={post} />} />
           : <Creative post={post} />}

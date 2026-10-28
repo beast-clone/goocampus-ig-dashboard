@@ -163,8 +163,8 @@ function CompetitorDetailBrief({ t, onSaved }: { t: Tracked; onSaved: () => void
                   const src = p.thumbnail_url || p.media_url;
                   const isEvent = EVENT_RE.test(p.caption || "");
                   return (
-                    <button key={p.id} onClick={() => setOpen(p)} title={p.caption?.slice(0, 120)} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-100 hover:border-brand">
-                      {src && <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
+                    <button key={p.id} onClick={() => setOpen(p)} title={p.caption?.slice(0, 120)} className="relative aspect-[4/5] rounded-lg overflow-hidden bg-gray-100 border border-gray-100 hover:border-brand">
+                      {src && <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-contain" />}
                       {isEvent && <span className="absolute top-1 left-1 text-[10px] font-medium rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">Event</span>}
                       <span className="absolute bottom-1 left-1 right-1 flex justify-between text-[10px] text-white bg-black/50 rounded px-1">
                         <span className="inline-flex items-center gap-0.5"><IconHeart size={10} />{nfmt(p.like_count)}</span><span>{ago(p.timestamp)}</span>

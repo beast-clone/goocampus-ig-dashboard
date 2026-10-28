@@ -755,13 +755,13 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                       <div key={post.id} onClick={() => setOpenPost(post)} role="button" tabIndex={0}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPost(post); } }}
                         style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, cursor: "pointer" }}>
-                        <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
-                          {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+                        <div style={{ position: "relative", aspectRatio: "4/5", background: C.bg }}>
+                          {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : null}
                           <span style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: 99, background: C.primary, color: "#fff", fontSize: 12, fontWeight: 600, display: "grid", placeItems: "center", boxShadow: "0 4px 10px rgba(58,87,232,0.4)" }}>{i + 1}</span>
                           <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         </div>
                         <div style={{ padding: "10px 11px" }}>
-                          <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: 32, overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
+                          <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: "2.7em", overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, color: C.muted, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(post.reach || 0)}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(post.likes || 0)}</span>
@@ -790,12 +790,12 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
                       <div key={post.id} onClick={() => setOpenPost(post)} role="button" tabIndex={0}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPost(post); } }}
                         style={{ border: `1px solid ${C.line}`, borderRadius: 12, overflow: "hidden", background: C.card, cursor: "pointer" }}>
-                        <div style={{ position: "relative", aspectRatio: "1/1", background: C.bg }}>
-                          {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+                        <div style={{ position: "relative", aspectRatio: "4/5", background: C.bg }}>
+                          {post.mediaUrl ? <img src={post.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : null}
                           <span style={{ position: "absolute", top: 8, left: 8, fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                         </div>
                         <div style={{ padding: "10px 11px" }}>
-                          <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: 32, overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
+                          <div style={{ fontSize: 12, color: C.heading, lineHeight: 1.35, height: "2.7em", overflow: "hidden" }}>{(post.caption || "").split("\n")[0].slice(0, 60) || "(no caption)"}</div>
                           <div style={{ display: "flex", gap: 12, marginTop: 8, color: C.muted, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconEye size={13} /> {kfmt(post.reach || 0)}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><IconHeart size={13} /> {kfmt(post.likes || 0)}</span>

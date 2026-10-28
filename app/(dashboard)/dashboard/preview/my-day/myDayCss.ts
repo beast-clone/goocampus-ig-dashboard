@@ -1013,7 +1013,7 @@ html[data-theme="dark"] .hmd{
 .hmd .up-ds{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .hmd .up-tiles{display:flex;gap:.7rem;flex-wrap:wrap}
 .hmd .up-tile{position:relative;width:118px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
-.hmd .up-im{display:block;height:118px;background-size:cover;background-position:center;background-color:#E3E6EE;position:relative}
+.hmd .up-im{display:block;height:118px;background-size:contain;background-repeat:no-repeat;background-position:center;background-color:#E3E6EE;position:relative}
 .hmd .up-im.clk{cursor:zoom-in}
 .hmd .up-doc{display:grid;place-items:center;height:100%;color:var(--muted)}
 .hmd .up-play{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:20px;text-shadow:0 1px 6px rgba(0,0,0,.4)}
@@ -1197,7 +1197,7 @@ html[data-theme="dark"] .hmd .plan-bar .pb-buffer{background:#262B3C}
 @media(max-width:900px){.hmd .done-tr{grid-template-columns:minmax(0,1fr) 90px}.hmd .done-tr>span:not(:first-child):not(:nth-child(4)){display:none}}
 
 /* Upload tiles in flight (22 Oct) */
-.hmd .up-pend .up-im{background-color:var(--panel-2);background-size:cover;background-position:center;position:relative}
+.hmd .up-pend .up-im{background-color:var(--panel-2);background-size:contain;background-repeat:no-repeat;background-position:center;position:relative}
 .hmd .up-pend .up-im::after{content:"";position:absolute;inset:0;background:rgba(20,24,40,.38)}
 .hmd .up-pend.done .up-im::after{background:rgba(20,24,40,.15)}
 .hmd .up-ring{position:absolute;inset:0;display:grid;place-items:center;z-index:1}
