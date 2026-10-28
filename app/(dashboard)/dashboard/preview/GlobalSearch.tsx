@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
-import { IconSearch } from "@tabler/icons-react";
+import { IconSearch, IconArrowRight } from "@tabler/icons-react";
 import { DICTATE_HOTKEY, MicButton, useVoiceInput } from "@/components/VoiceInput";
 
 // Global "Ask GooCampus" search — a trigger that sits at the top of the sidebar
@@ -59,7 +59,30 @@ function scopeForPath(path: string): Scope {
   return "all";
 }
 
-export function GlobalSearch() {
+// A page of the dashboard, as the sidebar shows it to this person (only what they
+// can open). `where` is the trail above it — "Content › My Workspace".
+export type SearchPage = { label: string; where: string; href: string };
+
+// Pages matching what's typed (28 Oct: "type content calendar and it should show
+// that"). Every word has to start a word in the page's name or its trail; a name
+// that starts with the query ranks first. Instant — no request.
+function matchPages(pages: SearchPage[], query: string): SearchPage[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const starts = (text: string, w: string) => text.toLowerCase().split(/[^a-z0-9]+/).some((t) => t.startsWith(w));
+  const scored = pages
+    .filter((p) => words.every((w) => starts(p.label, w) || starts(p.where, w)))
+    .map((p) => {
+      const l = p.label.toLowerCase(), qq = words.join(" ");
+      const score = l === qq ? 0 : l.startsWith(qq) ? 1 : words.every((w) => starts(p.label, w)) ? 2 : 3;
+      return { p, score };
+    })
+    .sort((a, b) => a.score - b.score);
+  const seen = new Set<string>();
+  return scored.map((x) => x.p).filter((p) => (seen.has(p.href + p.label) ? false : (seen.add(p.href + p.label), true))).slice(0, 6);
+}
+
+export function GlobalSearch({ pages = [] }: { pages?: SearchPage[] }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[] | null>(null);
@@ -175,6 +198,7 @@ export function GlobalSearch() {
     report: results?.filter((r) => r.kind === "report").length ?? 0,
   };
   const shown = (results || []).filter((r) => effectiveScope === "all" || r.kind === effectiveScope);
+  const pageHits = matchPages(pages, searchText);
   // Section headers only in "All" — inside a single scope every row is the same
   // kind and a header would just be a line of noise repeated once.
   const grouped: { name: string; items: Result[] }[] = [];
@@ -213,7 +237,7 @@ export function GlobalSearch() {
           of the palette, hiding its search row behind the page header. A portal
           takes it out of the sidebar's stacking context entirely. */}
       {open && mounted && createPortal((
-        <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[1px] flex items-start justify-center pt-[12vh] px-4" onClick={() => setOpen(false)}>
+        <div className="preview-scope fixed inset-0 z-[200] bg-black/30 backdrop-blur-[1px] flex items-start justify-center pt-[12vh] px-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-[640px] bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
               <IconSearch size={18} className="text-gray-400 shrink-0" />
@@ -222,7 +246,9 @@ export function GlobalSearch() {
                   ref={inputRef}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder={voice.listening ? "Listening — just speak…" : "Search posts, tasks, reports, or a lead's name / phone…"}
+                  // Enter opens the best-matching page — the quick way to jump to a tab.
+                  onKeyDown={(e) => { if (e.key === "Enter" && pageHits[0]) { e.preventDefault(); go(pageHits[0].href); } }}
+                  placeholder={voice.listening ? "Listening — just speak…" : "Search pages, posts, tasks, reports, or a lead's name / phone…"}
                   className="w-full outline-none text-[14px] text-[#232D42] placeholder:text-[#B4BAC6]"
                 />
                 {/* Words still being heard, shown faint until they settle. */}
@@ -262,9 +288,27 @@ export function GlobalSearch() {
               </div>
             )}
             <div className="max-h-[52vh] overflow-y-auto p-2">
+              {pageHits.length > 0 && (
+                <div>
+                  <div className="px-3 pt-2 pb-1 text-[10.5px] font-semibold tracking-wide uppercase text-[#A6ACBE]">Pages <span className="font-normal">· {pageHits.length}</span></div>
+                  {pageHits.map((pg, i) => (
+                    <button key={pg.href + pg.label} onClick={() => go(pg.href)}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-[#F7F8FC] text-left">
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-medium text-[#232D42] truncate">{pg.label}</span>
+                        {pg.where && <span className="block text-[11.5px] text-[#8A92A6] truncate">{pg.where}</span>}
+                      </span>
+                      <span className="flex items-center gap-1.5 shrink-0 text-[11.5px] text-[#8A92A6]">
+                        {i === 0 && <kbd className="text-[10px] text-[#A6ACBE] border border-gray-200 rounded px-1.5 py-0.5">Enter</kbd>}
+                        <IconArrowRight size={14} stroke={1.8} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {!q.trim() && (
                 <div className="px-3 py-4 text-[12.5px] text-[#8A92A6]">
-                  Type to search across posts, tasks, reports, and leads — your data only, never the internet.
+                  Type to search pages, posts, tasks, reports and leads — your data only, never the internet.
                   <div className="mt-1.5 text-[11.5px] text-[#A6ACBE]">
                     Narrow it with the chips, ⌘1–⌘4, or by starting with “task:” or “lead:”.
                   </div>
@@ -286,7 +330,7 @@ export function GlobalSearch() {
                   </button>
                 </div>
               )}
-              {searchText.trim() && !loading && results && results.length === 0 && (
+              {searchText.trim() && !loading && results && results.length === 0 && pageHits.length === 0 && (
                 <div className="px-3 py-4 text-[13px] text-[#8A92A6]">No matches. Try a topic, a report, or a name.</div>
               )}
               {/* Something matched, but not in the scope being looked at. Say where

@@ -22,7 +22,7 @@ import type { PreviewTab } from "./PreviewShell";
 
 /** Remembered across tabs and reloads once the button has been used. */
 const NAV_COLLAPSED_KEY = "gc-nav-collapsed";
-import { GlobalSearch } from "./GlobalSearch";
+import { GlobalSearch, type SearchPage } from "./GlobalSearch";
 import { Shortcuts } from "./Shortcuts";
 import { shouldPoll } from "@/lib/quiet-hours";
 
@@ -257,6 +257,20 @@ export function PreviewSidebar() {
     })).filter((g) => g.items.length);
   }, [me]);
   const canOverview = !me || canAccessSection(me, "overview");
+  // Every page this person can open, for the search box — tabs AND the tabs inside
+  // folders, so typing "content calendar" or "eBook" takes you there (28 Oct).
+  const searchPages = useMemo(() => {
+    const out: SearchPage[] = [];
+    if (canOverview) out.push({ label: OVERVIEW.label, where: "", href: OVERVIEW.href });
+    out.push({ label: NOTIFICATIONS.label, where: "", href: NOTIFICATIONS.href });
+    for (const g of groups) for (const it of g.items) {
+      if (isFolder(it)) {
+        if (it.href) out.push({ label: it.label, where: g.label || "", href: it.href });
+        for (const c of it.children) out.push({ label: c.label, where: [g.label, it.label].filter(Boolean).join(" › "), href: c.href });
+      } else out.push({ label: it.label, where: g.label || "", href: it.href });
+    }
+    return out;
+  }, [groups, canOverview]);
 
   // Live count of publish-date changes waiting for the admin to approve — drives the
   // notification badge on the Approvals tab. Admin-only; polls so a new request shows
@@ -421,7 +435,7 @@ export function PreviewSidebar() {
             : <IconLayoutSidebarLeftCollapse size={17} stroke={1.8} />}
         </button>
       </div>
-      <div className="hglobalsearch"><GlobalSearch /></div>
+      <div className="hglobalsearch"><GlobalSearch pages={searchPages} /></div>
       {/* Keyboard shortcuts + the ? card. Here because the sidebar is the one thing
           on every page of the dashboard. */}
       <Shortcuts />
