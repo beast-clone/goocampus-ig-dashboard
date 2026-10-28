@@ -4980,6 +4980,12 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                         onRemove: c.removable && c.id ? (why) => removeCreative(c.id!, why) : undefined };
                     })}
                     pending={qCre.pending} onDismiss={qCre.dismiss}
+                    onRemoveAll={async (why) => {
+                      let failed = 0;
+                      for (const c of creatives) if (c.removable && c.id && !(await removeTaskFile(c.id, why)).ok) failed++;
+                      if (failed) setFailure({ kind: "error", message: `${failed} file${failed === 1 ? "" : "s"} couldn't be removed — try those one by one` });
+                      await loadDetail();
+                    }}
                     onReorder={creatives.length > 1 && creatives.every((c) => c.id) ? async (ids) => {
                       const res = await reorderTaskFiles(row.id, ids);
                       if (!res.ok) { const j = await res.json().catch(() => ({})); setFailure({ kind: "error", message: (j as { error?: string }).error || "couldn't save the new order" }); }

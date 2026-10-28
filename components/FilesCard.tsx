@@ -48,7 +48,7 @@ const linkHref = (s: string) => s.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
 export function FilesCard({
   icon, title, count, drop, accept, onFiles, busyText, tiles, numbered, pending = [], onDismiss,
   links, onAddLink, onRemoveLink, linkPlaceholder, singleLink, confirmRemove = true, addLabel = "+ Add file", addSub = "drop or paste here", hint, onReorder,
-  splitPdf, askWhy, zipName,
+  splitPdf, askWhy, zipName, onRemoveAll,
 }: {
   icon?: React.ReactNode; title: string; count?: string;
   /** Big drop zone under the header (Creatives). Otherwise a dashed Add tile ends the row. */
@@ -70,6 +70,8 @@ export function FilesCard({
   askWhy?: boolean;
   /** File name for "Download all" (without .zip); defaults to the card's title. */
   zipName?: string;
+  /** Turns on "Delete all": gets the reason (when askWhy) and removes every file. */
+  onRemoveAll?: (reason?: string) => Promise<void> | void;
 }) {
   const [url, setUrl] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
@@ -197,6 +199,24 @@ export function FilesCard({
       await confirmDialog({ title: "Couldn't make the zip", body: `${(e as Error).message}. You can still download the files one by one.`, action: "OK", cancel: "Close" });
     } finally { setZipping(null); }
   };
+  // Delete every file at once instead of one ✕ at a time (Praveen, 28 Oct). Same
+  // rules as one file: asks first, wants a reason when the card asks why, and the
+  // files go to the Recycle bin.
+  const [clearing, setClearing] = useState(false);
+  const removable = shown.filter((t) => t.onRemove);
+  const removeAll = async () => {
+    if (!onRemoveAll || clearing) return;
+    const n = removable.length;
+    const body = `All ${n} files go to the Recycle bin, where they can be restored.`;
+    let why: string | undefined;
+    if (askWhy) {
+      const r = await promptDialog({ title: `Delete all ${n} files?`, body, action: "Delete all", danger: true, required: true, label: "Why are you deleting them?", placeholder: "e.g. Wrong versions — uploading the corrected set" });
+      if (!r || !r.trim()) return;
+      why = r.trim();
+    } else if (!await confirmDialog({ title: `Delete all ${n} files?`, body, action: "Delete all", cancel: "Cancel", danger: true })) return;
+    setClearing(true);
+    try { await onRemoveAll(why); } finally { setClearing(false); }
+  };
   const pdfs = splitPdf ? shown.filter((t) => t.kind === "pdf") : [];
   const slides = splitPdf ? shown.filter((t) => t.kind !== "pdf") : shown;
   const slideCount = slides.length;
@@ -250,7 +270,12 @@ export function FilesCard({
             <IconDownload size={14} stroke={1.8} /> {zipping || "Download all (.zip)"}
           </button>
         )}
-        {picker(`gcf-btn${downloadable.length > 1 ? " gcf-btn-next" : ""}`, <><IconUpload size={14} stroke={1.8} /> Upload</>)}
+        {onRemoveAll && removable.length > 1 && (
+          <button type="button" className={`gcf-btn gcf-btn-del${downloadable.length > 1 ? " gcf-btn-next" : ""}`} onClick={() => void removeAll()} disabled={clearing} title="Delete every file on this task">
+            {clearing ? "Deleting…" : "Delete all"}
+          </button>
+        )}
+        {picker(`gcf-btn${downloadable.length > 1 || (onRemoveAll && removable.length > 1) ? " gcf-btn-next" : ""}`, <><IconUpload size={14} stroke={1.8} /> Upload</>)}
       </div>
       <div className="gcf-b">
         {drop && picker("gcf-drop", <>
@@ -372,6 +397,8 @@ html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6
 .gcf-tile:hover .gcf-dl{opacity:1}
 .gcf-dl:hover{background:var(--brand)}
 .gcf-btn-next{margin-left:.4rem}
+.gcf-btn-del{color:#C03221}
+.gcf-btn-del:hover{border-color:#C03221}
 .gcf-btn:disabled{opacity:.7;cursor:progress}
 .gcf-tile[data-movable]{cursor:grab;touch-action:none;user-select:none}
 .gcf-tile.drag{opacity:.4}
