@@ -272,12 +272,14 @@ function Totals({ tab, rows, all }: { tab: MTab; rows: Row[]; all: Row[] }) {
     cards.push({ label: "Annual", value: String(live.filter((r) => r.frequency === "Annual").length), icon: IconCalendar, note: "billed once a year" });
   } else if (tab.key === "ebooks") {
     // Only payments that went through count as money in; failed ones are counted apart.
-    const paid = rows.filter((r) => r.status === "Paid");
-    const paidMonth = inMonth.filter((r) => r.status === "Paid");
-    cards.push({ label: "Sales", value: inr(sum(paid)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time, paid only" : "matching the filters" });
+    // ₹1 test payments (the test page) are left out of every total.
+    const real = (r: Row) => (Number(r.amount) || 0) >= 10;
+    const paid = rows.filter((r) => r.status === "Paid" && real(r));
+    const paidMonth = inMonth.filter((r) => r.status === "Paid" && real(r));
+    cards.push({ label: "Sales", value: inr(sum(paid)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time, paid only, ₹1 tests left out" : "matching the filters" });
     cards.push({ label: "This month", value: inr(sum(paidMonth)), icon: IconCalendar, note: `${paidMonth.length} paid ${paidMonth.length === 1 ? tab.noun : tab.nounPlural}` });
     cards.push({ label: "Paid orders", value: String(paid.length), icon: IconListNumbers });
-    cards.push({ label: "Failed payments", value: String(rows.filter((r) => r.status === "Failed").length), icon: IconAlertTriangle, note: "retry link sent" });
+    cards.push({ label: "Failed payments", value: String(rows.filter((r) => r.status === "Failed" && real(r)).length), icon: IconAlertTriangle, note: "retry link sent" });
   } else if (tab.money) {
     cards.push({ label: "Total", value: inr(sum(rows)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time" : "matching the filters" });
     if (tab.date) cards.push({ label: "This month", value: inr(sum(inMonth)), icon: IconCalendar, note: `${inMonth.length} ${inMonth.length === 1 ? tab.noun : tab.nounPlural}` });
