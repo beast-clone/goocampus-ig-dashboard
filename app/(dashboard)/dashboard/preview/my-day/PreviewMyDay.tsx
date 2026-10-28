@@ -566,9 +566,9 @@ function CreativesSection({ creatives, outputLink, postId, uploadedBy, onSaved, 
             onRemove: f.attId ? (why) => remove(f.attId!, why) : undefined };
         })}
         pending={q.pending} onDismiss={q.dismiss}
-        onRemoveAll={async (why) => {
+        onRemoveAll={async (why, keys) => {
           let failed = 0;
-          for (const c of creatives) if (c.attId && !(await removeTaskFile(c.attId, why)).ok) failed++;
+          for (const c of creatives) if (c.attId && keys.includes(c.attId) && !(await removeTaskFile(c.attId, why)).ok) failed++;
           showToast(failed ? { who: `${failed} file${failed === 1 ? "" : "s"} couldn't be removed`, body: "Try those again one by one.", color: "#C03221", av: "!" }
             : { who: "All files moved to the Recycle bin", body: "They can be restored from System → Recycle bin.", color: "#3A57E8", av: "✓" });
           onSaved();

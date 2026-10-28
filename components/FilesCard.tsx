@@ -70,8 +70,9 @@ export function FilesCard({
   askWhy?: boolean;
   /** File name for "Download all" (without .zip); defaults to the card's title. */
   zipName?: string;
-  /** Turns on "Delete all": gets the reason (when askWhy) and removes every file. */
-  onRemoveAll?: (reason?: string) => Promise<void> | void;
+  /** Turns on "Delete all": gets the reason (when askWhy) and the keys of the tiles to
+   *  remove — every file, or one group (the video slides or the picture slides). */
+  onRemoveAll?: (reason: string | undefined, keys: string[]) => Promise<void> | void;
 }) {
   const [url, setUrl] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
@@ -204,19 +205,25 @@ export function FilesCard({
   // files go to the Recycle bin.
   const [clearing, setClearing] = useState(false);
   const removable = shown.filter((t) => t.onRemove);
-  const removeAll = async () => {
+  const removeAll = async (list: FileTile[] = removable, what = "files") => {
     if (!onRemoveAll || clearing) return;
-    const n = removable.length;
-    const body = `All ${n} files go to the Recycle bin, where they can be restored.`;
+    const keys = list.filter((t) => t.onRemove).map((t) => t.key);
+    const n = keys.length;
+    if (!n) return;
+    const title = `Delete all ${n} ${what}?`;
+    const body = `They go to the Recycle bin, where they can be restored.`;
     let why: string | undefined;
     if (askWhy) {
-      const r = await promptDialog({ title: `Delete all ${n} files?`, body, action: "Delete all", danger: true, required: true, label: "Why are you deleting them?", placeholder: "e.g. Wrong versions — uploading the corrected set" });
+      const r = await promptDialog({ title, body, action: "Delete all", danger: true, required: true, label: "Why are you deleting them?", placeholder: "e.g. Wrong versions — uploading the corrected set" });
       if (!r || !r.trim()) return;
       why = r.trim();
-    } else if (!await confirmDialog({ title: `Delete all ${n} files?`, body, action: "Delete all", cancel: "Cancel", danger: true })) return;
+    } else if (!await confirmDialog({ title, body, action: "Delete all", cancel: "Cancel", danger: true })) return;
     setClearing(true);
-    try { await onRemoveAll(why); } finally { setClearing(false); }
+    try { await onRemoveAll(why, keys); } finally { setClearing(false); }
   };
+  const groupDelete = (list: FileTile[], what: string) => onRemoveAll && list.filter((t) => t.onRemove).length > 1 && (
+    <button type="button" className="gcf-secdel" onClick={() => void removeAll(list, what)} disabled={clearing}>{clearing ? "Deleting…" : `Delete these ${list.length}`}</button>
+  );
   const pdfs = splitPdf ? shown.filter((t) => t.kind === "pdf") : [];
   const slides = splitPdf ? shown.filter((t) => t.kind !== "pdf") : shown;
   const slideCount = slides.length;
@@ -232,8 +239,8 @@ export function FilesCard({
   const picSlides = slides.filter((t) => t.kind !== "video");
   const mixed = !!splitPdf && vidSlides.length > 0 && picSlides.length > 0;
   const groups: { head: React.ReactNode; items: FileTile[] }[] = mixed ? [
-    { items: vidSlides, head: <div className="gcf-sec"><b>Video slides</b><span className="gcf-cnt">· {vidSlides.length}</span><span className="gcf-chip ig">For Instagram</span><span className="gcf-ds">the Instagram carousel</span></div> },
-    { items: picSlides, head: <div className="gcf-sec"><b>Picture slides</b><span className="gcf-cnt">· {picSlides.length}</span><span className="gcf-chip">For Facebook</span><span className="gcf-ds">Facebook can&apos;t take the video slides, so it gets these</span></div> },
+    { items: vidSlides, head: <div className="gcf-sec"><b>Video slides</b><span className="gcf-cnt">· {vidSlides.length}</span><span className="gcf-chip ig">For Instagram</span><span className="gcf-ds">the Instagram carousel</span>{groupDelete(vidSlides, "video slides")}</div> },
+    { items: picSlides, head: <div className="gcf-sec"><b>Picture slides</b><span className="gcf-cnt">· {picSlides.length}</span><span className="gcf-chip">For Facebook</span><span className="gcf-ds">Facebook can&apos;t take the video slides, so it gets these</span>{groupDelete(picSlides, "picture slides")}</div> },
   ] : [{ items: slides, head: null }];
   const tile = (t: FileTile, no: number | null) => {
               const inner = t.kind === "pdf" && t.url
@@ -398,6 +405,9 @@ html[data-theme="dark"] .gcf-chip.li{background:rgba(10,102,194,.22);color:#7FB6
 .gcf-dl:hover{background:var(--brand)}
 .gcf-btn-next{margin-left:.4rem}
 .gcf-btn-del{color:#C03221}
+.gcf-secdel{margin-left:auto;background:none;border:none;padding:0;font-size:12px;font-weight:500;color:#C03221;cursor:pointer}
+.gcf-secdel:hover{text-decoration:underline}
+.gcf-secdel:disabled{opacity:.6;cursor:progress}
 .gcf-btn-del:hover{border-color:#C03221}
 .gcf-btn:disabled{opacity:.7;cursor:progress}
 .gcf-tile[data-movable]{cursor:grab;touch-action:none;user-select:none}

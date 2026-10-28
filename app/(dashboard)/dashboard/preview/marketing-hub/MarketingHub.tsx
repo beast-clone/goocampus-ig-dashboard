@@ -4980,9 +4980,9 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                         onRemove: c.removable && c.id ? (why) => removeCreative(c.id!, why) : undefined };
                     })}
                     pending={qCre.pending} onDismiss={qCre.dismiss}
-                    onRemoveAll={async (why) => {
+                    onRemoveAll={async (why, keys) => {
                       let failed = 0;
-                      for (const c of creatives) if (c.removable && c.id && !(await removeTaskFile(c.id, why)).ok) failed++;
+                      for (const c of creatives) if (c.removable && c.id && keys.includes(c.id) && !(await removeTaskFile(c.id, why)).ok) failed++;
                       if (failed) setFailure({ kind: "error", message: `${failed} file${failed === 1 ? "" : "s"} couldn't be removed — try those one by one` });
                       await loadDetail();
                     }}
