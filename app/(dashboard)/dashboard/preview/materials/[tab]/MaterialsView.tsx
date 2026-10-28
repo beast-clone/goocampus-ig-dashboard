@@ -92,7 +92,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
 
   // Choices for a select / multi field: the configured ones plus every value used.
   const optionsFor = (f: MField): string[] => {
-    const seen = new Set([...(f.options || []), ...(tab.key === "ebooks" && f.key === "ebook" ? titles : [])]);
+    // eBooks: the saved list (removed ones left out) once it's loaded.
+    const seen = new Set(tab.key === "ebooks" && f.key === "ebook" && titles.length ? titles : f.options || []);
     for (const r of rows || []) { const v = r[f.key]; (Array.isArray(v) ? v : [v]).forEach((x) => { if (typeof x === "string" && x.trim()) seen.add(x.trim()); }); }
     return [...seen].sort((a, b) => a.localeCompare(b));
   };
@@ -149,7 +150,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
       {() => (
         <div className="preview-scope space-y-4">
           {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <div className={tab.key === "ebooks" ? "flex gap-4 items-start" : ""}>
-            {tab.key === "ebooks" && <EbookColumn names={optionsFor(tab.fields.find((f) => f.key === "ebook")!)} rows={rows} value={filters.ebook || ""} onPick={(v) => setFilters((s) => ({ ...s, ebook: v }))} onAdded={(t, name) => { setTitles(t); setFilters((s) => ({ ...s, ebook: name })); }} />}
+            {tab.key === "ebooks" && <EbookColumn names={optionsFor(tab.fields.find((f) => f.key === "ebook")!)} rows={rows} value={filters.ebook || ""} onPick={(v) => setFilters((s) => ({ ...s, ebook: v }))} onAdded={(t, name) => { setTitles(t); setFilters((s) => ({ ...s, ebook: name })); }}
+              onRemoved={(t, name) => { setTitles(t); setFilters((s) => (s.ebook === name ? { ...s, ebook: "" } : s)); }} />}
             <div className={tab.key === "ebooks" ? "flex-1 min-w-0 space-y-4" : "space-y-4"}>
             <Totals tab={tab} rows={list} all={rows} />
             {openRow ? <FolderView tab={tab} row={openRow} onBack={() => setOpenId(null)} onEdit={() => setEditing(openRow)} onSaved={upsert} /> :
@@ -270,7 +272,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
 
 // eBook Orders: every eBook down the left, Scheduler-style; a click shows only its
 // orders. The count is paid orders (₹1 tests left out, same as the cards).
-function EbookColumn({ names, rows, value, onPick, onAdded }: { names: string[]; rows: Row[]; value: string; onPick: (v: string) => void; onAdded: (titles: string[], name: string) => void }) {
+function EbookColumn({ names, rows, value, onPick, onAdded, onRemoved }: { names: string[]; rows: Row[]; value: string; onPick: (v: string) => void; onAdded: (titles: string[], name: string) => void; onRemoved: (titles: string[], name: string) => void }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -286,15 +288,37 @@ function EbookColumn({ names, rows, value, onPick, onAdded }: { names: string[];
     showToast({ who: "eBook added", body: name.trim(), av: "✓" });
     setName(""); setAdding(false);
   };
+  // Only an eBook with no orders at all (paid or failed) can go; Undo brings it back.
+  const remove = async (n: string) => {
+    if (!(await confirmDialog({ title: `Remove ${n}?`, body: "It has no orders. It leaves this list and the order form; you can undo.", action: "Remove", danger: true }))) return;
+    const call = (method: "POST" | "DELETE") => fetch("/api/materials/ebooks/titles", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: n }) })
+      .then(async (r) => ({ ok: r.ok, j: (await r.json().catch(() => ({}))) as { titles?: string[]; error?: string } })).catch(() => ({ ok: false, j: {} as { titles?: string[]; error?: string } }));
+    const { ok, j } = await call("DELETE");
+    if (!ok) { showToast({ who: "Couldn't remove", body: j.error || n }); return; }
+    onRemoved(j.titles || [], n);
+    showToast({ who: "eBook removed", body: n, av: "✓", action: "Undo", onOpen: async () => {
+      const back = await call("POST");
+      if (back.ok) onAdded(back.j.titles || [], n);
+    } });
+  };
   const paid = (name: string) => rows.filter((r) => (!name || r.ebook === name) && r.status === "Paid" && (Number(r.amount) || 0) >= 10).length;
   const item = (v: string, label: string) => {
     const on = value === v; const n = paid(v);
+    const removable = !!v && !rows.some((r) => r.ebook === v);
     return (
-      <button key={v || "all"} type="button" onClick={() => onPick(v)} aria-pressed={on}
-        className={`w-full flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] text-left ${on ? "bg-brand-light text-[#2138B0] font-medium" : n ? "text-[#232D42] hover:bg-[#F6F7FB]" : "text-[#8A92A6] hover:bg-[#F6F7FB]"}`}>
-        <span className="flex-1 truncate">{label}</span>
-        <span className={`text-[11px] rounded-full px-1.5 ${on ? "bg-white text-[#2138B0]" : "bg-[#F0F2F8] text-[#8A92A6]"}`}>{n}</span>
-      </button>
+      <div key={v || "all"} className="group relative">
+        <button type="button" onClick={() => onPick(v)} aria-pressed={on}
+          className={`w-full flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] text-left ${on ? "bg-brand-light text-[#2138B0] font-medium" : n ? "text-[#232D42] hover:bg-[#F6F7FB]" : "text-[#8A92A6] hover:bg-[#F6F7FB]"}`}>
+          <span className="flex-1 truncate">{label}</span>
+          <span className={`text-[11px] rounded-full px-1.5 ${removable ? "group-hover:invisible" : ""} ${on ? "bg-white text-[#2138B0]" : "bg-[#F0F2F8] text-[#8A92A6]"}`}>{n}</span>
+        </button>
+        {removable && (
+          <button type="button" onClick={() => void remove(v)} aria-label={`Remove ${v}`} title={`Remove ${v}`}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md grid place-items-center text-[#8A92A6] hover:text-[#C03221] hover:bg-white invisible group-hover:visible focus:visible">
+            <IconTrash size={14} stroke={1.8} />
+          </button>
+        )}
+      </div>
     );
   };
   return (

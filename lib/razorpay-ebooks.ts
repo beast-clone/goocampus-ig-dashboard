@@ -29,27 +29,49 @@ const STATUS: Record<string, string> = { captured: "Paid", refunded: "Refunded",
 const MODE: Record<string, string> = { upi: "UPI", card: "Card", netbanking: "Netbanking", wallet: "Wallet", emi: "EMI" };
 
 // eBooks added on the page (28 Oct) live in mh_settings "ebookTitles"; the built-in
-// nine come from the tab's field options.
+// nine come from the tab's field options. Removed ones (only possible with no orders)
+// are kept in "ebookHidden" so a built-in one stays gone.
 const BUILT_IN = MTABS.find((t) => t.key === "ebooks")!.fields.find((f) => f.key === "ebook")!.options || [];
-async function addedTitles(): Promise<string[]> {
+async function listSetting(key: string): Promise<string[]> {
   const sb = getSupabase();
   if (!sb) return [];
-  const { data } = await sb.from("mh_settings").select("value").eq("key", "ebookTitles").maybeSingle();
+  const { data } = await sb.from("mh_settings").select("value").eq("key", key).maybeSingle();
   return Array.isArray(data?.value) ? (data!.value as unknown[]).filter((x): x is string => typeof x === "string") : [];
 }
+async function saveSetting(key: string, value: string[], by: string | null) {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Database not configured");
+  const { error } = await sb.from("mh_settings").upsert({ key, value, updated_at: new Date().toISOString(), updated_by: by });
+  if (error) throw new Error(error.message);
+}
+const addedTitles = () => listSetting("ebookTitles");
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
 export async function ebookTitles(): Promise<string[]> {
-  return [...new Set([...BUILT_IN, ...(await addedTitles())])];
+  const [added, hidden] = await Promise.all([addedTitles(), listSetting("ebookHidden")]);
+  return [...new Set([...BUILT_IN, ...added])].filter((t) => !hidden.some((h) => same(h, t)));
 }
 export async function addEbookTitle(raw: string, by: string | null): Promise<string[]> {
   const name = raw.replace(/\s+/g, " ").trim();
   if (name.length < 2 || name.length > 60) throw new Error("Give the eBook a name (2–60 letters).");
-  const all = await ebookTitles();
-  if (all.some((t) => t.toLowerCase() === name.toLowerCase())) throw new Error(`"${name}" is already in the list.`);
+  if ((await ebookTitles()).some((t) => same(t, name))) throw new Error(`"${name}" is already in the list.`);
+  const hidden = await listSetting("ebookHidden");
+  if (hidden.some((h) => same(h, name))) await saveSetting("ebookHidden", hidden.filter((h) => !same(h, name)), by);  // bringing one back
+  if (!BUILT_IN.some((t) => same(t, name))) {
+    const added = await addedTitles();
+    if (!added.some((t) => same(t, name))) await saveSetting("ebookTitles", [...added, name], by);
+  }
+  return ebookTitles();
+}
+export async function removeEbookTitle(name: string, by: string | null): Promise<string[]> {
   const sb = getSupabase();
   if (!sb) throw new Error("Database not configured");
-  const { error } = await sb.from("mh_settings").upsert({ key: "ebookTitles", value: [...(await addedTitles()), name], updated_at: new Date().toISOString(), updated_by: by });
+  const { count, error } = await sb.from("mm_ebook_orders").select("id", { count: "exact", head: true }).eq("ebook", name).is("deleted_at", null);
   if (error) throw new Error(error.message);
-  return [...all, name];
+  if (count) throw new Error(`"${name}" has ${count} order${count === 1 ? "" : "s"}, so it can't be removed.`);
+  const hidden = await listSetting("ebookHidden");
+  if (!hidden.some((h) => same(h, name))) await saveSetting("ebookHidden", [...hidden, name], by);
+  return ebookTitles();
 }
 
 function ebookOf(p: Payment, added: string[]): string | null {

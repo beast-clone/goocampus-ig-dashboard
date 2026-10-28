@@ -3,10 +3,11 @@ import { safeError } from "@/lib/errors";
 import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
 import { canSeeTab } from "@/lib/permissions";
-import { ebookTitles, addEbookTitle } from "@/lib/razorpay-ebooks";
+import { ebookTitles, addEbookTitle, removeEbookTitle } from "@/lib/razorpay-ebooks";
 
 // GET /api/materials/ebooks/titles → every eBook (built-in + added on the page).
-// POST { name } → add a new eBook. Same switch as the eBook Orders tab.
+// POST { name } → add a new eBook (or bring a removed one back).
+// DELETE { name } → remove an eBook that has no orders. Same switch as the eBook Orders tab.
 export const dynamic = "force-dynamic";
 
 async function guard(tab: string) {
@@ -30,5 +31,16 @@ export async function POST(req: Request, { params }: { params: { tab: string } }
     return NextResponse.json({ titles: await addEbookTitle(String(name || ""), getSessionUserId()) });
   } catch (err) {
     return NextResponse.json(safeError(err, "Couldn't add the eBook"), { status: 400 });
+  }
+}
+
+export async function DELETE(req: Request, { params }: { params: { tab: string } }) {
+  const no = await guard(params.tab);
+  if (no) return no;
+  try {
+    const { name } = (await req.json()) as { name?: string };
+    return NextResponse.json({ titles: await removeEbookTitle(String(name || ""), getSessionUserId()) });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Couldn't remove the eBook"), { status: 400 });
   }
 }
