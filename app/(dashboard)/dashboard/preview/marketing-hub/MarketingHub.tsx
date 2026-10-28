@@ -1737,8 +1737,18 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
   }, [filterKey]);
   useEffect(() => {
     if (!calReady) return;
-    try { localStorage.setItem(filterKey, JSON.stringify({ brands: brandSel, statuses: statusSel, channel: channelPick })); } catch { /* private mode */ }
+    try {
+      localStorage.setItem(filterKey, JSON.stringify({ brands: brandSel, statuses: statusSel, channel: channelPick }));
+      // Each account keeps its own SBU picks, so going to another calendar and back
+      // doesn't tick every SBU again (Praveen, 28 Oct).
+      const by = JSON.parse(localStorage.getItem(`${filterKey}:sbus`) || "{}");
+      localStorage.setItem(`${filterKey}:sbus`, JSON.stringify({ ...(by && typeof by === "object" ? by : {}), [channelPick]: brandSel }));
+    } catch { /* private mode */ }
   }, [calReady, brandSel, statusSel, channelPick, filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sbusFor = (ch: CalChannel): string[] => {
+    try { const v = JSON.parse(localStorage.getItem(`${filterKey}:sbus`) || "{}")?.[ch]; return Array.isArray(v) ? v.filter((x: unknown) => typeof x === "string") : []; }
+    catch { return []; }
+  };
   const channel: CalChannel = worldOnly ? "goocampusworld" : channelPick;
   const [createDate, setCreateDate] = useState<string | null>(null); // the + on a date
   // A day showing every task instead of the first four. Creating a task on a busy
@@ -1932,7 +1942,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
     {/* An old "Mentorship calendar" link (?channel=goocampusworld) still opens its
         locked view; everywhere else the rail of views replaces separate calendars. */}
     {!worldOnly && <CalendarViewsRail rows={rows} current={{ channel, brands: brandSel, statuses: statusSel }}
-      apply={(c) => { setChannel(c.channel); setBrandSel(c.brands); setStatusSel(c.statuses); }} />}
+      apply={(c) => { setChannel(c.channel); setBrandSel(c.brands); setStatusSel(c.statuses); }} sbusFor={sbusFor} />}
     <div className="mhcal flex-1 min-w-0">
       <style dangerouslySetInnerHTML={{ __html: MHCAL_CSS }} />
 
@@ -1943,7 +1953,7 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
         <div className="mhcal-tc-right">
           {!worldOnly && (
             <div style={{ width: 190 }}>
-              <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setBrandSel([]); }} options={CAL_CHANNELS} />
+              <PreviewSelect value={channel} onChange={(v) => { setChannel(v as CalChannel); setBrandSel(sbusFor(v as CalChannel)); }} options={CAL_CHANNELS} />
             </div>
           )}
           <div style={{ width: 240 }}>
@@ -1951,7 +1961,9 @@ export function CalendarView({ rows, facets, onOpen, onSaved, loading }: { rows:
                 All, so a pick can never land on an empty calendar — which is what the old
                 single-select guarded against by switching accounts for you. */}
             <MultiPick label="SBUs" selected={brandSel} total={channelRows.length}
-              onChange={(next) => { setBrandSel(next); if (next.length && !worldOnly) setChannel("all"); }}
+              // Stays on the account unless every SBU picked belongs to another one
+              // (that would leave an empty calendar).
+              onChange={(next) => { setBrandSel(next); if (next.length && !worldOnly && channel !== "all" && !next.some((b) => channelOfSbu(b) === channel)) setChannel("all"); }}
               options={Array.from(new Set([...allSbus, ...sbus])).filter((x) => !worldOnly || channelOfSbu(x) === "goocampusworld").sort((a, b) => a.localeCompare(b))
                 .map((x) => ({ value: x, count: channelRows.filter((r) => r.sbu === x).length }))} />
           </div>
@@ -2242,7 +2254,7 @@ function NewCalViewDialog({ rows, initial, onClose, onSave }: {
   );
 }
 
-function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: CalFilters; apply: (f: CalFilters) => void }) {
+function CalendarViewsRail({ rows, current, apply, sbusFor }: { rows: Row[]; current: CalFilters; apply: (f: CalFilters) => void; sbusFor: (ch: CalChannel) => string[] }) {
   const { data, refresh } = useApi<{ views: SavedView[]; me: string | null }>("/api/marketing-hub/views");
   const me = data?.me ?? null;
   // Newest first — a view you just made lands at the top, not under the others (Praveen, 26 Oct).
@@ -2297,9 +2309,10 @@ function CalendarViewsRail({ rows, current, apply }: { rows: Row[]; current: Cal
   const Item = ({ id, label, f, color }: { id: string; label: string; f: CalFilters; color: string }) => {
     const on = active === id;
     return (
-      // All tasks / an account only switch the account; the statuses you picked stay
-      // ("when I change the calendar it's coming back to the old filters", 28 Oct).
-      <button onClick={() => choose(id, { ...f, statuses: current.statuses })}
+      // All tasks / an account switch the account and bring back that account's own
+      // SBU picks; the statuses you picked stay ("when I change the calendar it's
+      // coming back to the old filters", 28 Oct).
+      <button onClick={() => choose(id, { ...f, brands: sbusFor(f.channel), statuses: current.statuses })}
         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition ${on ? "bg-brand-light text-brand font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
         <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
         <span className="truncate flex-1 text-left">{label}</span>
