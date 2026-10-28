@@ -15,7 +15,7 @@ const call = async (method, url) => H.httpRequest({ method: method, url: url, js
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const isVid = (u) => { const s = String(u||'').toLowerCase(); return s.indexOf('.mp4')>-1 || s.indexOf('.mov')>-1 || s.indexOf('.webm')>-1; };
 const E = encodeURIComponent;
-const fingerprint = (r) => { const c = r.custom || {}; return JSON.stringify([r.media_urls || [], r.caption || '', c.caption_fb || '', c.cover_url || '', r.collaborators || [], c.publish_format || 'reel', c.channels || [], r.publish_to_pages || []]); };
+const fingerprint = (r) => { const c = r.custom || {}; const a = [r.media_urls || [], r.caption || '', c.caption_fb || '', c.cover_url || '', r.collaborators || [], c.publish_format || 'reel', c.channels || [], r.publish_to_pages || []]; if (Array.isArray(c.media_fb) && c.media_fb.length) a.push(c.media_fb); return JSON.stringify(a); };
 for (const it of $input.all()) {
   const r = it.json;
   const out = { rowId: r.id, ig_url: null, fb_url: null, failure: null, publishStatus: 'failed' };
@@ -55,6 +55,10 @@ for (const it of $input.all()) {
     const ch = (r.custom && Array.isArray(r.custom.channels) && r.custom.channels.length) ? r.custom.channels : ['instagram','facebook'];
     const wantIg = ch.indexOf('instagram') > -1, wantFb = ch.indexOf('facebook') > -1;
     const fbCaption = (r.custom && r.custom.caption_fb) ? String(r.custom.caption_fb) : caption;
+    // Facebook's own set (custom.media_fb, 28 Oct): the pictures when the Instagram set is
+    // video slides, or a picture carousel, posted as ONE multi-photo post. Without it, as before.
+    const fbMedia = (r.custom && Array.isArray(r.custom.media_fb) && r.custom.media_fb.filter(Boolean).length) ? r.custom.media_fb.filter(Boolean) : media;
+    const multiFb = fbMedia !== media && fbMedia.length > 1 && !wantStory && !fbMedia.some(isVid);
     const collabList = (Array.isArray(r.collaborators) ? r.collaborators : [])
       .map(function (x) { return String(x || '').trim().replace(/^@+/, ''); })
       .filter(Boolean).slice(0, 3);
@@ -131,13 +135,20 @@ for (const it of $input.all()) {
       if (cust.fb_done[pn]) { fbUrls.push(cust.fb_done[pn]); continue; }
       const pg = pageByName[pn]; if (!pg) continue; const ptok = pg.access_token;
       const fp = fbPrep[pn] || {};
-      if (isVid(media[0]) && wantReel) {
+      if (multiFb) {
+        let ids = (Array.isArray(fp.photos) && fp.photos.length === fbMedia.length) ? fp.photos : null;
+        if (!ids) { ids = []; for (const m of fbMedia) { const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(m) + '&published=false&access_token=' + ptok); if (!ph || !ph.id) throw new Error('facebook: a picture did not upload'); ids.push(ph.id); } }
+        const fd = await call('POST', GRAPH + '/' + pg.id + '/feed?message=' + E(fbCaption) + '&attached_media=' + E(JSON.stringify(ids.map(function (i) { return { media_fbid: i }; }))) + '&access_token=' + ptok);
+        const pid = (fd && fd.id) || ''; if (pid) { const u = 'https://www.facebook.com/' + pid; cust.fb_done[pn] = u; fbUrls.push(u); }
+        continue;
+      }
+      if (isVid(fbMedia[0]) && wantReel) {
         let vid = cust.fb_ids[pn] || fp.vid || null;
         if (!vid) {
           const st = await call('POST', GRAPH + '/' + pg.id + '/video_reels?upload_phase=start&access_token=' + ptok);
           vid = st && st.video_id; if (!vid) throw new Error('facebook reel: no video_id from start');
           const upUrl = (st.upload_url && String(st.upload_url).indexOf('/v') > -1) ? st.upload_url : ('https://rupload.facebook.com/video-upload/v23.0/' + vid);
-          await H.httpRequest({ method: 'POST', url: upUrl, headers: { Authorization: 'OAuth ' + ptok, file_url: media[0] }, json: true });
+          await H.httpRequest({ method: 'POST', url: upUrl, headers: { Authorization: 'OAuth ' + ptok, file_url: fbMedia[0] }, json: true });
         }
         cust.fb_ids[pn] = vid;
         if (r.custom && r.custom.cover_url && !(fp.vid === vid && fp.cover)) {
@@ -159,13 +170,13 @@ for (const it of $input.all()) {
         fbUrls.push(reelUrl);
       }
       else if (wantStory) {
-        if (isVid(media[0])) {
+        if (isVid(fbMedia[0])) {
           let vid = cust.fb_ids[pn] || fp.vid || null;
           if (!vid) {
             const st = await call('POST', GRAPH + '/' + pg.id + '/video_stories?upload_phase=start&access_token=' + ptok);
             vid = st && st.video_id; if (!vid) throw new Error('facebook story: no video_id from start');
             const upUrl = (st.upload_url && String(st.upload_url).indexOf('/v') > -1) ? st.upload_url : ('https://rupload.facebook.com/video-upload/v23.0/' + vid);
-            await H.httpRequest({ method: 'POST', url: upUrl, headers: { Authorization: 'OAuth ' + ptok, file_url: media[0] }, json: true });
+            await H.httpRequest({ method: 'POST', url: upUrl, headers: { Authorization: 'OAuth ' + ptok, file_url: fbMedia[0] }, json: true });
           }
           cust.fb_ids[pn] = vid;
           const fin = await call('POST', GRAPH + '/' + pg.id + '/video_stories?upload_phase=finish&video_id=' + vid + '&access_token=' + ptok);
@@ -174,7 +185,7 @@ for (const it of $input.all()) {
           fbUrls.push(sUrl);
         } else {
           let pid = fp.photo || null;
-          if (!pid) { const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(media[0]) + '&published=false&access_token=' + ptok); pid = ph && ph.id; }
+          if (!pid) { const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(fbMedia[0]) + '&published=false&access_token=' + ptok); pid = ph && ph.id; }
           if (!pid) throw new Error('facebook story: no photo id');
           const st = await call('POST', GRAPH + '/' + pg.id + '/photo_stories?photo_id=' + pid + '&access_token=' + ptok);
           const sUrl = (st && st.post_id) ? ('https://www.facebook.com/' + st.post_id) : 'https://www.facebook.com/' + pg.id;
@@ -182,8 +193,8 @@ for (const it of $input.all()) {
           fbUrls.push(sUrl);
         }
       }
-      else if (isVid(media[0])) {
-        const v = await call('POST', GRAPH + '/' + pg.id + '/videos?file_url=' + E(media[0]) + '&description=' + E(fbCaption) + '&access_token=' + ptok);
+      else if (isVid(fbMedia[0])) {
+        const v = await call('POST', GRAPH + '/' + pg.id + '/videos?file_url=' + E(fbMedia[0]) + '&description=' + E(fbCaption) + '&access_token=' + ptok);
         if (v && v.id) { const u = 'https://www.facebook.com/' + v.id; cust.fb_done[pn] = u; fbUrls.push(u); }
       }
       else if (fp.photo) {
@@ -192,7 +203,7 @@ for (const it of $input.all()) {
         const pid = (fd && fd.id) || ''; if (pid) { const u = 'https://www.facebook.com/' + pid; cust.fb_done[pn] = u; fbUrls.push(u); }
       }
       else {
-        const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(media[0]) + '&caption=' + E(fbCaption) + '&access_token=' + ptok);
+        const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(fbMedia[0]) + '&caption=' + E(fbCaption) + '&access_token=' + ptok);
         const pid = (ph && (ph.post_id || ph.id)) || ''; if (pid) { const u = 'https://www.facebook.com/' + pid; cust.fb_done[pn] = u; fbUrls.push(u); }
       }
     }

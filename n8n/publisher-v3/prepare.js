@@ -20,7 +20,7 @@ const H = this.helpers;
 const call = async (method, url) => H.httpRequest({ method: method, url: url, json: true });
 const isVid = (u) => { const s = String(u||'').toLowerCase(); return s.indexOf('.mp4')>-1 || s.indexOf('.mov')>-1 || s.indexOf('.webm')>-1; };
 const E = encodeURIComponent;
-const fingerprint = (r) => { const c = r.custom || {}; return JSON.stringify([r.media_urls || [], r.caption || '', c.caption_fb || '', c.cover_url || '', r.collaborators || [], c.publish_format || 'reel', c.channels || [], r.publish_to_pages || []]); };
+const fingerprint = (r) => { const c = r.custom || {}; const a = [r.media_urls || [], r.caption || '', c.caption_fb || '', c.cover_url || '', r.collaborators || [], c.publish_format || 'reel', c.channels || [], r.publish_to_pages || []]; if (Array.isArray(c.media_fb) && c.media_fb.length) a.push(c.media_fb); return JSON.stringify(a); };
 let runStart = Date.now();
 try { const ts = $('Every Minute').first().json.timestamp; if (ts) runStart = new Date(ts).getTime(); } catch (e) {}
 
@@ -45,6 +45,8 @@ for (const it of $input.all()) {
     const wantReel = fmt === 'reel', wantStory = fmt === 'story';
     const ch = (Array.isArray(c.channels) && c.channels.length) ? c.channels : ['instagram','facebook'];
     const wantIg = ch.indexOf('instagram') > -1, wantFb = ch.indexOf('facebook') > -1;
+    const fbMedia = (Array.isArray(c.media_fb) && c.media_fb.filter(Boolean).length) ? c.media_fb.filter(Boolean) : media;
+    const multiFb = fbMedia !== media && fbMedia.length > 1 && !wantStory && !fbMedia.some(isVid);
     const collabList = (Array.isArray(r.collaborators) ? r.collaborators : []).map(function (x) { return String(x || '').trim().replace(/^@+/, ''); }).filter(Boolean).slice(0, 3);
     const collabParam = (collabList.length && !wantStory) ? ('&collaborators=' + E(JSON.stringify(collabList))) : '';
 
@@ -90,12 +92,19 @@ for (const it of $input.all()) {
       for (const pn of dest.fbPages) {
         if (p.fb[pn] || (c.fb_done && c.fb_done[pn])) continue;
         const pg = pageByName[pn]; if (!pg) continue; const ptok = pg.access_token;
-        if (isVid(media[0]) && (wantReel || wantStory)) {
+        if (multiFb) {
+          // Every picture goes up unpublished now; the post at the time attaches them all.
+          const ids = [];
+          for (const m of fbMedia) { const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(m) + '&published=false&access_token=' + ptok); if (ph && ph.id) ids.push(ph.id); }
+          if (ids.length === fbMedia.length) p.fb[pn] = { photos: ids };
+          continue;
+        }
+        if (isVid(fbMedia[0]) && (wantReel || wantStory)) {
           const edge = wantStory ? 'video_stories' : 'video_reels';
           const st = await call('POST', GRAPH + '/' + pg.id + '/' + edge + '?upload_phase=start&access_token=' + ptok);
           const vid = st && st.video_id; if (!vid) throw new Error('facebook: no video_id from start');
           const upUrl = (st.upload_url && String(st.upload_url).indexOf('/v') > -1) ? st.upload_url : ('https://rupload.facebook.com/video-upload/v23.0/' + vid);
-          await H.httpRequest({ method: 'POST', url: upUrl, headers: { Authorization: 'OAuth ' + ptok, file_url: media[0] }, json: true });
+          await H.httpRequest({ method: 'POST', url: upUrl, headers: { Authorization: 'OAuth ' + ptok, file_url: fbMedia[0] }, json: true });
           const entry = { vid: vid, cover: false };
           if (wantReel && c.cover_url) {
             try {
@@ -108,9 +117,9 @@ for (const it of $input.all()) {
             } catch (e) { /* the publish step tries the cover again */ }
           }
           p.fb[pn] = entry;
-        } else if (!isVid(media[0])) {
+        } else if (!isVid(fbMedia[0])) {
           // Photo post or photo story: the photo goes up unpublished now.
-          const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(media[0]) + '&published=false&access_token=' + ptok);
+          const ph = await call('POST', GRAPH + '/' + pg.id + '/photos?url=' + E(fbMedia[0]) + '&published=false&access_token=' + ptok);
           if (ph && ph.id) p.fb[pn] = { photo: ph.id };
         }
       }
