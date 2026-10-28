@@ -83,10 +83,16 @@ export function MaterialsView({ tab }: { tab: MTab }) {
     setError(null); setRows((j as { rows: Row[] }).rows);
   };
   useEffect(() => { void load(); }, [tab.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eBook Orders: the eBook list, including ones added on this page.
+  const [titles, setTitles] = useState<string[]>([]);
+  useEffect(() => {
+    if (tab.key !== "ebooks") return;
+    fetch("/api/materials/ebooks/titles").then((r) => r.json()).then((j: { titles?: string[] }) => setTitles(j.titles || [])).catch(() => {});
+  }, [tab.key]);
 
   // Choices for a select / multi field: the configured ones plus every value used.
   const optionsFor = (f: MField): string[] => {
-    const seen = new Set(f.options || []);
+    const seen = new Set([...(f.options || []), ...(tab.key === "ebooks" && f.key === "ebook" ? titles : [])]);
     for (const r of rows || []) { const v = r[f.key]; (Array.isArray(v) ? v : [v]).forEach((x) => { if (typeof x === "string" && x.trim()) seen.add(x.trim()); }); }
     return [...seen].sort((a, b) => a.localeCompare(b));
   };
@@ -143,7 +149,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
       {() => (
         <div className="preview-scope space-y-4">
           {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <div className={tab.key === "ebooks" ? "flex gap-4 items-start" : ""}>
-            {tab.key === "ebooks" && <EbookColumn names={optionsFor(tab.fields.find((f) => f.key === "ebook")!)} rows={rows} value={filters.ebook || ""} onPick={(v) => setFilters((s) => ({ ...s, ebook: v }))} />}
+            {tab.key === "ebooks" && <EbookColumn names={optionsFor(tab.fields.find((f) => f.key === "ebook")!)} rows={rows} value={filters.ebook || ""} onPick={(v) => setFilters((s) => ({ ...s, ebook: v }))} onAdded={(t, name) => { setTitles(t); setFilters((s) => ({ ...s, ebook: name })); }} />}
             <div className={tab.key === "ebooks" ? "flex-1 min-w-0 space-y-4" : "space-y-4"}>
             <Totals tab={tab} rows={list} all={rows} />
             {openRow ? <FolderView tab={tab} row={openRow} onBack={() => setOpenId(null)} onEdit={() => setEditing(openRow)} onSaved={upsert} /> :
@@ -264,7 +270,22 @@ export function MaterialsView({ tab }: { tab: MTab }) {
 
 // eBook Orders: every eBook down the left, Scheduler-style; a click shows only its
 // orders. The count is paid orders (₹1 tests left out, same as the cards).
-function EbookColumn({ names, rows, value, onPick }: { names: string[]; rows: Row[]; value: string; onPick: (v: string) => void }) {
+function EbookColumn({ names, rows, value, onPick, onAdded }: { names: string[]; rows: Row[]; value: string; onPick: (v: string) => void; onAdded: (titles: string[], name: string) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    if (!name.trim() || busy) return;
+    setBusy(true); setErr(null);
+    const r = await fetch("/api/materials/ebooks/titles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    setBusy(false);
+    if (!r || !r.ok) { setErr((j as { error?: string }).error || "Couldn't add the eBook."); return; }
+    onAdded((j as { titles: string[] }).titles, name.replace(/\s+/g, " ").trim());
+    showToast({ who: "eBook added", body: name.trim(), av: "✓" });
+    setName(""); setAdding(false);
+  };
   const paid = (name: string) => rows.filter((r) => (!name || r.ebook === name) && r.status === "Paid" && (Number(r.amount) || 0) >= 10).length;
   const item = (v: string, label: string) => {
     const on = value === v; const n = paid(v);
@@ -282,6 +303,23 @@ function EbookColumn({ names, rows, value, onPick }: { names: string[]; rows: Ro
       {item("", "All eBooks")}
       <div className="my-1.5 border-t border-[#EEF0F4]" />
       {names.map((n) => item(n, n))}
+      <div className="my-1.5 border-t border-[#EEF0F4]" />
+      {adding ? (
+        <div className="px-1 pb-1 space-y-1.5">
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="eBook name, e.g. Japan"
+            onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { setAdding(false); setName(""); setErr(null); } }}
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-[13px] text-[#232D42] outline-none focus:border-brand placeholder:text-[#8A92A6]" />
+          {err && <div className="px-1 text-[12px] text-[#C03221]">{err}</div>}
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => void save()} disabled={!name.trim() || busy} className="flex-1 h-8 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0] disabled:opacity-50">{busy ? "Adding…" : "Add"}</button>
+            <button type="button" onClick={() => { setAdding(false); setName(""); setErr(null); }} className="h-8 px-3 rounded-lg border border-gray-200 text-[13px] text-[#4A5468] hover:text-brand">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setAdding(true)} className="w-full flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium text-brand hover:bg-[#F6F7FB]">
+          <IconPlus size={15} stroke={2} /> Add eBook
+        </button>
+      )}
     </aside>
   );
 }
