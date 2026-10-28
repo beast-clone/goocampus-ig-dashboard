@@ -60,17 +60,19 @@ function siteQuery(brand: string): string {
 }
 
 // ---------- Serper.dev (reliable, keyed — preferred) ----------
-async function serperSearch(brand: string, limit: number): Promise<SiteHit[]> {
-  const key = process.env.SERPER_API_KEY;
-  if (!key) return [];
+// One search PER SITE (28 Oct). It used to be one combined "(site:a OR site:b …)"
+// search, which returns 10 results — and Reddit, with the most threads, took all 10,
+// so the Quora, MouthShut and ValueMD lanes always read 0. Four searches (4 credits,
+// cached 6 h) and a round-robin merge give every site its share.
+async function serperSite(key: string, site: string, brand: string): Promise<SiteHit[]> {
   // Budget guard: stop spending credits once this month's cap is hit.
   if (callsThisMonth("Serper") >= SERPER_MONTHLY_BUDGET) return [];
   const r = await fetchWithTimeout("https://google.serper.dev/search", {
     method: "POST",
     headers: { "X-API-KEY": key, "Content-Type": "application/json" },
     // Serper's FREE tier only allows num=10 (num>10 → 400 "Query pattern not
-    // allowed for free accounts"). 10 hits across the 4 sites is plenty.
-    body: JSON.stringify({ q: siteQuery(brand), gl: "in", num: 10 }),
+    // allowed for free accounts").
+    body: JSON.stringify({ q: `site:${site} ${brand}`, gl: "in", num: 10 }),
     timeoutMs: 12_000,
     cache: "no-store",
   });
@@ -90,7 +92,19 @@ async function serperSearch(brand: string, limit: number): Promise<SiteHit[]> {
       source: src,
       publishedAt: date && !Number.isNaN(+new Date(date)) ? new Date(date).toISOString() : "",
     });
-    if (out.length >= limit) break;
+  }
+  return out;
+}
+async function serperSearch(brand: string, limit: number): Promise<SiteHit[]> {
+  const key = process.env.SERPER_API_KEY;
+  if (!key) return [];
+  const runs = await Promise.allSettled(WATCHED_SITES.map((site) => serperSite(key, site, brand)));
+  // Every site failing is an engine problem — throw so the empty result isn't cached.
+  if (runs.every((x) => x.status === "rejected")) throw new Error("Serper failed for every site");
+  const lists = runs.map((x) => (x.status === "fulfilled" ? x.value : []));
+  const out: SiteHit[] = [];
+  for (let i = 0; out.length < limit && lists.some((l) => i < l.length); i++) {
+    for (const l of lists) if (i < l.length && out.length < limit) out.push(l[i]);
   }
   return out;
 }
