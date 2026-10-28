@@ -679,8 +679,9 @@ function AdPanel({ ad, siblings, onBack, onAll }: { ad: LiveAd; siblings: LiveAd
   const campSpend = siblings.reduce((s, x) => s + x.spend, 0);
   const campN = siblings.reduce((s, x) => s + (goal === "clicks" ? x.clicks : x.leads), 0);
   const campPer = campN > 0 ? campSpend / campN : 0;
-  // A video ad plays here, with sound (28 Oct). Looked up only for the open ad.
-  const [video, setVideo] = useState<{ url: string; poster: string | null } | null>(null);
+  // The open ad's creative at full size: a video plays with sound, a picture shows
+  // whole (28 Oct). Looked up only for the open ad.
+  const [video, setVideo] = useState<{ kind: "video" | "image"; url: string; poster: string | null } | null>(null);
   useEffect(() => {
     let alive = true;
     setVideo(null);
@@ -745,7 +746,10 @@ function AdPanel({ ad, siblings, onBack, onAll }: { ad: LiveAd; siblings: LiveAd
         {video && (
           // The box hugs the video, so a tall reel has no black bars beside it.
           <div className="relative mb-3 mx-auto w-fit max-w-full rounded-xl overflow-hidden bg-black">
-            <SoundVideo src={video.url} poster={video.poster || undefined} open loop={false} className="block max-h-[420px] w-auto max-w-full" />
+            {video.kind === "video"
+              ? <SoundVideo src={video.url} poster={video.poster || undefined} open loop={false} className="block max-h-[420px] w-auto max-w-full" />
+              // eslint-disable-next-line @next/next/no-img-element
+              : <img src={video.url} alt="" className="block max-h-[420px] w-auto max-w-full" />}
           </div>
         )}
         <div className="grid grid-cols-3 gap-2 mb-3">

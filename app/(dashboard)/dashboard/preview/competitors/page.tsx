@@ -298,8 +298,8 @@ function CreativeMedia({
   const [videoFailed, setVideoFailed] = useState(false);
 
   const renderImage = (src: string) => (
-    <div className="bg-gray-50 flex items-center justify-center">
-      <img src={src} alt="" className="w-full h-auto max-h-[70vh] object-contain" />
+    <div className="bg-gray-50 mx-auto w-fit max-w-full">
+      <img src={src} alt="" className="block w-auto max-w-full max-h-[70vh]" />
     </div>
   );
 
@@ -322,8 +322,8 @@ function CreativeMedia({
 
   if (vid && videoFailed && poster) {
     return (
-      <div className="bg-gray-50 flex items-center justify-center relative">
-        <img src={poster} alt="" className="w-full h-auto max-h-[70vh] object-contain" />
+      <div className="bg-gray-50 mx-auto w-fit max-w-full relative">
+        <img src={poster} alt="" className="block w-auto max-w-full max-h-[70vh]" />
         <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
           Video URL expired — {permalink ? <a href={permalink} target="_blank" rel="noreferrer" className="underline">open in Ad Library</a> : "open in Ad Library"}
         </div>
