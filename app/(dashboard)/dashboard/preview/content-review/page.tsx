@@ -111,6 +111,12 @@ function Review() {
   const [feedbackText, setFeedbackText] = useState("");
   const [view, setView] = useState<"cards" | "table">("cards");
   const [openPost, setOpenPost] = useState<ReviewPost | null>(null); // preview modal
+  // The preview frame takes the creative's own shape (read off the first slide), so a
+  // square post isn't left between dark bands in a tall frame (28 Oct). Instagram
+  // shows every carousel slide at the first one's shape, so that one decides.
+  const [mediaRatio, setMediaRatio] = useState<string | null>(null);
+  useEffect(() => { setMediaRatio(null); }, [openPost?.id]);
+  const takeRatio = (w: number, h: number) => { if (w && h) setMediaRatio(`${w} / ${h}`); };
   const [slide, setSlide] = useState(0); // carousel page index in the preview
 
   const load = useCallback(async () => {
@@ -525,7 +531,7 @@ function Review() {
                 <button onClick={() => setOpenPost(null)} className="text-gray-400 hover:text-gray-700 flex-shrink-0"><IconX size={20} /></button>
               </div>
               <div className="flex-1 min-h-0 p-5 flex flex-col md:flex-row gap-5 overflow-y-auto md:overflow-hidden">
-                <div className="w-full md:w-auto md:h-[min(70vh,660px)] flex-shrink-0 relative rounded-xl overflow-hidden bg-[#0b1020]" style={{ aspectRatio: portrait ? "9 / 16" : "4 / 5" }}>
+                <div className="w-full md:w-auto md:h-[min(70vh,660px)] flex-shrink-0 relative rounded-xl overflow-hidden bg-[#0b1020]" style={{ aspectRatio: mediaRatio || (portrait ? "9 / 16" : "4 / 5") }}>
                   {slides.length > 0 ? (
                     <div
                       ref={trackRef}
@@ -562,11 +568,13 @@ function Review() {
                               fallback={<a href={sl.url} target="_blank" rel="noreferrer" className="text-sm text-white underline">Open PDF</a>} />
                           ) : isVideoUrl(sl.url, p.type) ? (
                             Math.abs(i - slide) <= 1
-                              ? <SoundVideo src={sl.url} autoPlay={i === slide} open className="w-full h-full object-contain" />
+                              ? <SoundVideo src={sl.url} autoPlay={i === slide} open className="w-full h-full object-contain"
+                                  onLoadedMetadata={i === 0 ? (e) => takeRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight) : undefined} />
                               : null
                           ) : (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={sl.url} alt={p.title || "creative"} draggable={false} loading={i <= 1 ? "eager" : "lazy"} className="w-full h-full object-contain" />
+                            <img src={sl.url} alt={p.title || "creative"} draggable={false} loading={i <= 1 ? "eager" : "lazy"} className="w-full h-full object-contain"
+                              onLoad={i === 0 ? (e) => takeRatio(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) : undefined} />
                           )}
                         </div>
                       ))}
