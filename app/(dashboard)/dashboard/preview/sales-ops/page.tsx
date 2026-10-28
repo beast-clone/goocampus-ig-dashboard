@@ -846,8 +846,11 @@ function LeadsFirstContact() {
     if (!leads) return [] as { name: string; n: number }[];
     const m = new Map<string, number>();
     for (const l of leads) { const c = l.counsellor || "Unassigned"; m.set(c, (m.get(c) || 0) + 1); }
+    // Keep the picked counsellor listed (with 0) when a shorter period has none of
+    // their leads, so the box never reads "All counsellors" while it still filters.
+    if (counsellorF !== "all" && !m.has(counsellorF)) m.set(counsellorF, 0);
     return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
-  }, [leads]);
+  }, [leads, counsellorF]);
 
   const filtered = useMemo(() => {
     if (!leads) return [];

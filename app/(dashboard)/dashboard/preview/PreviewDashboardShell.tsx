@@ -20,6 +20,10 @@ import { PreviewShell, type PreviewTab } from "./PreviewShell";
 // blue. V1 (`components/DashboardShell.tsx`) is untouched.
 const LS_ACCOUNT = "gc-dash:accountId";
 const LS_COMPARE = "gc-dash:compareAll";
+// The date range sticks like the account (28 Oct): picking 90 days on Overview and
+// opening Posts used to land back on 30. A range ending today is kept as "last N
+// days" so it rolls forward tomorrow; any other range is kept as its exact dates.
+const LS_RANGE = "gc-dash:range";
 
 function rangeLabel(r: Range): string {
   const days = rangeDays(r);
@@ -57,16 +61,27 @@ export function PreviewDashboardShell({
   const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
   // Real Instagram profile pictures for the account picker (accountId -> data URI).
   const [avatars, setAvatars] = useState<Record<string, string>>({});
-  const [range, setRange] = useState<Range>({
+  const [range, setRangeRaw] = useState<Range>({
     from: daysAgoIST(30),
     to: todayIST(),
   });
+  const setRange = (r: Range) => {
+    setRangeRaw(r);
+    try {
+      const days = Math.round((Date.parse(r.to) - Date.parse(r.from)) / 86_400_000);
+      window.localStorage.setItem(LS_RANGE, JSON.stringify(r.to === todayIST() && r.from === daysAgoIST(days) ? { days } : { from: r.from, to: r.to }));
+    } catch { /* private mode */ }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const savedAccount = window.localStorage.getItem(LS_ACCOUNT);
       if (savedAccount && ACCOUNTS.some((a) => a.id === savedAccount)) setAccountIdRaw(savedAccount);
+      const r = JSON.parse(window.localStorage.getItem(LS_RANGE) || "null");
+      const ymd = (x: unknown) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+      if (r && Number.isInteger(r.days) && r.days > 0 && r.days <= 3660) setRangeRaw({ from: daysAgoIST(r.days), to: todayIST() });
+      else if (r && ymd(r.from) && ymd(r.to) && r.from <= r.to) setRangeRaw({ from: r.from, to: r.to });
       window.localStorage.setItem(LS_COMPARE, "0");
     } catch { /* private-mode — fall back to defaults */ }
   }, []);

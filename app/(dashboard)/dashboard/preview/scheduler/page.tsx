@@ -1066,7 +1066,9 @@ function Scheduler() {
   // the status-counter strip.
   const queueFiltered = queue.filter((p) => {
     if (allowedPages && p.publishToPage && !allowedPages.includes(p.publishToPage)) return false;
-    if (filterPage !== "all" && p.publishToPage !== filterPage) return false;
+    // The account dropdown lives on the Published tab and filters only its calendar
+    // (publishedFiltered); it used to also thin these "To schedule" lists with no
+    // filter showing there (28 Oct).
     if (filterInterest !== "all" && p.primaryInterest !== filterInterest) return false;
     if (filterStatus !== "all" && p.effectiveStatus !== filterStatus) return false;
     return true;

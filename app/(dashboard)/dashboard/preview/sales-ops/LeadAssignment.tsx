@@ -1061,7 +1061,7 @@ function TransferTab({ data, onDone }: { data: Board; onDone: () => void }) {
     <>
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <Field label="Currently with">
-          <PreviewSelect value={fromHolder} onChange={(v) => { setFromHolder(v); setSel(new Set()); }}
+          <PreviewSelect value={fromHolder} onChange={(v) => { setFromHolder(v); setStatus(""); setSel(new Set()); }}
             options={data.holders.map((h) => ({ value: h.holder, label: `${h.holder} (${h.total})` }))} />
         </Field>
         <Field label="Untouched for">

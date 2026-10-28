@@ -2241,6 +2241,8 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
     setSel(null);               // task selection is per-person; the panel rests empty
     try { setReminders(JSON.parse(localStorage.getItem(`hmd-rem-${person}`) || "[]")); } catch { setReminders([]); }
     try { setDismissedNudges(JSON.parse(localStorage.getItem(`hmd-dismissed-${person}`) || "[]")); } catch { setDismissedNudges([]); }
+    // The status tab or saved view they were on comes back after a reload (28 Oct).
+    try { const t = localStorage.getItem(`hmd-tab-${person}`); if (t) setTaskTab(t); } catch { /* private mode */ }
     // Viewing a person = they're logged in → clear any logged-out overlay + close the menu.
     setLoggedOut(false); setProfileOpen(false);
     // LOGIN = DAY START (no manual button). Restore today's clock-in if one exists,
@@ -2433,6 +2435,7 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   const tabCounts = useMemo(() => myTabs.map((tb) => ({ ...tb, n: workingTasks.filter((t) => matchesTab(t, tb)).length })), [workingTasks, myTabs]);
   // When the viewed person changes, their tab set changes — snap to the first valid tab.
   useEffect(() => { if (!taskTab.startsWith("view:") && !myTabs.some((tb) => tb.key === taskTab)) setTaskTab(myTabs[0].key); }, [myTabs, taskTab]);
+  useEffect(() => { try { localStorage.setItem(`hmd-tab-${person}`, taskTab); } catch { /* private mode */ } }, [taskTab]); // eslint-disable-line react-hooks/exhaustive-deps
   // Header stat tiles — live, for the person being viewed.
   const stats = useMemo(() => {
     const mine = uniqById([...claimedTasks, ...tasks]).filter((t) => t.detail.owner === me.name);

@@ -661,11 +661,21 @@ function CompactFacet({ label, value, options, onChange }: { label: string; valu
   );
 }
 
+// A choice that survives switching hub tabs and reloads, like the calendar's filters
+// (each tab is rebuilt when you come back to it). `ok` rejects stale saved values.
+function useSticky<T>(key: string, initial: T, ok: (v: unknown) => boolean): [T, (v: T) => void] {
+  const [v, setV] = useState<T>(initial);
+  useEffect(() => {
+    try { const s = JSON.parse(localStorage.getItem(key) || "null"); if (s !== null && ok(s)) setV(s as T); } catch { /* private mode */ }
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return [v, (next: T) => { setV(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* private mode */ } }];
+}
+
 // TEAM sub-tab — one card per teammate; click a card to open their full task
 // list INLINE below the cards (all statuses), not a pop-up.
 export function TeamView({ rows, allRows, facets, onOpen, loading }: { rows: Row[]; allRows: Row[]; facets?: Facets; onOpen: (id: string) => void; loading: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"today" | "week">("today");
+  const [view, setView] = useSticky<"today" | "week">("mh-team-view", "today", (x) => x === "today" || x === "week");
   const todayDate = new Date();
   const today = ymd(todayDate);
   const friendlyToday = friendlyDate(todayDate);
@@ -1159,11 +1169,11 @@ export function PipelineView({ rows: allRows, facets, onOpen, loading }: { rows:
   // This week / This month = posts whose PUBLISH date falls in it (Mon–Sun, calendar
   // month). All = every unfinished post whatever its date (old stuck work included),
   // plus Published for the last 30 days — it would otherwise pile up for ever.
-  const [period, setPeriod] = useState<"week" | "month" | "all" | "custom">("month");
-  const [custom, setCustom] = useState(() => {
+  const [period, setPeriod] = useSticky<"week" | "month" | "all" | "custom">("mh-pipeline-period", "month", (x) => ["week", "month", "all", "custom"].includes(x as string));
+  const [custom, setCustom] = useSticky("mh-pipeline-custom", (() => {
     const n = new Date();
     return { from: ymd(new Date(n.getFullYear(), n.getMonth(), 1)), to: ymd(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
-  });
+  })(), (x) => !!x && typeof (x as { from?: unknown }).from === "string" && typeof (x as { to?: unknown }).to === "string");
   const span = useMemo(() => {
     const n = new Date();
     if (period === "custom") return custom.from && custom.to && custom.from <= custom.to ? custom : null;
@@ -1242,10 +1252,10 @@ export function PipelineView({ rows: allRows, facets, onOpen, loading }: { rows:
           </div>
           {period === "custom" && (
             <div className="flex items-center gap-1.5 text-[13px] text-gray-600">
-              <input type="date" value={custom.from} onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
+              <input type="date" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })}
                 className="border border-gray-200 rounded-md px-2 py-1 bg-white text-[13px]" aria-label="From date" />
               <span>to</span>
-              <input type="date" value={custom.to} min={custom.from} onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
+              <input type="date" value={custom.to} min={custom.from} onChange={(e) => setCustom({ ...custom, to: e.target.value })}
                 className="border border-gray-200 rounded-md px-2 py-1 bg-white text-[13px]" aria-label="To date" />
             </div>
           )}
@@ -2269,10 +2279,23 @@ function CalendarViewsRail({ rows, current, apply, sbusFor }: { rows: Row[]; cur
   const choose = (id: string, f: CalFilters) => { setActive(id); apply(f); try { localStorage.setItem(CAL_VIEW_KEY, id); } catch { /* private mode */ } };
   const ALL: CalFilters = { channel: "all", brands: [], statuses: [] };
   const builtIn = CAL_CHANNELS.filter((c) => c.value !== "all").map((c) => ({ id: `acc-${c.value}`, label: c.label, f: { ...ALL, channel: c.value } as CalFilters }));
-  // A remembered view that has since been deleted falls back to All tasks.
+  // A remembered view that has since been deleted falls back to All tasks — its
+  // filters too, not just the highlight.
   useEffect(() => {
-    if (data && active !== "all" && !active.startsWith("acc-") && !saved.some((v) => v.id === active)) setActive("all");
+    if (data && active !== "all" && !active.startsWith("acc-") && !saved.some((v) => v.id === active)) choose("all", { ...ALL, statuses: current.statuses });
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The account can also change from the dropdown above the calendar (or by picking
+  // only another account's SBUs); move the highlight with it so the list never says
+  // GooCampus while the calendar shows 12th Plus (28 Oct). Saved views keep theirs —
+  // they show "Save changes / Undo" instead. Skips the first run: the remembered
+  // highlight is still being read then.
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    if (active !== "all" && !active.startsWith("acc-")) return;
+    const id = current.channel === "all" ? "all" : `acc-${current.channel}`;
+    if (id !== active) { setActive(id); try { localStorage.setItem(CAL_VIEW_KEY, id); } catch { /* private mode */ } }
+  }, [current.channel]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeSaved = saved.find((v) => v.id === active);
   const changed = !!activeSaved && !sameFilters(current, calCfg(activeSaved));
 

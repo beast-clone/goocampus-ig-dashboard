@@ -310,7 +310,22 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
     () => (currentAccount?.platforms ? PLATFORMS.filter((p) => currentAccount.platforms!.includes(p.key)) : PLATFORMS.slice()),
     [currentAccount],
   );
-  const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
+  const [rangeKey, setRangeKeyRaw] = useState<RangeKey>("30d");
+  // Overview has its own picker; it shares the range the other pages remember
+  // (PreviewDashboardShell, "gc-dash:range"), so 90 days here is 90 days on Posts.
+  const KEY_DAYS: Partial<Record<RangeKey, number>> = { "7d": 7, "30d": 30, "60d": 60, "90d": 90, "1y": 365 };
+  const setRangeKey = (k: RangeKey) => {
+    setRangeKeyRaw(k);
+    const days = KEY_DAYS[k];
+    if (days) try { localStorage.setItem("gc-dash:range", JSON.stringify({ days })); } catch { /* private mode */ }
+  };
+  useEffect(() => {
+    try {
+      const days = JSON.parse(localStorage.getItem("gc-dash:range") || "null")?.days;
+      const k = (Object.keys(KEY_DAYS) as RangeKey[]).find((x) => KEY_DAYS[x] === days);
+      if (k) setRangeKeyRaw(k);
+    } catch { /* private mode */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [selMonthKey, setSelMonthKey] = useState<string | null>(null);
   const [platform, setPlatform] = useState<PlatformKey>("instagram");

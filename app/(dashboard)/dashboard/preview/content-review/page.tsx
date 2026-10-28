@@ -1,6 +1,6 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { MultiPick } from "@/components/MultiPick";
+import { MultiPick, isPickNone } from "@/components/MultiPick";
 import { useSbus } from "@/lib/use-sbus";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useListCursor } from "@/app/(dashboard)/dashboard/preview/Shortcuts";
@@ -468,7 +468,7 @@ function Review() {
             view === "table" ? renderTable(mainPosts) : renderGrid(mainPosts)
           ) : sbuSel.length ? (
             <div className="rounded-2xl border border-gray-100 bg-white py-10 text-center text-sm text-[#8A92A6]">
-              Nothing awaiting review for {sbuSel.join(", ")}.{" "}
+              {isPickNone(sbuSel) ? "No SBUs ticked." : `Nothing awaiting review for ${sbuSel.join(", ")}.`}{" "}
               <button onClick={() => setSbuSel([])} className="text-brand font-semibold hover:underline">Show all {allMain.length}</button>
             </div>
           ) : (

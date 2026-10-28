@@ -99,14 +99,13 @@ export function WatchersWorkspace() {
     const n = new Map<string, number>();
     const bump = (k: string) => n.set(k, (n.get(k) || 0) + 1);
     for (const i of allItems) { const g = i.grp || "Other"; if (g === "UG & PG") { bump("UG"); bump("PG"); } else bump(g); }
-    const extras = [...n.keys()].filter((g) => g !== "UG" && g !== "PG").sort();
+    // The open tab stays (with 0) when another website has none of it, instead of
+    // jumping to All and not coming back when you switch back (28 Oct).
+    const extras = [...new Set([...n.keys(), ...(group !== "all" ? [group] : [])])].filter((g) => g !== "UG" && g !== "PG").sort();
     return [{ key: "all", label: "All", n: allItems.length },
       ...["UG", "PG"].map((g) => ({ key: g, label: g, n: n.get(g) || 0 })),
-      ...extras.map((g) => ({ key: g, label: g, n: n.get(g)! }))];
-  }, [allItems]);
-  // A category can disappear when the site filter changes; don't strand the view
-  // on a tab that is no longer there.
-  useEffect(() => { if (!tabs.some((t) => t.key === group)) setGroup("all"); }, [tabs, group]);
+      ...extras.map((g) => ({ key: g, label: g, n: n.get(g) || 0 }))];
+  }, [allItems, group]);
 
   // A notification links here with ?w=<id>: open on that website's news.
   useEffect(() => { const w = new URLSearchParams(window.location.search).get("w"); if (w) setSite(w); }, []);
