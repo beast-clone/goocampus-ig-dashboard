@@ -1219,13 +1219,13 @@ function PostModal({ m, c, onClose }: { m: CompetitorMedia; c: Competitor; onClo
   const cur = slides[Math.min(slide, slides.length - 1)];
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
-        <div className="md:w-1/2 bg-gray-900 relative flex-shrink-0 flex items-center justify-center">
+      <div className="bg-white rounded-2xl overflow-hidden w-full md:w-auto max-w-[95vw] max-h-[90vh] flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gray-900 relative flex-shrink-0 flex items-center justify-center">
           {cur.media_type === "VIDEO" && cur.media_url ? (
-            <SoundVideo src={cur.media_url} poster={cur.thumbnail_url} open loop={false} className="w-full h-auto object-contain max-h-[45vh] md:max-h-[90vh]" />
+            <SoundVideo src={cur.media_url} poster={cur.thumbnail_url} open loop={false} className="block w-full md:w-auto h-auto max-h-[45vh] md:max-h-[85vh] md:max-w-[min(58vw,620px)]" />
           ) : (cur.thumbnail_url || cur.media_url) ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={cur.thumbnail_url || cur.media_url} alt="" className="w-full h-auto object-contain max-h-[45vh] md:max-h-[90vh]" />
+            <img src={cur.thumbnail_url || cur.media_url} alt="" className="block w-full md:w-auto h-auto max-h-[45vh] md:max-h-[85vh] md:max-w-[min(58vw,620px)]" />
           ) : null}
           <span className={`absolute top-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-full ${chip.cls}`}>{chip.label}{slides.length > 1 ? ` · ${slide + 1}/${slides.length}` : ""}</span>
           {slides.length > 1 && (
@@ -1238,7 +1238,7 @@ function PostModal({ m, c, onClose }: { m: CompetitorMedia; c: Competitor; onClo
             </>
           )}
         </div>
-        <div className="md:w-1/2 p-5 overflow-y-auto">
+        <div className="md:w-[380px] p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 min-w-0">
               {c.profile_picture_url ? (

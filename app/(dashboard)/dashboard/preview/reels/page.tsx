@@ -369,21 +369,21 @@ function ReelDetailModal({ reel, insightsLoaded, onClose }: {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full md:w-auto max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
         {/* LEFT — the reel itself, playing with sound (28 Oct); the cover if Meta
             didn't send the video file. */}
-        <div className="relative md:w-1/2 bg-black flex items-center justify-center min-h-[400px] py-4">
+        <div className="relative shrink-0 bg-black flex items-center justify-center">
           {reel.videoUrl ? (
-            <SoundVideo src={reel.videoUrl} poster={reel.mediaUrl || undefined} open loop={false} className="max-w-full max-h-[80vh] object-contain" />
+            <SoundVideo src={reel.videoUrl} poster={reel.mediaUrl || undefined} open loop={false} className="block w-full md:w-auto max-h-[45vh] md:max-h-[85vh] md:max-w-[min(58vw,620px)]" />
           ) : reel.mediaUrl ? (
-            <img src={reel.mediaUrl} alt="" className="max-w-full max-h-[80vh] object-contain" />
+            <img src={reel.mediaUrl} alt="" className="block w-full md:w-auto max-h-[45vh] md:max-h-[85vh] md:max-w-[min(58vw,620px)]" />
           ) : (
-            <div className="text-white/70"><IconMovie size={56} stroke={1.2} /></div>
+            <div className="text-white/70 px-16 py-24"><IconMovie size={56} stroke={1.2} /></div>
           )}
         </div>
 
         {/* RIGHT — details */}
-        <div className="md:w-1/2 flex flex-col overflow-y-auto">
+        <div className="md:w-[380px] flex flex-col overflow-y-auto">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">Reel</span>

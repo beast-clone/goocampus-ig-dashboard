@@ -743,7 +743,8 @@ function AdPanel({ ad, siblings, onBack, onAll }: { ad: LiveAd; siblings: LiveAd
           </div>
         </div>
         {video && (
-          <div className="relative mb-3 flex justify-center bg-black rounded-xl overflow-hidden">
+          // The box hugs the video, so a tall reel has no black bars beside it.
+          <div className="relative mb-3 mx-auto w-fit max-w-full rounded-xl overflow-hidden bg-black">
             <SoundVideo src={video.url} poster={video.poster || undefined} open loop={false} className="block max-h-[420px] w-auto max-w-full" />
           </div>
         )}
