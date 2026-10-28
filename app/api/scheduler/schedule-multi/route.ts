@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       // The copies go out the same way as the original: same format, channels, cover
       // and Facebook caption (they used to lose these and go out as a reel on both).
       const c = (srcCustom || {}) as Record<string, unknown>;
-      const keep = { publish_format: c.publish_format, channels: c.channels, cover_url: c.cover_url, caption_fb: c.caption_fb };
+      const keep = { publish_format: c.publish_format, channels: c.channels, cover_url: c.cover_url, caption_fb: c.caption_fb, media_fb: c.media_fb ?? null };
       const rows = extra.map((page) => ({
         ...srcContent,
         // Clones are Supabase-native rows, not Airtable-sourced. Inheriting the

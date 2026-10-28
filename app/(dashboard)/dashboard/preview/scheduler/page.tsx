@@ -60,6 +60,7 @@ type ScheduledPost = {
   coverUrl?: string | null;
   pages?: string[];
   channels?: string[];
+  mediaFb?: string[];        // Facebook's own set (pictures beside an Instagram video carousel)
   collaborators?: string[];
   captionFbOverride?: string | null;
 };
@@ -205,9 +206,11 @@ function Scheduler() {
   // video slides (motion graphics with audio). Instagram posted one fine for 12thPlus;
   // Facebook turned it into a still image (Praveen, 28 Oct). So a carousel with any
   // video goes to Instagram only; swap the videos for pictures and Facebook comes back.
+  // (Videos AND pictures together are two versions — videos to Instagram, pictures to
+  // Facebook — so Facebook stays on for those.)
   const videoCarousel = useMemo(() => {
     const meta = mediaUrls.map((u) => u.trim()).filter((u) => u && !isPdfUrl(u));
-    return meta.length > 1 && meta.some(isVideoUrl);
+    return meta.length > 1 && meta.some(isVideoUrl) && meta.every(isVideoUrl);
   }, [mediaUrls]);
   const toFacebook = fbPref && !videoCarousel;
   // A second caption for Facebook. Off by default: one caption is the common case,
@@ -453,7 +456,10 @@ function Scheduler() {
     setMediaLocked(false);
     setParticulars(p.particulars || "");
     setCaption(p.fullCaption || "");
-    const media = p.mediaUrls && p.mediaUrls.length ? p.mediaUrls : [];
+    // A split post keeps Facebook's pictures apart (custom.media_fb); bring them back so
+    // the composer shows both sets, as they were uploaded.
+    const igSet = p.mediaUrls && p.mediaUrls.length ? p.mediaUrls : [];
+    const media = [...igSet, ...(p.mediaFb || []).filter((u) => !igSet.includes(u))];
     setMediaUrls(media.length ? media : [""]);
     setComposePages(p.pages && p.pages.length ? p.pages : [p.publishToPage].filter(Boolean));
     const ch = p.channels && p.channels.length ? p.channels : ["instagram", "facebook"];
@@ -681,6 +687,11 @@ function Scheduler() {
   // equivalent and rejects PDFs, so they are split out and never sent there.
   const pdfUrls = useMemo(() => cleanMediaUrls.filter(isPdfUrl), [cleanMediaUrls]);
   const metaMediaUrls = useMemo(() => cleanMediaUrls.filter((u) => !isPdfUrl(u)), [cleanMediaUrls]);
+  // Video slides and pictures together: the videos are the Instagram carousel, the
+  // pictures what Facebook posts (the enqueue route makes the same split).
+  const mixedMedia = metaMediaUrls.some(isVideoUrl) && metaMediaUrls.some((u) => !isVideoUrl(u));
+  const igMedia = mixedMedia ? metaMediaUrls.filter(isVideoUrl) : metaMediaUrls;
+  const fbMedia = mixedMedia ? metaMediaUrls.filter((u) => !isVideoUrl(u)) : metaMediaUrls;
   // Prefer the PDF for LinkedIn when there is one, else the first image.
   const linkedInMediaUrl = pdfUrls[0] || metaMediaUrls[0];
   // PDF and nothing else → there is nothing for Instagram/Facebook to post, so
@@ -934,6 +945,16 @@ function Scheduler() {
       )}
       {cleanMediaUrls.length > 0 && (
         <div className="mt-2 text-xs space-y-1">
+          {mixedMedia ? (<>
+          <div className="flex gap-2">
+            <span className="text-gray-500 w-[150px] shrink-0">Instagram</span>
+            <span className={toInstagram ? "text-[#232D42]" : "text-gray-400"}>{toInstagram ? `${igMedia.length} video slide${igMedia.length === 1 ? "" : "s"}` : "not posting"}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-gray-500 w-[150px] shrink-0">Facebook</span>
+            <span className={toFacebook ? "text-[#232D42]" : "text-gray-400"}>{toFacebook ? `${fbMedia.length} picture${fbMedia.length === 1 ? "" : "s"} — Facebook can't take the video slides` : "not posting"}</span>
+          </div>
+          </>) : (
           <div className="flex gap-2">
             <span className="text-gray-500 w-[150px] shrink-0">{videoCarousel ? "Instagram only" : "Instagram + Facebook"}</span>
             <span className={metaMediaUrls.length && (toInstagram || toFacebook) ? "text-[#232D42]" : "text-gray-400"}>
@@ -942,6 +963,7 @@ function Scheduler() {
                 : metaMediaUrls.length ? (singleVideoUrl ? "1 video" : `${metaMediaUrls.length} image${metaMediaUrls.length === 1 ? "" : "s"}`) : "nothing to post"}
             </span>
           </div>
+          )}
           <div className="flex gap-2">
             <span className="text-gray-500 w-[150px] shrink-0">LinkedIn</span>
             {pdfUrls.length === 0 ? (
@@ -1494,7 +1516,7 @@ function Scheduler() {
                         </div>
                         <div className="min-w-0">
                           <PreviewHeader platform={previewPlatform} onPlatform={setPreviewPlatform} device={previewDevice} onDevice={setPreviewDevice} />
-                          <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} device={previewDevice} />
+                          <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : previewPlatform === "facebook" ? fbMedia : igMedia} caption={caption} device={previewDevice} />
                         </div>
                       </div>
                     </div>
@@ -2028,7 +2050,7 @@ function Scheduler() {
           <div className="sticky top-0">
             <PreviewHeader platform={previewPlatform} onPlatform={setPreviewPlatform}
               device={previewDevice} onDevice={setPreviewDevice} />
-            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : metaMediaUrls} caption={caption} device={previewDevice} />
+            <SocialPreview platform={previewPlatform} handle={previewHandle} name={previewName} images={previewPlatform === "linkedin" ? (pdfUrls.length ? pdfUrls : metaMediaUrls) : previewPlatform === "facebook" ? fbMedia : igMedia} caption={caption} device={previewDevice} />
             {/* Meta runs this while a reel processes in their own composer, under the
                 preview. Same place here — it is what you are looking at anyway, and
                 the column had dead space below the phone. */}
@@ -3392,6 +3414,10 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
   };
   // Only Meta media counts toward the carousel cap — the PDF goes to LinkedIn.
   const metaCount = media.filter((u) => !isPdfUrl(u)).length;
+  // Video slides and pictures are separate sets (Instagram / Facebook), 10 each.
+  const vidCount = media.filter((u) => !isPdfUrl(u) && isVideoUrl(u)).length;
+  const picCount = metaCount - vidCount;
+  const roomLeft = vidCount < MAX_MEDIA || picCount < MAX_MEDIA;
   // Drag-to-reorder the carousel: move the dragged thumbnail into the drop slot.
   const reorder = (from: number, to: number) => {
     if (from === to) return;
@@ -3412,7 +3438,9 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
       const next = [...filtered];
       for (const file of Array.from(files)) {
         // The cap is Meta's carousel limit; a LinkedIn PDF doesn't use a slot.
-        if (!isPdfUrl(file.name) && next.filter((u) => !isPdfUrl(u)).length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} images per post`); break; }
+        // Videos and pictures are two sets (Instagram / Facebook), 10 each.
+        const vid = isVideoUrl(file.name);
+        if (!isPdfUrl(file.name) && next.filter((u) => !isPdfUrl(u) && isVideoUrl(u) === vid).length >= MAX_MEDIA) { setUploadError(`Max ${MAX_MEDIA} ${vid ? "video slides" : "pictures"} per post`); break; }
         const up = await uploadSchedulerMedia(await compressImage(file));
         if (!up.ok) { setUploadError(up.error); break; }
         next.push(up.url);
@@ -3513,7 +3541,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
           )}
           <div className="flex flex-wrap gap-1.5">
             {media.map((u, i) => ({ u, i })).filter((x) => !isPdfUrl(x.u)).map((x, k) => tile(x.u, x.i, k + 1))}
-            {!locked && metaCount < MAX_MEDIA && (
+            {!locked && roomLeft && (
               <label
                 onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -3533,7 +3561,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
               <div className="flex flex-wrap gap-1.5">{media.map((u, i) => ({ u, i })).filter((x) => isPdfUrl(x.u)).map((x) => tile(x.u, x.i, null))}</div>
             </div>
           )}
-          <div className="text-xs text-gray-400 mt-0.5">{locked ? <><IconLock size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{`${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost`}</> : `${metaCount}/${MAX_MEDIA} images · drag to reorder${metaCount < MAX_MEDIA ? " · tap + to add more" : ""}`}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{locked ? <><IconLock size={12} stroke={1.8} className="inline -mt-0.5 mr-1" />{`${media.length} original creative${media.length === 1 ? "" : "s"} — locked for repost`}</> : `${vidCount && picCount ? `${vidCount}/${MAX_MEDIA} video slides (Instagram) · ${picCount}/${MAX_MEDIA} pictures (Facebook)` : `${metaCount}/${MAX_MEDIA} ${vidCount ? "video slides" : "images"}`} · drag to reorder${roomLeft ? " · tap + to add more" : ""}`}</div>
         </div>
       )}
     </div>

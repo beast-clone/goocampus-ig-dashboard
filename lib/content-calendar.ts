@@ -173,6 +173,7 @@ export type ScheduledPost = {
   // What reopening a draft in Create post needs (27 Oct).
   pages?: string[];                // every page ticked, not only the first
   channels?: string[];             // "instagram" / "facebook"
+  mediaFb?: string[];              // Facebook's own set (custom.media_fb), when it differs from Instagram's
   collaborators?: string[];
   captionFbOverride?: string | null; // the separate Facebook caption, when one was written
 };
@@ -213,7 +214,9 @@ type MhQueueRow = {
 // from. A different one means the post changed since, and the upload is redone.
 function prepFingerprint(r: MhQueueRow): string {
   const c = (r.custom || {}) as Record<string, unknown>;
-  return JSON.stringify([r.media_urls || [], r.caption || "", c.caption_fb || "", c.cover_url || "", r.collaborators || [], c.publish_format || "reel", c.channels || [], r.publish_to_pages || []]);
+  const a: unknown[] = [r.media_urls || [], r.caption || "", c.caption_fb || "", c.cover_url || "", r.collaborators || [], c.publish_format || "reel", c.channels || [], r.publish_to_pages || []];
+  if (Array.isArray(c.media_fb) && c.media_fb.length) a.push(c.media_fb);
+  return JSON.stringify(a);
 }
 function prepStateOf(r: MhQueueRow): { state: "sending" | "ready" | "error" | null; error: string | null } {
   const p = (r.custom as Record<string, unknown> | null)?.prep as { fp?: string; error?: string; ig?: { ready?: boolean } } | undefined;
@@ -342,6 +345,7 @@ export async function fetchScheduledQueueFromSupabase(limit = 100): Promise<Sche
       storyOf: typeof cust.story_of === "string" ? cust.story_of : null,
       pages,
       channels: Array.isArray(cust.channels) ? (cust.channels as string[]) : [],
+      mediaFb: Array.isArray(cust.media_fb) ? (cust.media_fb as string[]) : [],
       collaborators: r.collaborators || [],
       captionFbOverride: typeof cust.caption_fb === "string" ? cust.caption_fb : null,
       prepState: prepStateOf(r).state,

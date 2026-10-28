@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     const scheduleTime = b.scheduleTimeISO && b.scheduleTimeISO.trim() ? b.scheduleTimeISO : new Date().toISOString();
     const when: "now" | "scheduled" = b.scheduleTimeISO && b.scheduleTimeISO.trim() ? "scheduled" : "now";
     const pages = (b.pages && b.pages.length ? b.pages : (b.publishToPage ? [b.publishToPage] : [])).filter(Boolean);
-    const media = (b.mediaUrls || []).filter((u) => u && u.trim());
+    let media = (b.mediaUrls || []).filter((u) => u && u.trim());
     const __pages = await requireSchedulerPages(pages);
     if (__pages) return __pages;
 
@@ -105,16 +105,27 @@ export async function POST(req: Request) {
     // Empty or missing channels means both, which is what every post did before this
     // existed — an old row must not suddenly publish nowhere.
     let channels = (b.channels || []).filter((c) => c === "instagram" || c === "facebook");
-    // Facebook can't take a carousel with video slides (it posts a still instead), so
-    // one goes to Instagram only, whichever screen or old draft asked for Facebook.
+    // Which files go where (Praveen, 28 Oct). Facebook can't take a carousel with video
+    // slides (it posts a still instead):
+    //   - video slides AND pictures = two versions of one post: the videos are the
+    //     Instagram carousel (media_urls), the pictures go to Facebook (custom.media_fb);
+    //   - several videos only = Instagram only;
+    //   - several pictures = the same set to both; Facebook posts them all as one
+    //     multi-photo post (custom.media_fb), not just the first picture.
     const isVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
-    if (media.length > 1 && media.some(isVideo)) channels = ["instagram"];
+    const vids = media.filter(isVideo), pics = media.filter((u) => !isVideo(u));
+    let mediaFb: string[] | null = null;
+    if (vids.length && pics.length) { media = vids; mediaFb = pics; }
+    else if (vids.length > 1) channels = ["instagram"];
+    else if (pics.length > 1) mediaFb = pics;
+    if (media.length > 10 || (mediaFb && mediaFb.length > 10)) return NextResponse.json({ error: "Instagram and Facebook take at most 10 slides — remove some and try again." }, { status: 400 });
     const fbCaption = (b.captionFb || "").trim();
     const customPatch = {
       publish_format: format,
       cover_url: cover || null,
       channels: channels.length ? channels : ["instagram", "facebook"],
       caption_fb: fbCaption || null,
+      media_fb: mediaFb,
     };
 
     const sbu = (b.sbu || "").trim();
