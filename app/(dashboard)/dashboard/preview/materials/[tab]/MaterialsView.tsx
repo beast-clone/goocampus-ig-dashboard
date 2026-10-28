@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   IconPlus, IconSearch, IconX, IconPaperclip, IconCheck, IconTrash, IconFileText, IconReceipt, IconPhoto,
-  IconFileDescription, IconSpeakerphone, IconRepeat, IconBook, IconAlertTriangle, IconCalendar, IconChevronLeft, IconChevronRight, IconFolder, IconUpload, IconPencil, IconList, IconLayoutGrid, IconExternalLink, IconDownload, IconCurrencyRupee, IconListNumbers,
+  IconFileDescription, IconSpeakerphone, IconRepeat, IconBook, IconAlertTriangle, IconCalendar, IconChevronLeft, IconChevronRight, IconFolder, IconUpload, IconPencil, IconList, IconLayoutGrid, IconExternalLink, IconDownload, IconCurrencyRupee, IconListNumbers, IconRefresh,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
@@ -34,6 +34,29 @@ const isImage = (f: MFile) => (f.mime || "").startsWith("image/") || /\.(png|jpe
 // in our storage is shown as is.
 const thumbUrl = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=400&resize=contain&quality=70` : u);
 const fileKind = (f: MFile): FileTile["kind"] => (isImage(f) ? "image" : isPdf(f.url, f.mime) ? "pdf" : (f.mime || "").startsWith("video/") ? "video" : "file");
+
+// eBook Orders: pull every eBook payment from Razorpay (lib/razorpay-ebooks.ts) —
+// the automations only log sales from the day they went live.
+function RazorpaySync({ onDone }: { onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/materials/ebooks/sync", { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Couldn't read Razorpay");
+      showToast({ who: j.added ? `${j.added} order${j.added === 1 ? "" : "s"} added from Razorpay` : "Up to date with Razorpay", body: `${j.ebookPayments} eBook payments checked${j.updated ? ` · ${j.updated} updated` : ""}` });
+      onDone();
+    } catch (e) { showToast({ who: "Sync failed", body: (e as Error).message }); }
+    finally { setBusy(false); }
+  };
+  return (
+    <button onClick={run} disabled={busy} title="Add any eBook sale from Razorpay that isn't here yet"
+      className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-[#EEF0F4] bg-white text-[13px] font-medium text-[#232D42] hover:border-brand hover:text-brand disabled:opacity-60">
+      <IconRefresh size={15} stroke={1.8} className={busy ? "animate-spin" : ""} />{busy ? "Syncing…" : "Sync from Razorpay"}
+    </button>
+  );
+}
 
 export function MaterialsView({ tab }: { tab: MTab }) {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -145,6 +168,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                         </button>
                       ))}
                     </div>
+                    {tab.key === "ebooks" && <RazorpaySync onDone={load} />}
                     {!viewRow && <button onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]"><IconPlus size={15} stroke={2} /> Add {tab.noun}</button>}
                   </div>
                   <div className="flex flex-wrap items-end gap-x-5 gap-y-2 px-4 mt-2">
@@ -192,7 +216,8 @@ export function MaterialsView({ tab }: { tab: MTab }) {
                     ))}
                   </div>
                 )}
-                {!viewRow && <button onClick={() => setEditing("new")} className={`${tab.viewer ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]`}>
+                {tab.key === "ebooks" && <span className="ml-auto"><RazorpaySync onDone={load} /></span>}
+                {!viewRow && <button onClick={() => setEditing("new")} className={`${tab.viewer || tab.key === "ebooks" ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0]`}>
                   <IconPlus size={15} stroke={2} /> {tab.folders ? "New folder" : `Add ${tab.noun}`}
                 </button>}
               </div>}
@@ -252,7 +277,7 @@ function Totals({ tab, rows, all }: { tab: MTab; rows: Row[]; all: Row[] }) {
     cards.push({ label: "Sales", value: inr(sum(paid)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time, paid only" : "matching the filters" });
     cards.push({ label: "This month", value: inr(sum(paidMonth)), icon: IconCalendar, note: `${paidMonth.length} paid ${paidMonth.length === 1 ? tab.noun : tab.nounPlural}` });
     cards.push({ label: "Paid orders", value: String(paid.length), icon: IconListNumbers });
-    cards.push({ label: "Failed payments", value: String(rows.length - paid.length), icon: IconAlertTriangle, note: "retry link sent" });
+    cards.push({ label: "Failed payments", value: String(rows.filter((r) => r.status === "Failed").length), icon: IconAlertTriangle, note: "retry link sent" });
   } else if (tab.money) {
     cards.push({ label: "Total", value: inr(sum(rows)), icon: IconCurrencyRupee, note: rows.length === all.length ? "all time" : "matching the filters" });
     if (tab.date) cards.push({ label: "This month", value: inr(sum(inMonth)), icon: IconCalendar, note: `${inMonth.length} ${inMonth.length === 1 ? tab.noun : tab.nounPlural}` });
@@ -286,7 +311,8 @@ const Chip = ({ children, tone = "brand" }: { children: React.ReactNode; tone?: 
 function Cell({ f, v }: { f: MField; v: unknown }) {
   if (f.type === "money") return <span className="tabular-nums text-[#232D42]">{v == null || v === "" ? "—" : inr(Number(v))}</span>;
   if (f.type === "date") return <span className="text-[#4A5468] whitespace-nowrap">{fmtDate(v)}</span>;
-  if (f.type === "bool") return v ? <IconCheck size={16} stroke={2} className="text-[#1AA053]" /> : <span className="text-[#C2C8D6]">—</span>;
+  // null = not known (eBook orders imported from Razorpay's history, before the automation).
+  if (f.type === "bool") return v ? <IconCheck size={16} stroke={2} className="text-[#1AA053]" /> : v === null ? <span className="text-[12px] text-[#8A92A6]" title="Sold before the automation — not recorded whether the folder was shared">Not known</span> : <span className="text-[#C2C8D6]">—</span>;
   if (f.type === "multi") {
     const a = Array.isArray(v) ? (v as string[]) : [];
     if (!a.length) return <span className="text-[#C2C8D6]">—</span>;

@@ -79,24 +79,24 @@ export function PreviewSelect({ value, onChange, options, placeholder, disabled,
         }} disabled={disabled} aria-label={ariaLabel} title={title}
         className={`flex items-center gap-2 rounded-lg border ${
           bare ? "h-7 px-1.5 -mx-1.5 text-[13px] border-transparent bg-transparent text-[#8A92A6] hover:text-[#232D42] hover:border-gray-200"
-          : size === "sm" ? "h-7 px-2 text-[12px] border-gray-200 bg-white text-gray-800"
-          : "h-9 px-3 text-[14px] font-medium border-gray-200 bg-white text-gray-800"} ${
-          disabled ? "opacity-50 cursor-not-allowed" : bare ? "" : "hover:border-gray-300"} ${className || ""}`}>
+          : size === "sm" ? "h-7 px-2 text-[12px] border-[#EEF0F4] bg-white text-[#232D42]"
+          : "h-9 px-3 text-[14px] font-medium border-[#EEF0F4] bg-white text-[#232D42]"} ${
+          disabled ? "opacity-50 cursor-not-allowed" : bare ? "" : open ? "border-brand" : "hover:border-brand"} ${className || ""}`}>
         <Avatar src={current?.img} />
-        <span className={`whitespace-nowrap ${isPlaceholder ? "text-gray-400" : ""}`}>{label}</span>
-        <IconChevronDown size={14} stroke={2} className={`text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
+        <span className={`whitespace-nowrap ${isPlaceholder ? "text-[#8A92A6]" : ""}`}>{label}</span>
+        <IconChevronDown size={14} stroke={2} className={`text-[#8A92A6] transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); dismiss(); }} />
           {/* Inline boxShadow — .preview-scope strips Tailwind shadow-* to none, so the
               menu would otherwise render flat. Inline styles survive the strip. */}
-          <div style={{ boxShadow: "0 12px 32px rgba(35,45,66,.16)" }}
-            className={`absolute left-0 ${up ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-50 bg-white border border-gray-200 rounded-xl p-1 min-w-[190px] max-h-72 overflow-auto`}>
+          <div
+            className={`absolute left-0 ${up ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"} z-50 bg-white border border-[#EEF0F4] rounded-xl p-1.5 min-w-[190px] max-h-72 overflow-auto`}>
             {options.map((o) => (
-              <div key={o.value} className={`group flex items-center rounded-lg ${o.value === value ? "bg-brand-light/50" : "hover:bg-gray-50"}`}>
+              <div key={o.value} className={`group flex items-center rounded-lg ${o.value === value ? "bg-brand-light" : "hover:bg-[#F6F7FB]"}`}>
                 <button type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-                  className={`flex-1 min-w-0 flex items-center gap-2 text-left px-3 py-1.5 text-xs ${o.value === value ? "font-medium text-gray-900" : "text-gray-700"}`}>
+                  className={`flex-1 min-w-0 flex items-center gap-2 text-left px-3 py-1.5 text-xs ${o.value === value ? "font-medium text-brand" : "text-[#232D42]"}`}>
                   <Avatar src={o.img} />
                   <span className="flex-1 truncate">{o.label}</span>
                   {o.value === value && <IconCheck size={14} stroke={2.5} className="text-brand flex-shrink-0" />}
