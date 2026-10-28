@@ -22,6 +22,7 @@ import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../Missing
 import { alertDialog, confirmDialog, promptDialog } from "@/app/(dashboard)/dashboard/preview/ConfirmDialog";
 import { compressImage } from "@/lib/compress-image";
 import { SoundVideo } from "@/components/SoundVideo";
+import { pastedName } from "@/components/FilesCard";
 import { uploadSchedulerMedia } from "@/lib/upload-task-file";
 import { nextPublisherCheck, clockText, durationText, SEND_AHEAD_MIN } from "@/lib/publisher-clock";
 import { SETTINGS } from "@/lib/app-settings";
@@ -934,9 +935,11 @@ function Scheduler() {
       {cleanMediaUrls.length > 0 && (
         <div className="mt-2 text-xs space-y-1">
           <div className="flex gap-2">
-            <span className="text-gray-500 w-[150px] shrink-0">Instagram + Facebook</span>
+            <span className="text-gray-500 w-[150px] shrink-0">{videoCarousel ? "Instagram only" : "Instagram + Facebook"}</span>
             <span className={metaMediaUrls.length && (toInstagram || toFacebook) ? "text-[#232D42]" : "text-gray-400"}>
-              {!toInstagram && !toFacebook ? "not posting" : metaMediaUrls.length ? `${metaMediaUrls.length} image${metaMediaUrls.length === 1 ? "" : "s"}` : "nothing to post"}
+              {!toInstagram && !toFacebook ? "not posting"
+                : videoCarousel ? `${metaMediaUrls.length} slides with video`
+                : metaMediaUrls.length ? (singleVideoUrl ? "1 video" : `${metaMediaUrls.length} image${metaMediaUrls.length === 1 ? "" : "s"}`) : "nothing to post"}
             </span>
           </div>
           <div className="flex gap-2">
@@ -3339,6 +3342,10 @@ function LegacyQueueRow({ post }: { post: ScheduledPost }) {
 // publishes through still caps carousels at 10 items — so 10 is the hard max here.
 // (When Meta raises the API limit, bump this one constant.)
 const MAX_MEDIA = 10;
+// Ctrl/Cmd+V pastes copied files into Create post's media, like My Day's file boxes
+// (Praveen, 28 Oct). Not while typing in a field — that paste is the field's. Only the
+// newest uploader on screen takes it.
+let pasteOwner = 0;
 function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls: string[]; setMediaUrls: (urls: string[]) => void; locked?: boolean; taskId?: string | null }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -3346,6 +3353,22 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null); // read in onDrop (state closure would be stale)
+  const uploadRef = useRef<(f: File[]) => void>(() => {});
+  useEffect(() => {
+    if (locked) return;
+    const me = ++pasteOwner;
+    const onPaste = (e: ClipboardEvent) => {
+      if (pasteOwner !== me) return;
+      const a = document.activeElement as HTMLElement | null;
+      if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+      const files = Array.from(e.clipboardData?.files || []);
+      if (!files.length) return;   // ordinary text paste — leave it alone
+      e.preventDefault();
+      uploadRef.current(pastedName(files));
+    };
+    document.addEventListener("paste", onPaste);
+    return () => { document.removeEventListener("paste", onPaste); if (pasteOwner === me) pasteOwner = 0; };
+  }, [locked]);
   // The real media = non-empty urls. We render these as small thumbnails (not URL rows).
   const media = mediaUrls.map((u) => u.trim()).filter(Boolean);
   const isVideo = (u: string) => /\.(mp4|mov|webm)(\?|$)/i.test(u);
@@ -3378,6 +3401,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
     setMediaUrls(next.length ? next : [""]);
   };
 
+  uploadRef.current = (f) => { void uploadFiles(f); };
   async function uploadFiles(files: FileList | File[]) {
     setUploadError(null);
     setUploading(true);
@@ -3465,7 +3489,7 @@ function MediaUploader({ mediaUrls, setMediaUrls, locked, taskId }: { mediaUrls:
             <>
               <div className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#232D42]">
                 <IconPaperclip size={15} stroke={1.9} className="text-brand" />
-                Drag a file here or click to upload
+                Drag, paste or click to upload a file
               </div>
               <div className="text-[11px] text-[#8A92A6] mt-0.5">jpg · png · gif · mp4 · pdf (LinkedIn carousels) · up to 300 MB</div>
             </>
