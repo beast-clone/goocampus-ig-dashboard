@@ -7,7 +7,7 @@ import { cleanSetting } from "@/lib/app-settings";
 // Rules-page settings (sql/042). Anyone signed in reads them (the screens need them);
 // only an admin changes them. GET → { settings, meta }; PATCH { key, value }.
 export const dynamic = "force-dynamic";
-const KEYS = new Set(["posting", "taskMinutes", "remindHours"]);
+const KEYS = new Set(["posting", "taskMinutes", "remindHours", "geoMonthlyUsd"]);
 
 export async function GET() {
   if (!isLoggedIn()) return NextResponse.json({ error: "Not signed in" }, { status: 401 });

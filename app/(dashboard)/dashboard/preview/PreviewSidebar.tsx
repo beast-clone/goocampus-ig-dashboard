@@ -14,7 +14,7 @@ import {
   IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
-  IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconInbox,
+  IconDeviceMobile, IconArchive, IconTrash, IconMessageChatbot, IconRobot, IconInbox,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconSend, IconBrandWhatsapp, IconRouteAltLeft, IconEye,
   IconLock, IconCalendarDue, IconFolders, IconReceipt, IconFileDescription, IconRepeat, IconBook,
 } from "@tabler/icons-react";
@@ -63,6 +63,7 @@ const GROUPS: Group[] = [
       { label: "Attendance",       href: `${HUB}/attendance`,                 icon: IconUserCheck },
       { label: "Master sheet",     href: `${HUB}/marketing-hub?tab=master`,   icon: IconTable },
       { label: "Pipeline",         href: `${HUB}/marketing-hub?tab=pipeline`, icon: IconLayoutKanban },
+      { label: "Rules",            href: `${HUB}/marketing-hub/automations`, icon: IconRouteAltLeft },
     ] },
     // Airtable Marketing Hub tables brought in (Praveen, 23 Oct) — lib/materials.ts.
     // Named "Marketing Hub" like the Airtable base; Meetings taken out the same day.
@@ -117,6 +118,7 @@ const GROUPS: Group[] = [
       { label: "Bing",             href: `${HUB}/website/search`,   icon: IconSearch },
     ] },
     { label: "SEO", href: `${HUB}/seo`, icon: IconTrendingUp },
+    { label: "GEO SEO", href: `${HUB}/geo-seo`, icon: IconRobot },
   ] },
   { label: "Audience", sec: "analytics", items: [{ label: "All platforms", href: `${HUB}/audience`, icon: IconUsers }] },
   { label: "Ads", sec: "ads", items: [
@@ -164,11 +166,6 @@ const GROUPS: Group[] = [
     // way to see them from in here — the Airtable import sat switched off and the
     // only way to notice was to open n8n. Read-only register of what runs and when.
     { label: "Workflows",    href: `${HUB}/workflows`,    icon: IconRouteAltLeft },
-    // Moved out of My Workspace on request (Praveen, 28 Sept). Note this group is
-    // ADMIN-ONLY — canAccessSection() refuses "system" for everyone else — so the
-    // content team can no longer reach Automations from the nav. The rules API is
-    // still guarded as "content", so the page itself works for anyone with the link.
-    { label: "Rules",        href: `${HUB}/marketing-hub/automations`, icon: IconRouteAltLeft },
     { label: "Tools",        href: `${HUB}/tools`,        icon: IconTools },
     { label: "Team",         href: `${HUB}/team`,         icon: IconUsersGroup },
     { label: "Comments",     href: `${HUB}/comments`,     icon: IconMessageCircle },

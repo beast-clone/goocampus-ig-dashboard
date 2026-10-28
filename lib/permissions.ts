@@ -212,6 +212,8 @@ export const TABS: TabDef[] = [
   { key: "attendance", label: "Attendance", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/attendance`] },
   { key: "master-sheet", label: "Master sheet", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["master"] },
   { key: "pipeline", label: "Pipeline", group: "My Workspace", sec: "content", paths: [`${P}/marketing-hub`], tab: ["pipeline"] },
+  // Rules page — off for non-admins until switched on (28 Oct; was admin-only under System).
+  { key: "rules", label: "Rules", group: "My Workspace", sec: "content", adminDefault: true, paths: [`${P}/marketing-hub/automations`] },
   // Marketing Hub (Airtable tables, 23 Oct): money tabs start off for non-admins.
   { key: "mm-expenses", label: "Expenses", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/expenses`] },
   { key: "mm-photos", label: "Essential Photos", group: "Marketing Hub", sec: "content", paths: [`${P}/materials/photos`] },
@@ -235,6 +237,7 @@ export const TABS: TabDef[] = [
   { key: "facebook", label: "Facebook", group: "Analytics", sec: "analytics", paths: [`${P}/facebook`] },
   { key: "website", label: "Website", group: "Analytics", sec: "analytics", paths: [`${P}/website`] },
   { key: "seo", label: "SEO", group: "Analytics", sec: "analytics", paths: [`${P}/seo`] },
+  { key: "geo-seo", label: "GEO SEO", group: "Analytics", sec: "analytics", paths: [`${P}/geo-seo`] },
   { key: "audience", label: "All platforms", group: "Analytics", sec: "analytics", paths: [`${P}/audience`] },
   { key: "ads", label: "Ads", group: "Ads", sec: "ads", paths: [`${P}/ads`] },
   { key: "competitor-ads", label: "Competitor Ads", group: "Ads", sec: "ads", paths: [`${P}/competitors`] },
@@ -270,7 +273,7 @@ const API_TABS: [string, string][] = [
   ["/api/leads", "leads"], ["/api/dm-leads", "inbox"], ["/api/inbox", "inbox"],
   ["/api/campaigns", "campaigns"], ["/api/organic-sales", "organic-sales"],
   ["/api/ads", "ads"], ["/api/competitors", "competitor-ads"],
-  ["/api/ai-insights", "ai-insights"], ["/api/seo", "seo"],
+  ["/api/ai-insights", "ai-insights"], ["/api/seo", "seo"], ["/api/geo", "geo-seo"],
 ];
 /** The tab whose switch guards this API path, or null. */
 export function apiTabFor(pathname: string | null | undefined): TabDef | null {
@@ -284,7 +287,9 @@ export function tabForUrl(pathname: string, search: string): TabDef | null {
   const q = new URLSearchParams(search);
   const tabParam = q.get("tab") || "";
   const channel = q.get("channel") || "";
-  const hits = TABS.filter((t) => t.paths.some((p) => pathname === p || pathname.startsWith(p + "/")));
+  const matchLen = (t: TabDef) => Math.max(...t.paths.map((p) => (pathname === p || pathname.startsWith(p + "/") ? p.length : -1)));
+  // Longest path first, so marketing-hub/automations is Rules, not Workload.
+  const hits = TABS.filter((t) => matchLen(t) >= 0).sort((a, b) => matchLen(b) - matchLen(a));
   for (const t of hits) {
     if (t.tab && !t.tab.includes(tabParam)) continue;
     if (t.channel && t.channel !== channel) continue;

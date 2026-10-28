@@ -51,6 +51,8 @@ export function cleanSetting(key: string, value: unknown): unknown {
     return out;
   }
   if (key === "remindHours") return int(value, 1, 8);
+  // GEO SEO monthly spend cap in US dollars (lib/geo.ts reads it server-side).
+  if (key === "geoMonthlyUsd") return int(value, 1, 500);
   return null;
 }
 
