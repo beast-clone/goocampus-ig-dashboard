@@ -11,6 +11,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { IconSparkles, IconAlertTriangle, IconCircleCheck, IconBulb, IconTrophy, IconChevronDown, IconPhoto, IconBook, IconHeartHandshake, IconHeartbeat, IconHelpCircle, IconMapPin, IconPlayerPlay, IconPlayerStop, IconSchool, IconSpeakerphone, IconWorld } from "@tabler/icons-react";
 import { TrendChart } from "@/components/TrendChart";
 import { fmtDateShort } from "@/lib/date";
+import { SoundVideo } from "@/components/SoundVideo";
 
 type AdsTotals = {
   spend: number; impressions: number; reach: number; clicks: number;
@@ -678,6 +679,14 @@ function AdPanel({ ad, siblings, onBack, onAll }: { ad: LiveAd; siblings: LiveAd
   const campSpend = siblings.reduce((s, x) => s + x.spend, 0);
   const campN = siblings.reduce((s, x) => s + (goal === "clicks" ? x.clicks : x.leads), 0);
   const campPer = campN > 0 ? campSpend / campN : 0;
+  // A video ad plays here, with sound (28 Oct). Looked up only for the open ad.
+  const [video, setVideo] = useState<{ url: string; poster: string | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setVideo(null);
+    fetch(`/api/ads/video?ad=${ad.ad_id}`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (alive) setVideo(j?.video || null); }).catch(() => {});
+    return () => { alive = false; };
+  }, [ad.ad_id]);
   const share = campSpend > 0 ? Math.round((ad.spend / campSpend) * 100) : 0;
   const freq = ad.reach > 0 ? ad.impressions / ad.reach : 0;
   const ranked = siblings.filter((x) => (goal === "clicks" ? x.clicks : x.leads) > 0)
@@ -733,6 +742,11 @@ function AdPanel({ ad, siblings, onBack, onAll }: { ad: LiveAd; siblings: LiveAd
             <button onClick={onAll} className="text-[11px] text-[#8A92A6] hover:text-brand">All campaigns</button>
           </div>
         </div>
+        {video && (
+          <div className="relative mb-3 flex justify-center bg-black rounded-xl overflow-hidden">
+            <SoundVideo src={video.url} poster={video.poster || undefined} open loop={false} className="block max-h-[420px] w-auto max-w-full" />
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-2 mb-3">
           {tile(fmtINR(ad.spend), "spent")}
           {tile(untracked ? "—" : fmtNum(n), `${word}s`)}

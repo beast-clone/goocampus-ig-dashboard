@@ -442,6 +442,28 @@ export async function fetchLiveAds(acct: AdAccountConfig, from: string, to: stri
 }
 
 // ---- Daily snapshot (matches the Meta "daily summary" notification) ----
+// One ad's playable video (28 Oct), asked for only when someone opens the ad, so the
+// ad list stays one call. A video ad carries a Meta video id (creative.video_id or
+// the story spec's video_data); its `source` is the mp4. A boosted Instagram reel
+// carries the Instagram media id instead, whose media_url is the mp4. null = a
+// picture ad, or Meta wouldn't hand over the file.
+export async function fetchAdVideo(acct: AdAccountConfig, adId: string): Promise<{ url: string; poster: string | null } | null> {
+  type Cr = { video_id?: string; thumbnail_url?: string; effective_instagram_media_id?: string; object_story_spec?: { video_data?: { video_id?: string; image_url?: string } } };
+  const ad = await gget<{ creative?: Cr }>(adId, acct.token, { fields: "creative{video_id,thumbnail_url,effective_instagram_media_id,object_story_spec{video_data{video_id,image_url}}}" });
+  const c = ad.creative || {};
+  const poster = c.object_story_spec?.video_data?.image_url || c.thumbnail_url || null;
+  const vid = c.video_id || c.object_story_spec?.video_data?.video_id;
+  if (vid) {
+    const v = await gget<{ source?: string; picture?: string }>(vid, acct.token, { fields: "source,picture" }).catch(() => null);
+    if (v?.source) return { url: v.source, poster: poster || v.picture || null };
+  }
+  if (c.effective_instagram_media_id) {
+    const m = await gget<{ media_type?: string; media_url?: string; thumbnail_url?: string }>(c.effective_instagram_media_id, acct.token, { fields: "media_type,media_url,thumbnail_url" }).catch(() => null);
+    if (m?.media_type === "VIDEO" && m.media_url) return { url: m.media_url, poster: m.thumbnail_url || poster };
+  }
+  return null;
+}
+
 export type DaySummary = { date: string; spend: number; reach: number; impressions: number; leads: number };
 export type DayAd = { ad_id: string; ad_name: string; spend: number; reach: number; impressions: number; cpm: number; ctr: number; leads: number };
 
