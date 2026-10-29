@@ -43,6 +43,38 @@ export function clockIST(now = new Date()): string {
     .replace(/ /g, " ");
 }
 
+/** Minutes since 9 AM IST for a stored timestamp (e.g. the row's updated_at). */
+export const minIST = (iso: string) => loginMinIST(new Date(iso));
+
+/**
+ * Heartbeat from an open dashboard tab (docs/ATTENDANCE_SPEC.md). The first one of the
+ * day is the arrival; every one re-saves the row, so `updated_at` is "last seen" —
+ * which is what "Left" falls back to when End day isn't pressed. Never throws.
+ */
+export async function recordActivity(personKey: string, now = new Date()): Promise<void> {
+  const person = (personKey || "").toLowerCase().trim();
+  if (!person) return;
+  try {
+    const sb = getSupabase();
+    if (!sb) return;
+    const date = todayIST();
+    const stamp = { updated_at: now.toISOString() };
+    const { data: existing } = await sb
+      .from("mh_attendance")
+      .select("login_min")
+      .eq("person_key", person).eq("date", date)
+      .maybeSingle();
+    if (existing && existing.login_min != null) {
+      await sb.from("mh_attendance").update(stamp).eq("person_key", person).eq("date", date);
+      return;
+    }
+    await sb.from("mh_attendance").upsert(
+      { person_key: person, date, login_min: loginMinIST(now), login_at: clockIST(now), ...stamp },
+      { onConflict: "person_key,date" },
+    );
+  } catch { /* attendance is a record, never a gate */ }
+}
+
 /**
  * Stamp this person's arrival. The FIRST sign-in of the day wins: signing in again
  * from another device, or after a session expires, must not move the start time.

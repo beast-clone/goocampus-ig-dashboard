@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Attendance prototype v11</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#3A57E8;--brand-d:#2138B0;--brand-l:#E9ECFB;--ink:#232D42;--muted:#8A92A6;--line:#EEF0F4;--bg:#F6F7FB;--ok:#1AA053;--bad:#C03221;--warn:#F16A1B}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,system-ui,sans-serif;color:var(--ink);font-size:13px}
+.wrap{max-width:1180px;margin:0 auto;padding:20px}
+.hero{background:linear-gradient(90deg,#3A57E8 0%,#5D74F0 100%);color:#fff;border-radius:16px;padding:22px 26px;margin-bottom:18px}
+.hero h1{margin:0;font-size:22px;font-weight:500}.hero p{margin:6px 0 0;font-size:13px;opacity:.85}
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.title{font-size:16px;font-weight:500;margin-right:8px;min-width:210px}
+.btn{height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);font:500 13px Inter;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--brand);color:var(--brand)}.btn:disabled{opacity:.4;cursor:default;border-color:var(--line);color:var(--ink)}
+.btn.on{background:var(--brand-l);color:var(--brand-d);border-color:var(--brand-l)}
+.icon{width:36px;padding:0;justify-content:center;font-size:16px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{height:34px;padding:0 16px;border:0;background:#fff;font:500 13px Inter;color:#4A5468;cursor:pointer}.seg button.on{background:var(--brand-l);color:var(--brand-d)}
+.ml{margin-left:auto}
+.date{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 12px;font:13px Inter;color:var(--ink);background:#fff;cursor:pointer}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;align-items:center;gap:14px}
+.ic{width:44px;height:44px;border-radius:12px;background:var(--brand-l);color:var(--brand);display:grid;place-items:center;flex-shrink:0}
+.card .l{font-size:12.5px;color:var(--muted)}.card .v{font-size:22px;font-weight:500;line-height:1.2}.card .s{font-size:12px;color:var(--muted)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;margin-bottom:18px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 4px}
+.ph h3{margin:0;font-size:16px;font-weight:500}.ph .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.lg{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}.lg i{display:inline-block;width:9px;height:9px;border-radius:99px;margin-right:6px;vertical-align:middle}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);font-weight:500;text-align:left;padding:12px 20px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:14px 20px;border-bottom:1px solid var(--line);vertical-align:middle}tr:last-child td{border-bottom:0}
+tr.row{cursor:pointer}tr.row:hover td{background:#FAFBFD}tr.row.sel td{background:#F5F7FE}
+.who{display:flex;align-items:center;gap:12px}.av{width:36px;height:36px;border-radius:99px;display:grid;place-items:center;font-weight:500;font-size:13px;color:#fff;flex-shrink:0}
+.who .n{font-weight:500}.who small{display:block;color:var(--muted);font-size:12px}
+.c{text-align:center}.r{text-align:right}
+.h{font-weight:500}.t{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap}
+.dash{color:#C9CEDA}
+.prog{display:flex;align-items:center;gap:10px;min-width:150px}.pb{flex:1;height:6px;border-radius:99px;background:#EEF0F4;overflow:hidden}.pb i{display:block;height:100%;background:var(--brand);border-radius:99px}
+.pv{font-size:12px;color:var(--muted);width:36px;text-align:right}
+.chartwrap{padding:8px 20px 18px}
+svg text{font-family:Inter;font-size:11px;fill:#8A92A6}
+.two{display:grid;grid-template-columns:1.6fr 1fr;gap:18px;align-items:start}
+.kv{display:grid;grid-template-columns:1fr auto;gap:12px 16px;padding:12px 20px 20px;font-size:13px}.kv span{color:var(--muted)}.kv b{font-weight:500}
+.status{font-size:12px;font-weight:500;white-space:nowrap}.s-ok{color:var(--ok)}.s-out{color:#4A5468}.s-no{color:var(--warn)}.s-off{color:var(--muted)}
+.lane{position:relative;height:8px;border-radius:99px;background:#EEF0F4}
+.lane .w{position:absolute;top:0;bottom:0;border-radius:99px}.lane .lu{position:absolute;top:0;bottom:0;background:#fff;opacity:.75}
+.lane .now{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--bad)}
+.axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-weight:400}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.close{border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer}
+.pills{display:flex;gap:4px;background:#F3F5FA;border-radius:10px;padding:4px;flex-wrap:wrap}
+.pills button{border:0;background:none;border-radius:8px;padding:7px 12px;font:500 12.5px Inter;color:#8A92A6;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.pills button i{width:8px;height:8px;border-radius:99px;display:inline-block}
+.pills button.on{background:#fff;color:var(--ink)}
+.cwrap{position:relative}.tip{position:absolute;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12.5px;pointer-events:none;white-space:nowrap}
+tr.sub td{padding:9px 20px;font-size:12px;white-space:nowrap;color:#4A5468;background:#FAFBFD;border-bottom:1px solid var(--line)}
+tr.sub td:first-child{padding-left:68px;color:var(--muted)}
+tr.sub.head td{font-size:11.5px;color:var(--muted);padding-top:12px;padding-bottom:6px}
+tr.sub.head td:first-child{color:var(--ink);font-weight:500}
+.foot{font-size:12px;color:var(--muted);margin:-6px 0 0}
+.tasks{list-style:none;margin:0;padding:0 20px 18px}.tasks li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:12.5px}.tasks li span{color:var(--muted);white-space:nowrap}
+</style></head><body><div class="wrap">
+<div class="hero"><h1>Attendance</h1><p>Arrival, last seen and hours worked for each person — by day, week or month. Prototype with sample numbers; the real board records from today.</p></div>
+
+<div class="bar">
+  <span class="title" id="rangeTitle"></span>
+  <button class="btn icon" id="prev" title="Back">‹</button>
+  <input class="date" type="date" id="pick" max="2026-10-29">
+  <button class="btn icon" id="next" title="Forward">›</button>
+  <button class="btn" id="today">Today</button>
+  <div class="seg" id="seg"><button data-v="day">Day</button><button data-v="week">Week</button><button data-v="month">Month</button><button data-v="custom">Custom</button></div>
+  <span id="range" style="display:none;align-items:center;gap:6px"><span style="color:var(--muted)">From</span><input class="date" type="date" id="from" max="2026-10-29"><span style="color:var(--muted)">to</span><input class="date" type="date" id="to" max="2026-10-29"></span>
+  <button class="btn ml" id="dl"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 11l5 5 5-5M12 4v12"/></svg>Download report (PDF)</button>
+</div>
+
+<div class="cards" id="cards"></div>
+<div id="main"></div>
+<p class="foot" id="foot"></p>
+</div>
+<div id="pdfModal" style="display:none;position:fixed;inset:0;background:rgba(35,45,66,.45);align-items:center;justify-content:center;z-index:10">
+  <div style="background:#fff;border-radius:16px;width:min(1100px,94vw);height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)">
+      <div style="flex:1"><div style="font-size:15px;font-weight:500">Report preview</div><div id="pdfName" style="font-size:12px;color:var(--muted)"></div></div>
+      <button class="btn on" id="pdfSave">Download PDF</button><button class="btn" id="pdfClose">Close</button>
+    </div>
+    <div id="pdfPages" style="flex:1;overflow:auto;background:#F6F7FB;padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px"></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ── sample data ────────────────────────────────────────────────────────────
+const TODAY="2026-10-29", NOW=250; // 1:10 PM, minutes after 9 AM
+const P=[
+ {k:"maheen",n:"Maheen",r:"Admin",c:"#1AA053",start:60},
+ {k:"manya",n:"Manya",r:"Content writer",c:"#F16A1B",start:70},
+ {k:"nandu",n:"Nandu",r:"Video editor · late shift",c:"#2138B0",start:180},
+ {k:"nikhil",n:"Nikhil",r:"Video editor",c:"#8A92A6",start:45},
+ {k:"praveen",n:"Praveen",r:"Designer",c:"#3A57E8",start:5},
+];
+const hash=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i)*(i+7))%1000003;const x=Math.sin(h)*43758.5453;return x-Math.floor(x)};
+const ds=d=>d.toISOString().slice(0,10);
+const D=s=>new Date(s+"T00:00:00Z");
+const addDays=(s,n)=>{const d=D(s);d.setUTCDate(d.getUTCDate()+n);return ds(d)};
+const dow=s=>(D(s).getUTCDay()+6)%7; // Mon=0
+// one person's day: {in, out, live} in minutes after 9 AM, or null (absent / weekend / future)
+function rec(p,s){
+  if(s>TODAY)return null; const w=dow(s); if(w>=5)return null;
+  const r=hash(p.k+s); if(r<0.07 && s!==TODAY)return null;           // the odd day off
+  const a=Math.round(p.start-10+r*40);
+  if(s===TODAY){ if(a>NOW)return null; return {in:a,out:NOW-Math.round(r*6),live:true}; }
+  return {in:a,out:Math.min(a+500+Math.round(hash(s+p.k)*80),760),live:false};
+}
+const net=(a,b)=>{const o=Math.max(0,Math.min(b,300)-Math.max(a,240));return Math.max(0,b-a-o)};
+const hrs=x=>x?net(x.in,x.out):0;
+const fmt=m=>{if(!m)return "—";const h=Math.floor(m/60),mm=Math.round(m%60);return h?`${h}h${mm?` ${mm}m`:""}`:`${mm}m`};
+const clock=m=>{const t=540+m,h=Math.floor(t/60),mm=t%60;return `${(h+11)%12+1}:${String(mm).padStart(2,"0")} ${h>=12?"PM":"AM"}`};
+const longDate=s=>D(s).toLocaleDateString("en-GB",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"});
+const short=s=>D(s).toLocaleDateString("en-GB",{timeZone:"UTC",day:"numeric",month:"short"});
+const wd=s=>D(s).toLocaleDateString("en-GB",{timeZone:"UTC",weekday:"short"});
+
+// ── icons / bits ───────────────────────────────────────────────────────────
+const I={users:'<path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0 -3 -3.85"/>',clock:'<path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0M12 7v5l3 3"/>',chart:'<path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1zM15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1zM9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/>',check:'<path d="M5 12l5 5l10 -10"/>',cal:'<path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2zM16 3v4M8 3v4M4 11h16"/>'};
+const icon=k=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${I[k]}</svg>`;
+const av=p=>`<div class="av" style="background:${p.c}">${p.n[0]}</div>`;
+const who=(p,sub)=>`<div class="who">${av(p)}<div><span class="n">${p.n}</span><small>${sub??p.r}</small></div></div>`;
+const prog=(m,target)=>`<div class="prog"><div class="pb"><i style="width:${target?Math.min(100,m/target*100):0}%"></i></div><span class="pv">${target?Math.round(m/target*100):0}%</span></div>`;
+function cards(a){document.getElementById("cards").innerHTML=a.map(([ic,l,v,s])=>`<div class="card"><div class="ic">${icon(ic)}</div><div><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s||""}</div></div></div>`).join("")}
+
+// line chart: series [{k,c,d:[minutes|null]}], labels []
+function lineChart(series,labels,maxH=11,height=230){
+  const w=1100,h=height,pl=36,pr=12,pt=12,pb=26,cw=w-pl-pr,ch=h-pt-pb,n=labels.length;
+  const x=i=>n===1?pl+cw/2:pl+i*(cw/(n-1)), y=m=>pt+ch-(Math.min(m,maxH*60)/60/maxH)*ch;
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">`;
+  for(let g=0;g<=maxH;g+=2)s+=`<line x1="${pl}" x2="${w-pr}" y1="${y(g*60)}" y2="${y(g*60)}" stroke="#EEF0F4"/><text x="${pl-8}" y="${y(g*60)+4}" text-anchor="end">${g}h</text>`;
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${y(480)}" y2="${y(480)}" stroke="#232D42" stroke-opacity=".25" stroke-dasharray="4 4"/><text x="${w-pr}" y="${y(480)-6}" text-anchor="end">8h</text>`;
+  const step=Math.ceil(n/16);
+  labels.forEach((l,i)=>{if(i%step===0||i===n-1)s+=`<text x="${x(i)}" y="${h-6}" text-anchor="middle">${l}</text>`});
+  for(const se of series){
+    const faded=sel&&se.k!==sel; let seg=[],segs=[];
+    se.d.forEach((m,i)=>{if(m==null){if(seg.length)segs.push(seg);seg=[]}else seg.push(`${x(i)},${y(m)}`)}); if(seg.length)segs.push(seg);
+    for(const sg of segs)s+=`<polyline points="${sg.join(" ")}" fill="none" stroke="${se.c}" stroke-width="${se.k===sel?3:2}" stroke-opacity="${faded?.2:1}" stroke-linejoin="round"/>`;
+    se.d.forEach((m,i)=>{if(m!=null&&n<=31)s+=`<circle cx="${x(i)}" cy="${y(m)}" r="${n>10?2.5:3.5}" fill="#fff" stroke="${se.c}" stroke-width="2" opacity="${faded?.2:1}"><title>${se.k}: ${fmt(m)}</title></circle>`});
+  }
+  return s+`</svg>`;
+}
+const legend=()=>`<div class="lg">${P.map(p=>`<span><i style="background:${p.c}"></i>${p.n}</span>`).join("")}</div>`;
+
+// ── state ──────────────────────────────────────────────────────────────────
+let view="week", anchor=TODAY, sel=null, from="2026-10-01", to=TODAY;
+const weekStart=s=>addDays(s,-dow(s));
+const monthDays=s=>{const y=+s.slice(0,4),m=+s.slice(5,7);const n=new Date(Date.UTC(y,m,0)).getUTCDate();return Array.from({length:n},(_,i)=>`${s.slice(0,8)}${String(i+1).padStart(2,"0")}`)};
+const daysOf=()=>{if(view==="custom"){const out=[];for(let d=from;d<=to;d=addDays(d,1))out.push(d);return out}return view==="day"?[anchor]:view==="week"?Array.from({length:7},(_,i)=>addDays(weekStart(anchor),i)):monthDays(anchor)};
+const workdays=ds=>ds.filter(s=>dow(s)<5&&s<=TODAY).length;
+
+// Overview-style chart for ONE person at a time (Praveen, 29 Oct): pick the person
+// with the pills; the number on top, the line and its shading are theirs. Hover a day
+// for that day's hours. Working days only; today joins once it's over.
+let chartWho="maheen";
+function trend(rows,days,label){
+  const idx=days.map((d,i)=>[d,i]).filter(([d])=>dow(d)<5&&d<TODAY);
+  const r=rows.find(x=>x.p.k===chartWho)||rows[0];
+  const pills=`<div class="pills">${rows.map(o=>`<button data-who="${o.p.k}" class="${o.p.k===r.p.k?"on":""}"><i style="background:${o.p.c}"></i>${o.p.n}</button>`).join("")}</div>`;
+  let body;
+  if(idx.length<2) body=`<div class="empty" style="padding:30px">The graph fills in after the first full working day.</div>`;
+  else{
+    const w=1100,h=200,pl=46,pr=14,pt=10,pb=30,cw=w-pl-pr,ch=h-pt-pb;
+    const pts=idx.map(([d,i])=>({d,m:r.x[i]?hrs(r.x[i]):null}));
+    const max=Math.max(600,...pts.map(p=>p.m||0));
+    const x=j=>pl+j*(cw/(pts.length-1)), y=m=>pt+ch-(m/max)*ch;
+    let svg="";
+    for(let g=0;g<=max/60;g+=2)svg+=`<line x1="${pl}" x2="${w-pr}" y1="${y(g*60)}" y2="${y(g*60)}" stroke="#F1F3F8"/><text x="${pl-10}" y="${y(g*60)+4}" text-anchor="end">${g}h</text>`;
+    // an absent day reads as 0 on the line — the hover says "Absent"
+    const line=pts.map((p,j)=>`${x(j)},${y(p.m||0)}`).join(" ");
+    svg+=`<defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="${r.p.c}" stop-opacity=".22"/><stop offset="100%" stop-color="${r.p.c}" stop-opacity="0"/></linearGradient></defs>`;
+    svg+=`<polygon points="${x(0)},${y(0)} ${line} ${x(pts.length-1)},${y(0)}" fill="url(#fill)"/><polyline points="${line}" fill="none" stroke="${r.p.c}" stroke-width="2" stroke-linejoin="round"/>`;
+    svg+=`<line x1="${pl}" x2="${w-pr}" y1="${y(480)}" y2="${y(480)}" stroke="#232D42" stroke-opacity=".25" stroke-dasharray="5 5"/><text x="${w-pr}" y="${y(480)-6}" text-anchor="end">8h</text>`;
+    const step=Math.ceil(pts.length/7), last=pts.length-1;
+    pts.forEach((p,j)=>{if((j%step===0&&last-j>=step*0.8)||j===last)svg+=`<text x="${x(j)}" y="${h-8}" text-anchor="${j===last?"end":j===0?"start":"middle"}">${D(p.d).toLocaleDateString("en-GB",{timeZone:"UTC",month:"short"})} ${+p.d.slice(8)}</text>`});
+    svg+=`<line id="hv" x1="0" x2="0" y1="${pt}" y2="${pt+ch}" stroke="#C9CEDA" visibility="hidden"/><circle id="hd" r="5" fill="#fff" stroke="${r.p.c}" stroke-width="2" visibility="hidden"/>`;
+    const data=pts.map((p,j)=>({x:x(j),y:y(p.m||0),d:p.d,m:p.m,a:r.x[idx[j][1]]?clock(r.x[idx[j][1]].in)+" – "+clock(r.x[idx[j][1]].out):""}));
+    body=`<div class="cwrap" data-w="${w}" data-h="${h}" data-c="${r.p.c}" data-n="${r.p.n}"><svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">${svg}<rect x="${pl}" y="0" width="${cw}" height="${h}" fill="transparent"/></svg><div class="tip" style="display:none"></div><script type="application/json">${JSON.stringify(data)}<\/script></div>`;
+  }
+  return `<div class="panel"><div class="ph" style="align-items:flex-start;padding-top:18px"><div><div style="font-size:26px;font-weight:500">${fmt(r.tot)}</div><div class="sub" style="font-size:13px">${r.p.n} · ${label}</div></div>${pills}</div><div class="chartwrap">${body}<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px"><span>Hours worked each working day · dashed line = 8 hours</span><span>Hover any day for its hours</span></div></div></div>`;
+}
+function wireTrend(){
+  document.querySelectorAll("button[data-who]").forEach(b=>b.onclick=()=>{chartWho=b.dataset.who;render()});
+  const wrap=document.querySelector(".cwrap"); if(!wrap)return;
+  const data=JSON.parse(wrap.querySelector("script").textContent), w=+wrap.dataset.w, h=+wrap.dataset.h, svg=wrap.querySelector("svg"), tip=wrap.querySelector(".tip"), hv=svg.querySelector("#hv"), hd=svg.querySelector("#hd");
+  svg.addEventListener("pointermove",e=>{const r=svg.getBoundingClientRect();const sx=(e.clientX-r.left)/r.width*w;let b=data[0];for(const p of data)if(Math.abs(p.x-sx)<Math.abs(b.x-sx))b=p;
+    hv.setAttribute("x1",b.x);hv.setAttribute("x2",b.x);hv.setAttribute("visibility","visible");hd.setAttribute("cx",b.x);hd.setAttribute("cy",b.y);hd.setAttribute("visibility","visible");
+    const left=b.x/w*r.width; tip.style.display="block"; tip.style.left=(left>r.width-200?left-190:left+14)+"px"; tip.style.top=Math.max(0,b.y/h*r.height-30)+"px";
+    tip.innerHTML=`<div style="font-weight:500;margin-bottom:4px">${D(b.d).toLocaleDateString("en-GB",{timeZone:"UTC",weekday:"short",day:"numeric",month:"short"})}</div><div style="display:flex;align-items:center;gap:8px"><i style="width:8px;height:8px;border-radius:99px;background:${wrap.dataset.c}"></i><span style="color:var(--muted)">${wrap.dataset.n}</span><b style="font-weight:500">${b.m==null?"Absent":fmt(b.m)}</b></div>${b.a?`<div style="color:var(--muted);font-size:12px;margin-top:3px">${b.a}</div>`:""}`});
+  svg.addEventListener("pointerleave",()=>{tip.style.display="none";hv.setAttribute("visibility","hidden");hd.setAttribute("visibility","hidden")});
+}
+
+// ── views ──────────────────────────────────────────────────────────────────
+// One table per view. Clicking a person opens their details right under their row.
+const caret=k=>`<span style="color:#8A92A6;font-size:12px;margin-left:6px">${sel===k?"▲":"▼"}</span>`;
+const openRow=(cols,body)=>`<tr class="open"><td colspan="${cols}" style="background:#FAFBFD;padding:0 20px 16px 68px">${body}</td></tr>`;
+const mini=(label,m,target,sub)=>`<div style="display:grid;grid-template-columns:110px 1fr 70px;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--line)"><span style="color:var(--muted)">${label}</span>${prog(m,target)}<span class="h r">${fmt(m)}</span>${sub?`<span></span><span class="t" style="margin-top:-6px">${sub}</span><span></span>`:""}</div>`;
+
+// The opened person's working days as a plain list — same in Week, Month and Custom.
+const dayLabel=d=>D(d).toLocaleDateString("en-GB",{timeZone:"UTC",weekday:"short",day:"numeric",month:"short"});
+function dayRows(r,days,cols){
+  const pad=`<td></td>`.repeat(cols-4);
+  let h=`<tr class="sub head"><td>${r.p.n} · each working day</td><td>Arrived</td><td>Left</td><td>Hours worked</td>${pad}</tr>`;
+  days.forEach((d,i)=>{if(dow(d)>=5||d>TODAY)return;const x=r.x[i];
+    h+=`<tr class="sub"><td>${dayLabel(d)}</td>${x?`<td>${clock(x.in)}</td><td>${x.live?"still working":clock(x.out)}</td><td>${fmt(hrs(x))}</td>`:`<td style="color:var(--warn)">Absent</td><td></td><td></td>`}${pad}</tr>`;});
+  return h;
+}
+function dayView(){
+  const s=anchor, isToday=s===TODAY, span=780, L=m=>(m+60)/span*100;
+  document.getElementById("rangeTitle").textContent=longDate(s)+(isToday?" · today":"");
+  const rows=P.map(p=>{const x=rec(p,s);const st=!x?"no":x.live?"ok":"out";return{p,x,st,m:hrs(x)}});
+  cards([["users",isToday?"Arrived":"Present",`${rows.filter(r=>r.x).length} / ${P.length}`,""],["clock",isToday?"Working now":"Left",isToday?rows.filter(r=>r.st==="ok").length:rows.filter(r=>r.st==="out").length,""],["chart","Hours worked",fmt(rows.reduce((a,r)=>a+r.m,0)),"everyone, after lunch"],["cal",isToday?"Not in yet":"Absent",rows.filter(r=>!r.x).length,""]]);
+  if(dow(s)>=5)return `<div class="panel"><div class="empty">${wd(s)} — not a working day.</div></div>`;
+  let h=`<div class="panel"><table><thead><tr><th style="width:240px">Person</th><th><div class="axis"><span>8 AM</span><span>11</span><span>2 PM</span><span>5</span><span>9 PM</span></div></th><th style="width:110px">Hours</th><th style="width:140px">Status</th></tr></thead><tbody>`;
+  for(const r of rows){const x=r.x;
+    h+=`<tr class="row${sel===r.p.k?" sel":""}" data-k="${r.p.k}"><td>${who(r.p,x?`${clock(x.in)} – ${x.live?"now":clock(x.out)}`:"—")}</td><td><div class="lane">${x?`<div class="w" style="left:${L(x.in)}%;width:${(x.out-x.in)/span*100}%;background:${r.p.c}"></div><div class="lu" style="left:${L(240)}%;width:${60/span*100}%"></div>`:""}${isToday?`<div class="now" style="left:${L(NOW)}%"></div>`:""}</div></td><td class="h">${fmt(r.m)}</td><td><span class="status ${r.st==="ok"?"s-ok":r.st==="out"?"s-out":"s-no"}">${r.st==="ok"?"● Working":r.st==="out"?"Left "+clock(x.out):isToday?"Not in yet":"Absent"}</span>${caret(r.p.k)}</td></tr>`;
+    if(sel===r.p.k)h+=`<tr class="sub"><td>Arrived ${x?clock(x.in):"—"}</td><td>${x?(x.live?"Last seen just now":"Left "+clock(x.out))+(x.out>300&&x.in<240?" · 1-hour lunch not counted":""):"—"}</td><td>${fmt(r.m)}</td><td>${x&&!x.live?(hash("e"+r.p.k+s)>.5?"Pressed End day":"Didn't press End day"):""}</td></tr>`;
+  }
+  return h+`</tbody></table></div>`;
+}
+function weekView(){
+  const days=daysOf(), ws=days[0];
+  document.getElementById("rangeTitle").textContent=`Week · Mon ${short(ws)} – Fri ${short(days[4])}`+(days.includes(TODAY)?" (this week)":"");
+  const wdays=workdays(days), target=wdays*480;
+  const rows=P.map(p=>{const x=days.map(s=>rec(p,s));const d=x.map(hrs);return{p,x,d,tot:d.reduce((a,b)=>a+b,0),days:x.filter(Boolean).length}});
+  const all=rows.reduce((a,r)=>a+r.tot,0);
+  cards([["users","People present",`${rows.filter(r=>r.days).length} / ${P.length}`,""],["clock","Hours worked",fmt(all),"everyone, after lunch"],["chart","Average per person",fmt(Math.round(all/P.length)),`target ${wdays*8}h so far`],["cal","Days absent",rows.reduce((a,r)=>a+(wdays-r.days),0),"working days missed"]]);
+  let h=trend(rows,days,"Hours worked this week")+`<div class="panel"><table><thead><tr><th style="width:240px">Person</th>${days.slice(0,5).map(s=>`<th>${wd(s)} ${+s.slice(8)}</th>`).join("")}<th style="width:220px">Week</th></tr></thead><tbody>`;
+  for(const r of rows){
+    h+=`<tr class="row${sel===r.p.k?" sel":""}" data-k="${r.p.k}"><td>${who(r.p)}</td>${r.x.slice(0,5).map((x,i)=>`<td>${x?`<span class="h">${fmt(r.d[i])}</span>`:days[i]>TODAY?``:`<span class="dash">Absent</span>`}</td>`).join("")}<td><div style="display:flex;align-items:center;gap:10px"><span class="h" style="width:64px">${fmt(r.tot)}</span>${prog(r.tot,target)}${caret(r.p.k)}</div></td></tr>`;
+    if(sel===r.p.k)h+=dayRows(r,days,7);
+  }
+  return h+`</tbody></table></div>`;
+}
+function monthView(){
+  const days=daysOf(), wdays=workdays(days), target=wdays*480;
+  document.getElementById("rangeTitle").textContent=view==="custom"?`${short(from)} – ${short(to)} ${to.slice(0,4)}`:D(anchor).toLocaleDateString("en-GB",{timeZone:"UTC",month:"long",year:"numeric"});
+  const rows=P.map(p=>{const x=days.map(s=>rec(p,s));const d=x.map(hrs);return{p,x,d,tot:d.reduce((a,b)=>a+b,0),days:x.filter(Boolean).length}});
+  const all=rows.reduce((a,r)=>a+r.tot,0);
+  cards([["users","People present",`${rows.filter(r=>r.days).length} / ${P.length}`,""],["clock","Hours worked",fmt(all),"everyone, after lunch"],["chart","Average per person",fmt(Math.round(all/P.length)),`target ${wdays*8}h so far`],["cal","Working days",wdays,view==="custom"?"in this range":days.includes(TODAY)?"so far":""]]);
+  if(!wdays)return `<div class="panel"><div class="empty">No working days in this range.</div></div>`;
+  let h=trend(rows,days,view==="custom"?"Hours worked in this range":"Hours worked this month")+`<div class="panel"><table><thead><tr><th style="width:240px">Person</th><th>Days present</th><th>Days absent</th><th>Average day</th><th style="width:300px">Hours worked</th></tr></thead><tbody>`;
+  for(const r of rows){
+    h+=`<tr class="row${sel===r.p.k?" sel":""}" data-k="${r.p.k}"><td>${who(r.p)}</td><td>${r.days} of ${wdays}</td><td>${wdays-r.days}</td><td>${fmt(Math.round(r.tot/Math.max(1,r.days)))}</td><td><div style="display:flex;align-items:center;gap:10px"><span class="h" style="width:72px">${fmt(r.tot)}</span>${prog(r.tot,target)}${caret(r.p.k)}</div></td></tr>`;
+    if(sel===r.p.k)h+=dayRows(r,days,5);
+  }
+  return h+`</tbody></table></div>`;
+}
+
+// ── render + controls ──────────────────────────────────────────────────────
+function render(){
+  document.querySelectorAll("#seg button").forEach(b=>b.classList.toggle("on",b.dataset.v===view));
+  document.getElementById("pick").value=anchor;
+  document.getElementById("today").classList.toggle("on",anchor===TODAY);
+  document.getElementById("next").disabled=view==="day"?anchor>=TODAY:view==="week"?addDays(weekStart(anchor),7)>TODAY:monthDays(anchor).includes(TODAY);
+  const custom=view==="custom";
+  ["prev","pick","next","today"].forEach(id=>document.getElementById(id).style.display=custom?"none":"");
+  document.getElementById("range").style.display=custom?"inline-flex":"none";
+  document.getElementById("from").value=from; document.getElementById("to").value=to;
+  document.getElementById("main").innerHTML=view==="day"?dayView():view==="week"?weekView():monthView();
+  document.getElementById("foot").textContent="Hours = arrival to End day (or last seen if End day isn't pressed), minus the 1-hour lunch. Click a person to open their details.";
+  document.querySelectorAll("tr.row[data-k]").forEach(tr=>tr.onclick=()=>{sel=sel===tr.dataset.k?null:tr.dataset.k;render()});
+  document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{sel=null;render()});
+  wireTrend();
+}
+function shift(dir){
+  if(view==="day")anchor=addDays(anchor,dir);
+  else if(view==="week")anchor=addDays(anchor,7*dir);
+  else{const y=+anchor.slice(0,4),m=+anchor.slice(5,7)-1+dir;const d=new Date(Date.UTC(y,m,1));anchor=ds(d);}
+  if(anchor>TODAY)anchor=TODAY; render();
+}
+document.getElementById("prev").onclick=()=>shift(-1);
+document.getElementById("next").onclick=()=>shift(1);
+document.getElementById("today").onclick=()=>{anchor=TODAY;render()};
+document.getElementById("pick").onchange=e=>{if(e.target.value){anchor=e.target.value>TODAY?TODAY:e.target.value;render()}};
+document.querySelectorAll("input.date").forEach(el=>el.onclick=e=>{try{e.target.showPicker()}catch{}});
+document.getElementById("from").onchange=e=>{if(e.target.value){from=e.target.value;if(from>to)to=from;render()}};
+document.getElementById("to").onchange=e=>{if(e.target.value){to=e.target.value>TODAY?TODAY:e.target.value;if(to<from)from=to;render()}};
+document.querySelectorAll("#seg button").forEach(b=>b.onclick=()=>{view=b.dataset.v;render()});
+// ── PDF report ─────────────────────────────────────────────────────────────
+// Real text + vector graphs drawn with jsPDF (the dashboard already ships it). Page 1 is
+// the team: summary, hours-per-person bars, one table. Week/Month/Custom then give each
+// person a page: their daily-hours graph and their plain day list.
+const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+function buildPdf(){
+  const {jsPDF}=window.jspdf, doc=new jsPDF({orientation:"landscape",unit:"pt",format:"a4"});
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=36, INK=[35,45,66], MUT=[138,146,166], LINE=[238,240,244];
+  const title=document.getElementById("rangeTitle").textContent;
+  const days=daysOf(), work=days.filter(d=>dow(d)<5&&d<=TODAY), multi=view!=="day";
+  const rows=P.map(p=>{const x=days.map(s=>rec(p,s));const d=x.map(hrs);return{p,x,tot:d.reduce((a,b)=>a+b,0),present:work.filter(s=>x[days.indexOf(s)]).length}});
+  const target=work.length*480;
+  const font=(sz,bold,c=INK)=>{doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(sz);doc.setTextColor(...c)};
+  let y;
+  const top=(heading,sub)=>{doc.setFillColor(58,87,232);doc.rect(0,0,W,6,"F");y=M+8;font(16,true);doc.text(heading,M,y);font(9.5,false,MUT);doc.text(sub,M,y+15);y+=34};
+  // rows squeeze (17pt → 12pt) so a full month of days still fits on the person's one page
+  const table=(cols,widths,data)=>{
+    font(8,true,MUT);let x=M;cols.forEach((c,i)=>{doc.text(c.toUpperCase(),x,y);x+=widths[i]});y+=6;doc.setDrawColor(222,226,235);doc.line(M,y,W-M,y);y+=13;
+    const rh=Math.max(12,Math.min(17,(H-M-14-y)/Math.max(1,data.length)));
+    for(const r of data){if(y>H-M-10){doc.addPage();top(`${heading0} (continued)`,title);font(8,true,MUT)}
+      x=M;r.forEach((v,i)=>{const absent=v==="Absent";font(9,false,absent?[241,106,27]:[59,68,87]);doc.text(String(v),x,y);x+=widths[i]});
+      doc.setDrawColor(...LINE);doc.line(M,y+rh*.3,W-M,y+rh*.3);y+=rh}};
+  let heading0="Attendance report";
+
+  // page 1 — the team
+  top("Attendance report",`${title}  ·  generated ${new Date().toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}`);
+  const cards=[...document.querySelectorAll(".card")].map(c=>[c.querySelector(".l").textContent,c.querySelector(".v").textContent,c.querySelector(".s").textContent]);
+  const cw=(W-M*2-30)/4;
+  cards.forEach(([l,v,s],i)=>{const x=M+i*(cw+10);doc.setDrawColor(...LINE);doc.roundedRect(x,y,cw,50,6,6,"S");font(8.5,false,MUT);doc.text(l,x+12,y+16);font(15,true);doc.text(v,x+12,y+34);font(7.5,false,MUT);doc.text(s,x+12,y+44)});
+  y+=72;
+  // hours per person — thin brand-blue bars on a light track; a full track = the target
+  // (8h × working days; 8h for a single day). Hours and % sit to the right.
+  const goal=multi?target:480;
+  font(11,true);doc.text(multi?"Hours worked per person":"Hours worked today",M,y);
+  font(8.5,false,MUT);doc.text(`full bar = ${goal/60}h target${multi?` (8h × ${work.length} working days)`:""}`,W-M,y,{align:"right"});
+  y+=18;
+  const bx=M+90, bw=W-M*2-200, bh=6, gap=20;
+  rows.forEach((r,i)=>{const yy=y+i*gap, f=goal?Math.min(1,r.tot/goal):0;
+    font(9,false,INK);doc.text(r.p.n,M,yy+5);
+    doc.setFillColor(...LINE);doc.roundedRect(bx,yy,bw,bh,3,3,"F");
+    if(r.tot){doc.setFillColor(58,87,232);doc.roundedRect(bx,yy,Math.max(bh,bw*f),bh,3,3,"F")}
+    font(9,true);doc.text(fmt(r.tot),bx+bw+16,yy+5);
+    font(9,false,MUT);doc.text(`${goal?Math.round(r.tot/goal*100):0}%`,W-M,yy+5,{align:"right"})});
+  y+=rows.length*gap+14;
+  if(multi)table(["Person","Days present","Days absent","Average day","Hours worked","% of target"],[150,110,110,110,120,100],
+    rows.map(r=>[r.p.n,`${r.present} of ${work.length}`,work.length-r.present,fmt(Math.round(r.tot/Math.max(1,r.present))),fmt(r.tot),target?Math.round(r.tot/target*100)+"%":"—"]));
+  else table(["Person","Arrived","Left","Hours worked","Status"],[150,120,120,120,200],
+    rows.map(r=>{const x=r.x[0];return[r.p.n,x?clock(x.in):"—",x?(x.live?"still working":clock(x.out)):"—",fmt(r.tot),!x?(anchor===TODAY?"Not in yet":"Absent"):x.live?"Working":"Left"]}));
+
+  // one page per person — their graph, then their day list
+  if(multi)for(const r of rows){
+    doc.addPage();heading0=r.p.n;top(r.p.n,`${r.p.r}  ·  ${title}`);
+    font(20,true);doc.text(fmt(r.tot),M,y+4);const tw=doc.getTextWidth(fmt(r.tot));font(9,false,MUT);doc.text(`worked  ·  ${r.present} of ${work.length} days present  ·  average day ${fmt(Math.round(r.tot/Math.max(1,r.present)))}`,M+tw+10,y+2);
+    y+=22;
+    // like the screen graph, today joins the line once it's over
+    const pts=work.filter(d=>d<TODAY).map(d=>{const x=r.x[days.indexOf(d)];return{d,m:x?hrs(x):0}});
+    const gx=M+24, gw=W-M*2-30, gh=100, mx=Math.max(600,...pts.map(p=>p.m)), X=j=>pts.length===1?gx+gw/2:gx+j*gw/(pts.length-1), Y=m=>y+gh-(m/mx)*gh;
+    font(7.5,false,MUT);
+    for(let g=0;g<=mx/60;g+=2){doc.setDrawColor(...LINE);doc.line(gx,Y(g*60),gx+gw,Y(g*60));doc.text(`${g}h`,gx-6,Y(g*60)+3,{align:"right"})}
+    doc.setDrawColor(...INK);doc.setLineDashPattern([3,3],0);doc.line(gx,Y(480),gx+gw,Y(480));doc.setLineDashPattern([],0);doc.text("8h",gx+gw,Y(480)-4,{align:"right"});
+    doc.setDrawColor(...rgb(r.p.c));doc.setLineWidth(1.6);
+    for(let j=1;j<pts.length;j++)doc.line(X(j-1),Y(pts[j-1].m),X(j),Y(pts[j].m));
+    doc.setFillColor(255,255,255);pts.forEach((p,j)=>doc.circle(X(j),Y(p.m),2.2,"FD"));doc.setLineWidth(.5);
+    const step=Math.ceil(pts.length/10);font(7.5,false,MUT);
+    pts.forEach((p,j)=>{if(j%step===0||j===pts.length-1)doc.text(short(p.d),X(j),y+gh+12,{align:"center"})});
+    y+=gh+32;
+    table(["Date","Arrived","Left","Hours worked"],[160,140,140,140],
+      work.map(d=>{const x=r.x[days.indexOf(d)];return x?[dayLabel(d),clock(x.in),x.live?"still working":clock(x.out),fmt(hrs(x))]:[dayLabel(d),"Absent","",""]}));
+  }
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){doc.setPage(i);font(7.5,false,[166,172,190]);doc.text("Hours = arrival to End day (or last seen), minus the 1-hour lunch  ·  GooCampus Marketing OS",M,H-18);doc.text(`${i} of ${n}`,W-M,H-18,{align:"right"})}
+  return doc;
+}
+// Preview = the real PDF's pages drawn with pdf.js (the dashboard's CSP blocks blob: iframes,
+// so no <iframe>). In the real tab: import("pdfjs-dist") with workerSrc "/pdf.worker.min.mjs", as PdfThumb does.
+const PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs", PDFJS_WORKER="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs";
+async function previewPdf(doc){
+  const box=document.getElementById("pdfPages"); box.innerHTML=`<div style="color:var(--muted);padding:40px">Preparing preview…</div>`;
+  const pdfjs=await import(PDFJS); pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;
+  const pdf=await pdfjs.getDocument({data:doc.output("arraybuffer")}).promise;
+  box.innerHTML="";
+  const width=Math.min(1000,box.clientWidth-40);
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i), base=page.getViewport({scale:1}), vp=page.getViewport({scale:width*2/base.width});
+    const c=document.createElement("canvas"); c.width=vp.width; c.height=vp.height;
+    c.style.cssText=`width:${width}px;background:#fff;border:1px solid var(--line);border-radius:8px;flex-shrink:0`;
+    box.appendChild(c); await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+  }
+}
+let pdfDoc=null;
+document.getElementById("dl").onclick=()=>{
+  pdfDoc=buildPdf();
+  previewPdf(pdfDoc).catch(e=>{document.getElementById("pdfPages").innerHTML=`<div style="color:var(--bad);padding:40px">Preview failed: ${e.message}. Download PDF still works.</div>`});
+  document.getElementById("pdfName").textContent=`attendance-${view}-${view==="custom"?from+"-to-"+to:anchor}.pdf`;
+  document.getElementById("pdfModal").style.display="flex";
+};
+document.getElementById("pdfSave").onclick=()=>pdfDoc.save(document.getElementById("pdfName").textContent);
+document.getElementById("pdfClose").onclick=()=>document.getElementById("pdfModal").style.display="none";
+render();
+</script></body></html>

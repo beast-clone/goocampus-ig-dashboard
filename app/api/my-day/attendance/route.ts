@@ -5,6 +5,12 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionIsAdmin, getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { fetchRoster } from "@/lib/team-db";
+import { recordActivity, minIST } from "@/lib/attendance";
+
+// Recording under the agreed rules (docs/ATTENDANCE_SPEC.md) starts here; earlier days
+// are "not recorded", never absent — no backfill.
+const RECORDING_START = "2026-10-29";
+const isDate = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 // Team Attendance (admin-only). Login/logout are written by each person's My Day
 // and stored PERMANENTLY in the mh_attendance table (one row per person per day),
@@ -74,6 +80,8 @@ export async function POST(req: Request) {
     // Admins keep the ability to post for someone else, which is what the My Day
     // switcher needs.
     const me = (getSessionUserId() || "").toLowerCase();
+    // Heartbeat from any open dashboard tab — always the signed-in person, never a body field.
+    if (b.action === "ping") { await recordActivity(me); return NextResponse.json({ ok: true }); }
     const requested = (b.person || "").toLowerCase().trim();
     const person = getSessionIsAdmin() ? (requested || me) : me;
     if (!person || (b.action !== "login" && b.action !== "logout")) return NextResponse.json({ error: "person + action required" }, { status: 400 });
@@ -113,6 +121,24 @@ export async function GET(req: Request) {
     const sb = getSupabase();
     if (!sb) return NextResponse.json({ error: "no db" }, { status: 500 });
     const u = new URL(req.url);
+
+    // Attendance tab: ?from=&to= → one record per person per recorded day.
+    // Left = End day, else last activity (the row's updated_at, re-saved by each heartbeat).
+    const qFrom = u.searchParams.get("from"), qTo = u.searchParams.get("to");
+    if (isDate(qFrom) && isDate(qTo)) {
+      const today = todayIST();
+      const from = qFrom < RECORDING_START ? RECORDING_START : qFrom;
+      const to = qTo > today ? today : qTo;
+      const { data } = from > to ? { data: [] } : await sb.from("mh_attendance")
+        .select("person_key,date,login_min,logout_min,updated_at").gte("date", from).lte("date", to).not("login_min", "is", null);
+      const records = (data || []).map((r) => ({
+        person: r.person_key as string, date: r.date as string, inMin: r.login_min as number,
+        outMin: Math.max(r.login_min as number, r.logout_min ?? minIST(r.updated_at as string)),
+        ended: r.logout_min != null,
+      }));
+      return NextResponse.json({ start: RECORDING_START, today, nowMin: minIST(new Date().toISOString()), people: PEOPLE, records });
+    }
+
     const view = (u.searchParams.get("view") || "day").toLowerCase();
     const anchor = u.searchParams.get("date") || todayIST();
     const [from, to] = rangeFor(view, anchor);
