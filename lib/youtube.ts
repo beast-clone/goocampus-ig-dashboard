@@ -494,12 +494,12 @@ export async function buildLiveYouTube(channelKey: string, from: string, to: str
 
   const [trafficRaw, geoRaw, deviceRaw, demoRaw, cityRaw] = await Promise.all([
     ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "insightTrafficSourceType", sort: "-views" }, token, channelKey).catch(() => ({ rows: [] })),
-    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "country", sort: "-views", maxResults: "8" }, token, channelKey).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "country", sort: "-views", maxResults: "25" }, token, channelKey).catch(() => ({ rows: [] })),
     ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "deviceType", sort: "-views" }, token, channelKey).catch(() => ({ rows: [] })),
     ytGet({ ids, startDate: from, endDate: to, metrics: "viewerPercentage", dimensions: "ageGroup,gender", sort: "-viewerPercentage" }, token, channelKey).catch(() => ({ rows: [] })),
     // Top cities — YouTube only returns cities that clear its privacy threshold,
     // so small channels may get few rows (that's Google, not us).
-    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "city", sort: "-views", maxResults: "10" }, token, channelKey).catch(() => ({ rows: [] })),
+    ytGet({ ids, startDate: from, endDate: to, metrics: "views", dimensions: "city", sort: "-views", maxResults: "25" }, token, channelKey).catch(() => ({ rows: [] })),
   ]);
 
   const TRAFFIC_LABELS: Record<string, string> = {

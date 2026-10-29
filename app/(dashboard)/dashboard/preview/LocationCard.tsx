@@ -6,6 +6,9 @@ import { IndiaStatesMap, CountriesWorldMap } from "@/components/GeoMaps";
 // Followers by State · City · Country (Nandu: "I want to see the state/town also",
 // for Facebook and Instagram, every brand).
 //
+// The standard for geography anywhere (Praveen, 29 Oct): the list on the left, the map on the
+// right — India by state for State / City, the world for Country. Also used for YouTube views.
+//
 // Meta gives the TOP 45 CITIES only — no state breakdown. Each city comes labelled
 // with its state ("Coimbatore, Tamil Nadu" on Instagram, "Indore, Madhya Pradesh, India"
 // on Facebook), so states are the sum of their cities in that top-45 list. The card
@@ -46,28 +49,41 @@ function parseCity(label: string) {
   return { city, region, state, country };
 }
 
-export function LocationCard({ cities, countries, totalFollowers, platform }: {
-  cities: Entry[];              // top cities from Meta (label = "City, State[, Country]")
+export function LocationCard({ cities, countries, totalFollowers, platform, unit = "followers", stateTotals }: {
+  cities: Entry[];              // top cities (label = "City, State[, Country]"; YouTube's are labelled via lib/india-cities)
   countries: Entry[];           // label = ISO country code or name
   totalFollowers: number;       // for "covers X%" and shares
-  platform: "Instagram" | "Facebook";
+  platform: "Instagram" | "Facebook" | "YouTube" | "Website";
+  unit?: string;                // what the numbers count: "followers" (Meta), "views" (YouTube), "users" (Website)
+  /** Real totals per Indian state (label = state), when the source has them (Google Analytics).
+   *  Without it, a state is the sum of its cities in the top-city list. */
+  stateTotals?: Entry[];
 }) {
-  const [view, setView] = useState<"state" | "city" | "country">("state");
+  const owner = platform === "YouTube" ? "YouTube" : platform === "Website" ? "Google Analytics" : "Meta";
+  // Country-only sources (no city or state data) open on Country and hide the other two.
+  const hasLocal = cities.length > 0 || (stateTotals?.length ?? 0) > 0;
+  const [view, setView] = useState<"state" | "city" | "country">(hasLocal ? "state" : "country");
   const [open, setOpen] = useState<string | null>(null);
   const cityTotal = cities.reduce((s, c) => s + c.value, 0);
   const coverPct = totalFollowers ? Math.round((cityTotal / totalFollowers) * 100) : null;
 
   const states = useMemo(() => {
     const m = new Map<string, { state: string; value: number; cities: { city: string; value: number }[] }>();
+    for (const t of stateTotals ?? []) {
+      const st = stateOf(t.label) || t.label;
+      const e = m.get(st) || { state: st, value: 0, cities: [] };
+      e.value += t.value; m.set(st, e);
+    }
     for (const c of cities) {
       const p = parseCity(c.label);
       if (!p.state) continue;
       const e = m.get(p.state) || { state: p.state, value: 0, cities: [] };
-      e.value += c.value; e.cities.push({ city: p.city, value: c.value });
+      if (!stateTotals) e.value += c.value;   // real state totals already include their cities
+      e.cities.push({ city: p.city, value: c.value });
       m.set(p.state, e);
     }
-    return [...m.values()].sort((a, b) => b.value - a.value);
-  }, [cities]);
+    return [...m.values()].filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
+  }, [cities, stateTotals]);
   const inIndiaCities = states.reduce((s, x) => s + x.value, 0);
 
   const pct = (v: number) => (totalFollowers ? `${((v / totalFollowers) * 100).toFixed(1)}%` : "");
@@ -80,14 +96,15 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
       <div className="flex items-start gap-3 px-4 py-3 border-b border-gray-100 flex-wrap">
         <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center flex-shrink-0"><IconMapPin size={17} stroke={1.8} /></span>
         <div className="min-w-0 flex-1">
-          <div className="text-[16px] font-medium text-[#232D42]">Where your followers are</div>
+          <div className="text-[16px] font-medium text-[#232D42]">{unit === "followers" ? "Where your followers are" : `Where your ${unit} come from`}</div>
           <div className="text-[12px] text-[#8A92A6] mt-0.5">
-            {platform} gives the top {cities.length} cities{coverPct != null ? <> — they cover <b className="font-medium">{cityTotal.toLocaleString("en-IN")}</b> of {totalFollowers.toLocaleString("en-IN")} followers ({coverPct}%)</> : null}.
-            {" "}States are the sum of their cities in that list; smaller towns aren&apos;t shared by Meta.
+            {!hasLocal ? <>Where your {unit} are, by country.</> : stateTotals ? <>{owner} reports every visitor&apos;s state, so state numbers are complete; it gives the top {cities.length} cities.</> : <>
+            {platform} gives the top {cities.length} cities{coverPct != null ? <> — they cover <b className="font-medium">{cityTotal.toLocaleString("en-IN")}</b> of {totalFollowers.toLocaleString("en-IN")} {unit} ({coverPct}%)</> : null}.
+            {" "}States are the sum of their cities in that list; smaller towns aren&apos;t shared by {owner}.</>}
           </div>
         </div>
         <div className="inline-flex bg-[#F6F7FB] border border-gray-100 rounded p-0.5 gap-0.5">
-          {(["state", "city", "country"] as const).map((v) => (
+          {(hasLocal ? (["state", "city", "country"] as const) : (["country"] as const)).map((v) => (
             <button key={v} onClick={() => setView(v)}
               className={`h-8 px-3 rounded text-[13px] font-medium ${view === v ? "bg-white text-brand border border-gray-100" : "text-[#8A92A6] hover:text-[#232D42]"}`}>
               {v === "state" ? "State" : v === "city" ? "City" : "Country"}
@@ -102,7 +119,7 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
         {view === "state" && (
           states.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No Indian cities in {platform}&apos;s top-city list for this account.</div> : (
             <>
-              <div className="text-[12px] text-[#8A92A6] mb-3">{states.length} states · {inIndiaCities.toLocaleString("en-IN")} followers in their top cities. Click a state to see its cities.</div>
+              <div className="text-[12px] text-[#8A92A6] mb-3">{states.length} states · {inIndiaCities.toLocaleString("en-IN")} {unit}{stateTotals ? "" : " in their top cities"}. Click a state to see its cities.</div>
               <ul className="divide-y divide-gray-50">
                 {states.map((s) => (
                   <li key={s.state}>
@@ -170,16 +187,16 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
       </div>
       <div className="p-4">
         <div className="flex items-center justify-between gap-3 mb-1">
-          <div className="text-[13px] font-medium text-[#232D42]">{view === "country" ? "Followers by country" : "Followers by Indian state"}</div>
+          <div className="text-[13px] font-medium text-[#232D42]">{`${unit.charAt(0).toUpperCase()}${unit.slice(1)} by ${view === "country" ? "country" : "Indian state"}`}</div>
           <div className="flex items-center gap-1.5 text-[11.5px] text-[#8A92A6]">fewer
             {["#C6D0FA", "#8496F2", "#5A72EC", "#3A57E8", "#2138B0"].map((c) => <i key={c} className="w-3.5 h-2.5 rounded-sm inline-block" style={{ background: c }} />)}more</div>
         </div>
         <div className="h-[460px]">
           {view === "country"
-            ? <CountriesWorldMap entries={countries} />
-            : <IndiaStatesMap unit="followers" total={totalFollowers} entries={states.map((x) => ({ name: x.state, count: x.value }))} />}
+            ? <CountriesWorldMap unit={unit} total={totalFollowers} entries={countries} />
+            : <IndiaStatesMap unit={unit} total={totalFollowers} entries={states.map((x) => ({ name: x.state, count: x.value }))} />}
         </div>
-        <div className="text-[12px] text-[#8A92A6] mt-1">Hover a {view === "country" ? "country" : "state"} for its followers.{view !== "country" ? " States are the sum of their cities in Meta's top-city list." : ""}</div>
+        <div className="text-[12px] text-[#8A92A6] mt-1">Hover a {view === "country" ? "country" : "state"} for its {unit}.{view !== "country" && !stateTotals ? ` States are the sum of their cities in ${owner}'s top-city list.` : ""}</div>
       </div>
       </div>
     </section>

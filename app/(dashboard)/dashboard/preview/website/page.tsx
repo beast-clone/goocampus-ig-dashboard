@@ -7,6 +7,7 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { AiInsights } from "@/components/AiInsights";
 import { useApi } from "@/lib/use-api";
+import { LocationCard } from "@/app/(dashboard)/dashboard/preview/LocationCard";
 
 const GA = "#E37400"; // Google Analytics orange
 
@@ -26,6 +27,7 @@ type Resp = {
   sourceMedium: { name: string; sessions: number; pct: number }[];
   countries: { country: string; users: number; pct: number }[];
   cities: { city: string; users: number; pct: number }[];
+  geo?: { countries: { code: string; users: number }[]; states: { state: string; users: number }[]; cities: { label: string; users: number }[] };
   devices: { device: string; sessions: number; pct: number }[];
   browsers: Cat[];
   os: Cat[];
@@ -132,16 +134,25 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             </div>
           </Section>
 
-          <Section title="Locations">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ChartCard title="Top countries" hint="users" empty={!data.countries.length}>
-                <PieList color={GA} unit="users" data={data.countries.slice(0, 8).map((c) => ({ name: regionName(c.country), value: c.users }))} />
-              </ChartCard>
-              <ChartCard title="Top cities" hint="users" empty={!data.cities.length}>
-                <PieList color={GA} unit="users" data={data.cities.slice(0, 8).map((c) => ({ name: c.city, value: c.users }))} />
-              </ChartCard>
-            </div>
-          </Section>
+          {/* Geography — the dashboard standard: list on the left, India / world map on the right.
+              Google Analytics gives each visitor's state, so the state numbers are real totals. */}
+          {data.geo ? (
+            <LocationCard platform="Website" unit="users" totalFollowers={data.summary.users}
+              countries={data.geo.countries.map((c) => ({ label: c.code, value: c.users }))}
+              stateTotals={data.geo.states.map((x) => ({ label: x.state, value: x.users }))}
+              cities={data.geo.cities.map((c) => ({ label: c.label, value: c.users }))} />
+          ) : (
+            <Section title="Locations">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ChartCard title="Top countries" hint="users" empty={!data.countries.length}>
+                  <PieList color={GA} unit="users" data={data.countries.slice(0, 8).map((c) => ({ name: regionName(c.country), value: c.users }))} />
+                </ChartCard>
+                <ChartCard title="Top cities" hint="users" empty={!data.cities.length}>
+                  <PieList color={GA} unit="users" data={data.cities.slice(0, 8).map((c) => ({ name: c.city, value: c.users }))} />
+                </ChartCard>
+              </div>
+            </Section>
+          )}
 
           <Section title="Technology">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

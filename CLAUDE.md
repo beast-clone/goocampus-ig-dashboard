@@ -25,6 +25,9 @@ All Version-2 UI lives under `app/(dashboard)/dashboard/preview/` and renders in
 - Use Tabler outline icons (`@tabler/icons-react`), the shared `PreviewSelect` for dropdowns, and existing preview components (`PreviewDashboardShell`, `PreviewSidebar`, `Panel`-style cards) rather than reinventing.
 - Reference well-built examples already in the repo: the Marketing Hub Master-sheet views + detail modal (`marketing-hub/page.tsx`) and `my-day/PreviewMyDay.tsx`.
 
+### Geography standard (Praveen, 29 Oct 2026)
+Wherever a tab shows where people are (countries, cities, states), use **the list on the left and the map on the right**: the shared `LocationCard` (`app/(dashboard)/dashboard/preview/LocationCard.tsx`) — State / City / Country toggle; the **India map by state** (`IndiaStatesMap`) for State and City, the **world map** (`CountriesWorldMap`) for Country; brand-blue scale, hover shows the count and its share of the same total as the list. Never pie charts or bare lists for geography. Pass `unit` (followers / views / users / leads). Sources with real state totals (Google Analytics `region`) pass `stateTotals`; sources with bare city names (YouTube) label Indian cities with their state via `lib/india-cities.ts`; Meta labels its own. Country-only sources open on Country. Short "top 3" summaries on the Overview page may stay as compact lists.
+
 ## Backend / data
 - Supabase writes go through the service client (`getSupabase()`), project **Beast Clone** `wlhbmzaernchwebapszq` (holds `mh_posts`, `mh_views`, `mh_attachments`, etc.). **Never touch Samvaya projects.**
 - API routes are CSRF + session protected; test them from the page's own `fetch`, not curl.

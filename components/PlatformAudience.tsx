@@ -3,7 +3,8 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import Link from "next/link";
 import { useV2Href } from "@/lib/previewHref";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { CountriesWorldMap } from "@/components/GeoMaps";
+import { LocationCard } from "@/app/(dashboard)/dashboard/preview/LocationCard";
+import { indianStateOf } from "@/lib/india-cities";
 import { useApi } from "@/lib/use-api";
 import { LI_PAGE, YT_CHANNEL, YT_CHANNEL_PILLS } from "@/components/PlatformOverviews";
 import { useProfile } from "@/lib/profile";
@@ -230,7 +231,7 @@ function EmptyPlatform({ platform }: { platform: string }) {
 
 type FbResp = {
   page: { name: string; followers: number | null };
-  audience?: { available: boolean; countries: { code: string; count: number; pct: number }[] };
+  audience?: { available: boolean; total?: number; countries: { code: string; count: number; pct: number }[]; cities?: { label: string; count: number }[] };
   error?: string;
 };
 
@@ -246,19 +247,16 @@ export function FacebookAudience({ accountId, range }: { accountId: string; rang
     <div className="space-y-4">
       <PanelHeader title={data.page.name || "Facebook"} sub={`Facebook Page · ${fmt(data.page.followers)} followers`} href="/dashboard/facebook" live />
       {countries.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard title="Followers around the world" hint={`${countries.length} countries`} tall>
-            <CountriesWorldMap entries={countries.map((c) => ({ label: c.code, value: c.count }))} />
-          </ChartCard>
-          <ChartCard title="Top countries" hint="followers" tall>
-            <HBars color="#1877F2" unit="followers" data={countries.slice(0, 8).map((c) => ({ name: regionName(c.code), value: c.count }))} />
-          </ChartCard>
-        </div>
+        // The dashboard standard: the list on the left, the map on the right.
+        <LocationCard platform="Facebook"
+          cities={(data.audience?.cities || []).map((c) => ({ label: c.label, value: c.count }))}
+          countries={countries.map((c) => ({ label: c.code, value: c.count }))}
+          totalFollowers={data.audience?.total || countries.reduce((s, c) => s + c.count, 0)} />
       ) : (
         <div className="bg-white border border-gray-100 rounded-xl p-8 text-center text-sm text-gray-400">No country data returned for this page yet — Meta shows it once a page has enough followers.</div>
       )}
       <p className="text-[11px] text-gray-400">
-        Country split is the only audience breakdown Meta still provides for Facebook Pages — city, age and gender were removed from Meta&apos;s API for everyone.
+        Country and top-city split is all Meta still provides for Facebook Pages — age and gender were removed from Meta&apos;s API for everyone.
       </p>
     </div>
   );
@@ -330,7 +328,7 @@ export function LinkedInAudience({ accountId, range }: { accountId: string; rang
 type YtResp = {
   source: "demo" | "live";
   channel: { name: string; handle: string };
-  summary: { subscribers: number };
+  summary: { subscribers: number; views: number };
   traffic: {
     sources: { source: string; views: number; pct: number }[];
     geography: { country: string; views: number; pct: number }[];
@@ -382,12 +380,6 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
         <ChartCard title="Traffic sources" hint="views" empty={!(t.sources || []).length}>
           <PieList color={YR} unit="views" data={(t.sources || []).slice(0, 8).map((s) => ({ name: s.source, value: s.views }))} />
         </ChartCard>
-        <ChartCard title="Top countries" hint="views" empty={!(t.geography || []).length}>
-          <PieList color={YR} unit="views" data={(t.geography || []).slice(0, 8).map((g) => ({ name: regionName(g.country), value: g.views }))} />
-        </ChartCard>
-        <ChartCard title="Top cities" hint="views · Google hides small cities" empty={!(t.cities || []).length}>
-          <PieList color={YR} unit="views" data={(t.cities || []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
-        </ChartCard>
         <ChartCard title="Devices" hint="% of views" empty={!(t.devices || []).length}>
           <PieList color={YR} unit="%" data={(t.devices || []).map((d) => ({ name: d.device, value: d.pct }))} />
         </ChartCard>
@@ -395,8 +387,14 @@ export function YouTubeAudience({ accountId, range }: { accountId: string; range
           <AgeGenderPies ageGroups={t.ageGroups || []} genderSplit={t.genderSplit || []} />
         </ChartCard>
       </div>
+      {/* Geography — the dashboard standard (list left, map right); cities get their state from lib/india-cities. */}
+      {((t.geography || []).length > 0 || (t.cities || []).length > 0) && (
+        <LocationCard platform="YouTube" unit="views" totalFollowers={data.summary.views}
+          cities={(t.cities || []).filter((c) => c.views > 0).map((c) => { const st = indianStateOf(c.city); return { label: st ? `${c.city}, ${st}` : c.city, value: c.views }; })}
+          countries={(t.geography || []).map((g) => ({ label: g.country, value: g.views }))} />
+      )}
       <p className="text-[11px] text-gray-400">
-        Audience describes who WATCHED in the selected date range. State-level breakdown isn&apos;t possible — Google only offers it for the US.
+        Audience describes who WATCHED in the selected date range. YouTube gives cities without their state, so Indian cities are placed on the map from a city → state list.
       </p>
     </div>
   );

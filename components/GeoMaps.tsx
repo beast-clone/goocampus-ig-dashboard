@@ -109,9 +109,10 @@ function MapTooltip({ hover }: { hover: HoverInfo }) {
 // World map — highlights each country present in `entries`. Non-highlighted countries
 // are neutral grey; highlighted countries scale brand blue from light -> deep by share.
 // This gives real visual contrast so India (73%) reads distinctly darker than the UK (4%).
-export function CountriesWorldMap({ entries }: { entries: { label: string; value: number }[] }) {
+export function CountriesWorldMap({ entries, unit = "followers", total: of }: { entries: { label: string; value: number }[]; unit?: string; total?: number }) {
   const [hover, setHover] = useState<HoverInfo>(null);
-  const total = entries.reduce((s, e) => s + e.value, 0);
+  // Share of `total` when given (matching the list beside it), else of the countries shown.
+  const total = of || entries.reduce((s, e) => s + e.value, 0);
   // Build a numeric-ID -> { name, pct, value } lookup ONCE per render so the hover
   // handler doesn't have to rely on closures captured inside a large .map() body
   // (that's the stale-state trap we just hit).
@@ -149,7 +150,7 @@ export function CountriesWorldMap({ entries }: { entries: { label: string; value
     if (!info) { setHover(null); return; }
     setHover({
       title: info.name,
-      sub: `${info.share.toFixed(1)}% · ${info.value.toLocaleString("en-IN")} followers`,
+      sub: `${info.share.toFixed(1)}% · ${info.value.toLocaleString("en-IN")} ${unit}`,
       x: e.clientX - wrap.left,
       y: e.clientY - wrap.top,
     });

@@ -1,12 +1,11 @@
 "use client";
 import { LocationCard } from "@/app/(dashboard)/dashboard/preview/LocationCard";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { IconCake, IconClock, IconWorld } from "@tabler/icons-react";
+import { IconCake, IconClock } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import BestTimesToPost from "@/components/BestTimesToPost";
-import { CountriesWorldMap, CitiesRegionMap } from "@/components/GeoMaps";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, Legend, CartesianGrid } from "recharts";
 import { useApi } from "@/lib/use-api";
 import { useProfile } from "@/lib/profile";
@@ -239,40 +238,8 @@ function Audience({ accountId }: { accountId: string }) {
       </section>
 
       {/* ═════════════════════ SECTION 2 — WHERE ═════════════════════
-          One panel that holds countries + cities so the geo story is unified. */}
-      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-        <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-brand-light">
-          <div className="text-[11px] uppercase tracking-widest text-brand font-semibold"><IconWorld size={13} stroke={1.8} className="inline -mt-0.5 mr-1" />Where they are</div>
-          <div className="text-sm text-gray-700 mt-1">
-            Followers span <b>{data.countries.length}</b> countries. Top country: <b>{COUNTRY_NAME[data.countries[0]?.label] || data.countries[0]?.label || "—"}</b>
-            {data.cities[0]?.label && <> · Top city: <b>{data.cities[0].label.split(",")[0]}</b></>}
-          </div>
-        </div>
-        {/* Row 1 — Country list left, world map right */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100 border-b border-gray-100">
-          <CountryRows countries={data.countries.slice(0, 10)} />
-          <div className="p-4 md:p-6 bg-gray-50/40">
-            <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Countries on the map</div>
-            <div className="aspect-[16/10] w-full bg-white rounded-xl overflow-hidden border border-gray-100">
-              <CountriesWorldMap entries={data.countries.slice(0, 20)} />
-            </div>
-            <div className="text-xs text-gray-400 mt-2">Deeper purple = higher follower share. Hover a country for %.</div>
-          </div>
-        </div>
-
-        {/* Row 2 — City list left, South Asia map right */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
-          <CityRows cities={data.cities.slice(0, 10)} />
-          <div className="p-4 md:p-6 bg-gray-50/40">
-            <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Cities plotted (India &amp; neighbours)</div>
-            <div className="aspect-[16/10] w-full bg-white rounded-xl overflow-hidden border border-gray-100">
-              <CitiesRegionMap entries={data.cities.slice(0, 20)} />
-            </div>
-            <div className="text-xs text-gray-400 mt-2">Bigger cyan dot = more followers in that city.</div>
-          </div>
-        </div>
-      </section>
-
+          The dashboard standard: the list on the left, the map on the right (India by state for
+          State / City, the world for Country). Replaces the older country + city map rows. */}
       {/* State → its cities, all 45 cities, and countries (Nandu: "I want to see the state/town also"). */}
       <div className="mb-6">
         <LocationCard platform="Instagram" cities={data.cities} countries={data.countries} totalFollowers={data.account.followers} />
@@ -330,71 +297,7 @@ function Audience({ accountId }: { accountId: string }) {
 
 // New — bare-content rows for use inside the unified "Where" panel (no outer card,
 // no header — those live in the section wrapper now).
-function CountryRows({ countries }: { countries: DemoEntry[] }) {
-  const total = countries.reduce((s, c) => s + c.value, 0);
-  return (
-    <div className="p-6">
-      <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-3">Top countries</div>
-      {countries.length === 0 ? <Empty /> : (
-        <div className="space-y-3">
-          {countries.map((c) => {
-            const pct = pctOf(c.value, total);
-            return (
-              <div key={c.label} className="flex items-center gap-3">
-                <div className="text-xl leading-none w-7">{flag(c.label)}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-700 truncate">{COUNTRY_NAME[c.label] || c.label}</span>
-                    <span className="text-gray-500">{pct.toFixed(1)}% &middot; {c.value.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
-function CityRows({ cities }: { cities: DemoEntry[] }) {
-  const total = cities.reduce((s, c) => s + c.value, 0);
-  return (
-    <div className="p-6">
-      <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-3">Top cities</div>
-      {cities.length === 0 ? <Empty /> : (
-        <div className="space-y-3">
-          {cities.map((c, i) => {
-            const pct = pctOf(c.value, total);
-            const parts = c.label.split(",").map((s) => s.trim());
-            const cityName = parts[0] || c.label;
-            const region = parts.slice(1).join(", ");
-            return (
-              <div key={c.label} className="flex items-center gap-3">
-                <div className="w-7 text-center text-xs font-medium text-gray-400">{i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-700 truncate">
-                      <span className="font-medium">{cityName}</span>
-                      {region && <span className="text-gray-400 ml-1">{region}</span>}
-                    </span>
-                    <span className="text-gray-500">{pct.toFixed(1)}% &middot; {c.value.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function buildPersona(data: AudienceData | null): string | null {
   if (!data || !data.available) return null;

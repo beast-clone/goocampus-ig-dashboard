@@ -117,6 +117,10 @@ export async function buildGA4Traffic(from: string, to: string) {
     ]),
     batchRun(from, to, [
       { dimensions: ["userGender"], metrics: ["activeUsers"], orderByMetric: "activeUsers", limit: 5 },
+      // For the list + map card: ISO country codes, Indian states, cities with their state.
+      { dimensions: ["countryId"], metrics: ["activeUsers"], orderByMetric: "activeUsers", limit: 25 },
+      { dimensions: ["region", "countryId"], metrics: ["activeUsers"], orderByMetric: "activeUsers", limit: 80 },
+      { dimensions: ["city", "region", "countryId"], metrics: ["activeUsers"], orderByMetric: "activeUsers", limit: 25 },
     ]),
   ]);
 
@@ -147,6 +151,14 @@ export async function buildGA4Traffic(from: string, to: string) {
     sourceMedium: breakdown(b[1]).map((x) => ({ name: x.name, sessions: x.value, pct: x.pct })),
     countries: breakdown(b[2]).map((x) => ({ country: x.name, users: x.value, pct: x.pct })),
     cities: breakdown(b[3]).map((x) => ({ city: x.name, users: x.value, pct: x.pct })),
+    // Geography for the list + map card (LocationCard): real Indian states from GA's region,
+    // cities labelled "City, State, India" (other countries keep their code, so no state).
+    geo: {
+      countries: d[1].filter((r) => r.dims[0] && r.dims[0] !== "(not set)").map((r) => ({ code: r.dims[0], users: r.mets[0] || 0 })),
+      states: d[2].filter((r) => r.dims[1] === "IN" && r.dims[0] && r.dims[0] !== "(not set)").map((r) => ({ state: r.dims[0], users: r.mets[0] || 0 })),
+      cities: d[3].filter((r) => r.dims[0] && r.dims[0] !== "(not set)")
+        .map((r) => ({ label: [r.dims[0], r.dims[1] !== "(not set)" ? r.dims[1] : "", r.dims[2] === "IN" ? "India" : r.dims[2]].filter(Boolean).join(", "), users: r.mets[0] || 0 })),
+    },
     devices: breakdown(b[4]).map((x) => ({ device: x.name, sessions: x.value, pct: x.pct })),
     browsers: breakdown(c[0]),
     os: breakdown(c[1]),

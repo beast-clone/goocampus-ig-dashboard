@@ -3,11 +3,13 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
-import { ChartCard, PieList, AgeGenderPies, regionName } from "@/components/PlatformAudience";
+import { ChartCard, PieList, AgeGenderPies } from "@/components/PlatformAudience";
 import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy, IconAlertTriangle } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
+import { LocationCard } from "@/app/(dashboard)/dashboard/preview/LocationCard";
+import { indianStateOf } from "@/lib/india-cities";
 import { useApi } from "@/lib/use-api";
 
 const YT = "#3A57E8"; // brand accent (dashboard uses the brand blue, not YouTube red)
@@ -262,12 +264,6 @@ function Inner({ range }: { range: { from: string; to: string } }) {
               <ChartCard title="Traffic sources" hint="views" empty={!data.traffic.sources.length}>
                 <PieList color={YT} unit="views" data={data.traffic.sources.slice(0, 8).map((s) => ({ name: s.source, value: s.views }))} />
               </ChartCard>
-              <ChartCard title="Top countries" hint="views" empty={!data.traffic.geography.length}>
-                <PieList color={YT} unit="views" data={data.traffic.geography.slice(0, 8).map((g) => ({ name: regionName(g.country), value: g.views }))} />
-              </ChartCard>
-              <ChartCard title="Top cities" hint="views · Google hides small cities" empty={!(data.traffic.cities?.length ?? 0)}>
-                <PieList color={YT} unit="views" data={(data.traffic.cities ?? []).slice(0, 8).map((c) => ({ name: c.city, value: c.views }))} />
-              </ChartCard>
               <ChartCard title="Devices" hint="% of views" empty={!data.traffic.devices.length}>
                 <PieList color={YT} unit="%" data={data.traffic.devices.map((d) => ({ name: d.device, value: d.pct }))} />
               </ChartCard>
@@ -275,6 +271,15 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                 <AgeGenderPies ageGroups={data.traffic.ageGroups} genderSplit={data.traffic.genderSplit} />
               </ChartCard>
             </div>
+            {/* Geography — the dashboard standard: list on the left, India / world map on the right.
+                YouTube gives bare city names, so Indian cities get their state from lib/india-cities. */}
+            {(data.traffic.geography.length > 0 || (data.traffic.cities?.length ?? 0) > 0) && (
+              <div className="mt-4">
+                <LocationCard platform="YouTube" unit="views" totalFollowers={data.summary.views}
+                  cities={(data.traffic.cities ?? []).filter((c) => c.views > 0).map((c) => { const st = indianStateOf(c.city); return { label: st ? `${c.city}, ${st}` : c.city, value: c.views }; })}
+                  countries={data.traffic.geography.map((g) => ({ label: g.country, value: g.views }))} />
+              </div>
+            )}
           </Section>
         </>
       )}

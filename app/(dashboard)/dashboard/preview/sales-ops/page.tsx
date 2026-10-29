@@ -537,8 +537,8 @@ function Inner({ range }: { range: { from: string; to: string } }) {
             <div className="text-sm text-gray-500">Leads by Indian state</div>
           </div>
           <div className="text-sm text-gray-500 mb-4">Where leads are physically located — hover a state for its exact count.</div>
-          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6 items-center">
-            <div className="h-[360px]"><IndiaStatesMap entries={data.geography} /></div>
+          {/* the dashboard standard: the list on the left, the map on the right */}
+          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6 items-center">
             <div>
               <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-3">Top states</div>
               {data.geography.slice(0, 10).map((g) => {
@@ -555,6 +555,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
                 );
               })}
             </div>
+            <div className="h-[360px]"><IndiaStatesMap entries={data.geography} total={data.totals.leads} /></div>
           </div>
         </Card>
       )}
