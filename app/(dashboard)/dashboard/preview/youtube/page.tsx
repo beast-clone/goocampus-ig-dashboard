@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
 import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
 import { ChartCard, PieList, AgeGenderPies } from "@/components/PlatformAudience";
-import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy, IconAlertTriangle } from "@tabler/icons-react";
+import { IconEye, IconClock, IconThumbUp, IconMessageCircle, IconTrophy, IconAlertTriangle, IconX } from "@tabler/icons-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LiveIndicator } from "@/components/LiveIndicator";
@@ -129,7 +129,10 @@ function Inner({ range }: { range: { from: string; to: string } }) {
       </div>
 
       {connectNote && (
-        <div className={`text-sm rounded-lg p-3 border ${connectNote.ok ? "text-[#2F9E6F] bg-[#E8F6F0] border-[#CDEBDF]" : "text-rose-600 bg-rose-50 border-rose-200"}`}>{connectNote.text}</div>
+        <div className={`text-sm rounded-lg p-3 border flex items-start gap-3 ${connectNote.ok ? "text-[#2F9E6F] bg-[#E8F6F0] border-[#CDEBDF]" : "text-rose-600 bg-rose-50 border-rose-200"}`}>
+          <span className="flex-1">{connectNote.text}</span>
+          <button onClick={() => setConnectNote(null)} title="Dismiss" className="opacity-70 hover:opacity-100"><IconX size={16} stroke={1.8} /></button>
+        </div>
       )}
       {error && (
         <div className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4 flex-wrap">
