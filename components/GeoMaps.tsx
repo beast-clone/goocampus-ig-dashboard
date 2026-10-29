@@ -107,7 +107,7 @@ function MapTooltip({ hover }: { hover: HoverInfo }) {
 }
 
 // World map — highlights each country present in `entries`. Non-highlighted countries
-// are neutral grey; highlighted countries scale violet from light -> deep by share.
+// are neutral grey; highlighted countries scale brand blue from light -> deep by share.
 // This gives real visual contrast so India (73%) reads distinctly darker than the UK (4%).
 export function CountriesWorldMap({ entries }: { entries: { label: string; value: number }[] }) {
   const [hover, setHover] = useState<HoverInfo>(null);
@@ -129,13 +129,13 @@ export function CountriesWorldMap({ entries }: { entries: { label: string; value
   const max = Math.max(...entries.map((e) => e.value), 1);
 
   function fillForValue(v: number): string {
-    if (v === 0) return "#f1f5f9";
+    if (v === 0) return "#F3F5FB";
     const ratio = v / max;
-    if (ratio > 0.75) return "#5b21b6";
-    if (ratio > 0.40) return "#7c3aed";
-    if (ratio > 0.20) return "#a78bfa";
-    if (ratio > 0.08) return "#c4b5fd";
-    return "#ddd6fe";
+    if (ratio > 0.75) return "#2138B0";
+    if (ratio > 0.40) return "#3A57E8";
+    if (ratio > 0.20) return "#5A72EC";
+    if (ratio > 0.08) return "#8496F2";
+    return "#C6D0FA";
   }
 
   // Single mouse handler at the wrapper level. Uses event.target's data attributes
@@ -174,7 +174,7 @@ export function CountriesWorldMap({ entries }: { entries: { label: string; value
                   key={geo.rsmKey}
                   geography={geo}
                   fill={fill}
-                  stroke={value > 0 ? "#4c1d95" : "#cbd5e1"}
+                  stroke={value > 0 ? "#ffffff" : "#DDE2EE"}
                   strokeWidth={value > 0 ? 0.6 : 0.3}
                   // The data attribute is what the wrapper-level hover handler reads
                   // to identify which country is under the cursor. Set both on the
@@ -182,7 +182,7 @@ export function CountriesWorldMap({ entries }: { entries: { label: string; value
                   data-geo-num={num}
                   style={{
                     default: { outline: "none", cursor: value > 0 ? "pointer" : "default" },
-                    hover: { outline: "none", fill: value > 0 ? "#4c1d95" : "#e5e7eb" },
+                    hover: { outline: "none", fill: value > 0 ? "#1a2f9e" : "#E4E9F7" },
                     pressed: { outline: "none" },
                   }}
                 />
@@ -213,10 +213,12 @@ function normState(s: string): string {
 }
 
 // India choropleth — each state shaded by its share of leads, tonal brand indigo
-// (light → deep). Hover a state for its exact count. Used by the Sales Hub Geography.
-export function IndiaStatesMap({ entries }: { entries: { name: string; count: number }[] }) {
+// (light → deep). Hover a state for its exact count. Used by the Sales Hub Geography
+// (leads) and "Where your followers are" (followers).
+export function IndiaStatesMap({ entries, unit = "leads", total: of }: { entries: { name: string; count: number }[]; unit?: string; total?: number }) {
   const [hover, setHover] = useState<HoverInfo>(null);
-  const total = entries.reduce((s, e) => s + e.count, 0) || 1;
+  // Share of `total` when given (e.g. all followers, matching the list beside it), else of the states shown.
+  const total = of || entries.reduce((s, e) => s + e.count, 0) || 1;
   const byState = new Map<string, { name: string; count: number; share: number }>();
   for (const e of entries) byState.set(normState(e.name), { name: e.name, count: e.count, share: (e.count / total) * 100 });
   const max = Math.max(...entries.map((e) => e.count), 1);
@@ -240,7 +242,7 @@ export function IndiaStatesMap({ entries }: { entries: { name: string; count: nu
     const info = byState.get(key);
     setHover({
       title: info?.name || raw || "—",
-      sub: info ? `${info.share.toFixed(1)}% · ${info.count.toLocaleString("en-IN")} leads` : "0 leads",
+      sub: info ? `${info.share.toFixed(1)}% · ${info.count.toLocaleString("en-IN")} ${unit}` : `0 ${unit}`,
       x: e.clientX - wrap.left,
       y: e.clientY - wrap.top,
     });

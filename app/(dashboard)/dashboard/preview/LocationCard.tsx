@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { IconChevronDown, IconMapPin } from "@tabler/icons-react";
+import { IndiaStatesMap, CountriesWorldMap } from "@/components/GeoMaps";
 
 // Followers by State · City · Country (Nandu: "I want to see the state/town also",
 // for Facebook and Instagram, every brand).
@@ -95,7 +96,9 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
         </div>
       </div>
 
-      <div className="p-4">
+      {/* the list on the left, the map on the right (India for State / City, the world for Country) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="p-4 lg:border-r border-gray-100 lg:max-h-[560px] lg:overflow-auto">
         {view === "state" && (
           states.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No Indian cities in {platform}&apos;s top-city list for this account.</div> : (
             <>
@@ -132,7 +135,7 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
 
         {view === "city" && (
           cities.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No city data from {platform} for this account.</div> : (
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            <ul className="grid grid-cols-1 gap-y-2.5">
               {cities.map((c) => {
                 const p = parseCity(c.label);
                 return (
@@ -151,7 +154,7 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
 
         {view === "country" && (
           countries.length === 0 ? <div className="text-[14px] text-[#8A92A6]">No country data from {platform} for this account.</div> : (
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+            <ul className="grid grid-cols-1 gap-y-2.5">
               {countries.slice(0, 20).map((c) => (
                 <li key={c.label}>
                   <div className="flex items-baseline justify-between gap-2 text-[13px]">
@@ -164,6 +167,20 @@ export function LocationCard({ cities, countries, totalFollowers, platform }: {
             </ul>
           )
         )}
+      </div>
+      <div className="p-4">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="text-[13px] font-medium text-[#232D42]">{view === "country" ? "Followers by country" : "Followers by Indian state"}</div>
+          <div className="flex items-center gap-1.5 text-[11.5px] text-[#8A92A6]">fewer
+            {["#C6D0FA", "#8496F2", "#5A72EC", "#3A57E8", "#2138B0"].map((c) => <i key={c} className="w-3.5 h-2.5 rounded-sm inline-block" style={{ background: c }} />)}more</div>
+        </div>
+        <div className="h-[460px]">
+          {view === "country"
+            ? <CountriesWorldMap entries={countries} />
+            : <IndiaStatesMap unit="followers" total={totalFollowers} entries={states.map((x) => ({ name: x.state, count: x.value }))} />}
+        </div>
+        <div className="text-[12px] text-[#8A92A6] mt-1">Hover a {view === "country" ? "country" : "state"} for its followers.{view !== "country" ? " States are the sum of their cities in Meta's top-city list." : ""}</div>
+      </div>
       </div>
     </section>
   );
