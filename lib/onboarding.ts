@@ -153,7 +153,7 @@ export const TAB_INTRO: Record<string, Intro> = {
       "A failed message says why in the row itself; most are an unlinked number rather than a bad recipient.",
     ],
   },
-  leads: { title: "Marketing leads", body: "DM leads — people who reached us through Instagram/Facebook DMs or the DM booking form, and who has been contacted. Paid leads are in Campaigns." },
+  leads: { title: "Tip", body: "Click a lead to see its details and open it in the CRM. Not yet = no call, note or status change so far. Paid leads are in Campaigns." },
   inbox: { title: "Messages in one place", body: "Instagram and Facebook DMs and comments, so nothing sits unanswered." },
   sales: { title: "The sales pipeline", body: "Every lead, who owns it, and how long it has been waiting. Red timers are leads nobody has contacted yet." },
   "organic-sales": { title: "Leads you didn't pay for", body: "Enquiries that arrived without ad spend behind them — the return on the content work." },

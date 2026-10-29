@@ -32,7 +32,7 @@ const stStyle = (s: string) => { const c = STATUS_STYLE[s] || { bg: "#F0F2F8", f
 
 export default function LeadsPage() {
   return (
-    <PreviewDashboardShell active="leads" title="Marketing Leads" subtitle="DM leads — people who reached us through Instagram/Facebook DMs or the DM booking form, and who has been contacted. Paid leads are in Campaigns." hideAccountPicker hideRange>
+    <PreviewDashboardShell active="leads" title="Marketing Leads" subtitle="Leads who reached us through Instagram/Facebook DMs or the DM booking form — and who has been contacted." hideAccountPicker hideRange>
       {() => <MarketingLeads />}
     </PreviewDashboardShell>
   );
@@ -76,7 +76,6 @@ function MarketingLeads() {
   // DM leads only — every other CRM source is paid or not a DM.
   const rows = useMemo(() => (leads || []).flatMap((l) => { const s = srcOf(l.source); return s ? [{ ...l, src: s.key as SourceKey }] : []; }), [leads]);
   type Row = (typeof rows)[number];
-  const notC = (ls: Row[]) => ls.filter((l) => !l.contacted).length;
   const sel = rows.filter((l) => src === "all" || l.src === src);
   const cN = sel.filter((l) => l.contacted).length;
   const title = src === "all" ? "All DM leads" : srcInfo(src).label;
@@ -93,41 +92,33 @@ function MarketingLeads() {
 
   return (
     <div className="preview-scope space-y-5">
-      {/* period */}
-      <div className="flex items-center gap-2.5 flex-wrap">
-        <div className="inline-flex border border-gray-100 rounded-lg overflow-hidden bg-white">
-          {([7, 30, 90, "custom"] as const).map((d) => (
-            <button key={d} onClick={() => { setDays(d); setLeadId(null); }}
-              className={`h-10 px-[18px] text-[14px] font-medium ${days === d ? "bg-brand-light text-brand" : "text-[#4A5468] hover:text-brand"}`}>{d === "custom" ? "Custom" : `${d}d`}</button>
+      {/* one bar: which DM leads, and the period */}
+      <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="inline-flex gap-1 flex-wrap">
+          {([["all", "All DM leads", IconUsers, rows.length] as const, ...DM_SOURCES.map((x) => [x.key, x.label, SRC_ICON[x.key], rows.filter((l) => l.src === x.key).length] as const)]).map(([k, lbl, I, n]) => (
+            <button key={k} onClick={() => { setSrc(k); setLeadId(null); }}
+              className={`h-10 px-3.5 rounded-lg inline-flex items-center gap-2 text-[14px] font-medium ${src === k ? "bg-brand-light text-brand" : "text-[#4A5468] hover:text-brand"}`}>
+              <I size={17} stroke={1.8} />{lbl}<span className={`text-[12.5px] rounded-full px-2 py-px ${src === k ? "bg-white text-brand" : "bg-[#F0F2F8] text-[#4A5468]"}`}>{leads ? fmt(n) : "…"}</span>
+            </button>
           ))}
         </div>
-        {days === "custom" && <span className="inline-flex items-center gap-2">{dateBox(cFrom, (v) => { setCFrom(v); if (v > cTo) setCTo(v); })}<span className={MUTED}>to</span>{dateBox(cTo, (v) => { setCTo(v); if (v < cFrom) setCFrom(v); })}</span>}
-        <span className={`ml-auto text-[13px] ${MUTED}`}>{fmtWhen(from)} – {fmtWhen(to)} · by lead created date</span>
-      </div>
-
-      {err ? <div className="bg-white border border-gray-100 rounded-2xl px-6 py-10 text-center text-[14px] text-[#8A92A6]">Couldn&apos;t load leads: {err} <button onClick={load} className="text-brand font-medium">Try again</button></div> : (
-      <div className="grid gap-5 items-start grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-        {/* left — how the DM lead came in */}
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-          <div className={`px-[22px] pt-5 pb-3 text-[17px] font-medium ${INK}`}>DM leads</div>
-          <div className="px-3 pb-3.5">
-            {!leads ? <LoadingBlock /> : (<>
-              <NavItem on={src === "all"} onClick={() => { setSrc("all"); setLeadId(null); }} icon={IconUsers} color="#3A57E8" name="All DM leads" sub={notCSub(notC(rows))} count={rows.length} />
-              {DM_SOURCES.map((s) => { const ls = rows.filter((l) => l.src === s.key); return (
-                <NavItem key={s.key} on={src === s.key} onClick={() => { setSrc(s.key); setLeadId(null); }} icon={SRC_ICON[s.key]} color={s.color} name={s.label} sub={notCSub(notC(ls))} count={ls.length} />
-              ); })}
-            </>)}
+        <div className="ml-auto flex items-center gap-2.5 flex-wrap">
+          {days === "custom" && <span className="inline-flex items-center gap-2">{dateBox(cFrom, (v) => { setCFrom(v); if (v > cTo) setCTo(v); })}<span className={MUTED}>to</span>{dateBox(cTo, (v) => { setCTo(v); if (v < cFrom) setCFrom(v); })}</span>}
+          <div className="inline-flex border border-gray-100 rounded-lg overflow-hidden bg-white">
+            {([7, 30, 90, "custom"] as const).map((d) => (
+              <button key={d} onClick={() => { setDays(d); setLeadId(null); }}
+                className={`h-10 px-4 text-[14px] font-medium ${days === d ? "bg-brand-light text-brand" : "text-[#4A5468] hover:text-brand"}`}>{d === "custom" ? "Custom" : `${d}d`}</button>
+            ))}
           </div>
         </div>
+      </div>
+      <div className={`-mt-2 text-[13px] ${MUTED} px-1`}>{fmtWhen(from)} – {fmtWhen(to)} · by lead created date{src !== "all" ? ` · ${title}` : ""}</div>
 
-        <div className="min-w-0 space-y-5">
-          {/* the selection: name and numbers */}
-          <div className="bg-white border border-gray-100 rounded-2xl px-6 py-5">
-            <div className={`text-[20px] font-medium ${INK}`}>{title}</div>
-            <div className={`text-[13px] ${MUTED}`}>{leads ? `${fmt(sel.length)} leads` : "Loading…"}</div>
-            <SummaryCards sel={sel} />
-          </div>
+      {err ? <div className="bg-white border border-gray-100 rounded-2xl px-6 py-10 text-center text-[14px] text-[#8A92A6]">Couldn&apos;t load leads: {err} <button onClick={load} className="text-brand font-medium">Try again</button></div> : (
+      <div className="space-y-5">
+        <SummaryCards sel={sel} />
 
+        <div className="grid gap-5 items-start grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_360px]">
           {/* the leads */}
           <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-6 pt-5 pb-4 flex items-center gap-3 flex-wrap">
@@ -167,9 +158,10 @@ function MarketingLeads() {
             </div>
           </div>
 
-          <div className={`grid gap-5 items-start ${src === "all" ? "lg:grid-cols-2" : ""}`}>
-            {src === "all" && <Sources sel={sel} />}
+          {/* side column on wide screens; under the table, side by side, on a laptop */}
+          <div className="grid gap-5 items-start md:grid-cols-2 2xl:grid-cols-1">
             <FollowUp sel={sel} />
+            {src === "all" && <Sources sel={sel} />}
           </div>
         </div>
       </div>
@@ -183,21 +175,6 @@ function MarketingLeads() {
         </div>
       )}
     </div>
-  );
-}
-
-const notCSub = (n: number) => (n ? <><b className="font-medium text-[#C0201F]">{fmt(n)}</b> not contacted</> : <>all contacted</>);
-
-function NavItem({ on, onClick, icon: I, color, name, sub, count }: { on: boolean; onClick: () => void; icon: Icon; color: string; name: string; sub?: ReactNode; count?: number }) {
-  return (
-    <button onClick={onClick} className={`w-full flex items-center gap-3 text-left px-2.5 py-[11px] rounded-xl mb-0.5 ${on ? "bg-brand-light" : "hover:bg-[#FAFBFD]"}`}>
-      <span className="w-9 h-9 rounded-[10px] grid place-items-center shrink-0" style={{ background: `${color}1F`, color }}><I size={18} stroke={1.8} /></span>
-      <span className="flex-1 min-w-0">
-        <span className={`block truncate text-[14.5px] font-medium ${INK}`}>{name}</span>
-        {sub && <span className={`block truncate text-[12.5px] ${MUTED} mt-px`}>{sub}</span>}
-      </span>
-      {count != null && <span className={`shrink-0 min-w-[32px] h-[26px] px-2 rounded-full grid place-items-center text-[13px] font-medium ${on ? "bg-white text-brand" : "bg-[#F0F2F8] text-[#4A5468]"}`}>{fmt(count)}</span>}
-    </button>
   );
 }
 
@@ -217,12 +194,12 @@ const CardHead = ({ icon: I, t, sub }: { icon: Icon; t: string; sub?: string }) 
 function SummaryCards({ sel }: { sel: SelLead[] }) {
   const cN = sel.filter((l) => l.contacted).length;
   const card = (l: string, v: ReactNode, s: string) => (
-    <div className="border border-gray-100 rounded-[14px] px-5 py-4">
+    <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4">
       <div className={`text-[13px] ${MUTED}`}>{l}</div><div className={`text-[28px] font-medium ${INK} mt-1 leading-tight`}>{v}</div><div className={`text-[12.5px] ${MUTED} mt-0.5`}>{s}</div>
     </div>
   );
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mt-5">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
       {card("DM leads", fmt(sel.length), "contact shared in a DM")}
       {card("Contacted", `${pctOf(cN, sel.length)}%`, `${fmt(cN)} of ${fmt(sel.length)}`)}
       {card("Not contacted yet", <span className="text-[#C0201F]">{fmt(sel.length - cN)}</span>, "no call, note or status change")}
