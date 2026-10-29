@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { safeError } from "@/lib/errors";
 import { requireSection } from "@/lib/api-guard";
 import { getSupabase } from "@/lib/supabase";
-import { airtableList, dateRangeFormula, pickName, pickNumber, idleDays, CRM_TABLE, inActiveRefreshWindow } from "@/lib/sales-hub";
+import { airtableList, dateRangeFormula, pickName, pickNumber, idleDays, CRM_TABLE, inActiveRefreshWindow, isContacted } from "@/lib/sales-hub";
 
 // GET /api/leads-crm/counsellor?name=Robin%20Johnson%20J&from=YYYY-MM-DD&to=YYYY-MM-DD
 //   name = a counsellor's display name → only that counsellor's leads
@@ -65,13 +65,6 @@ const CRM_FIELDS = [
   "Call Attempts",  // first-contact signal (rating field, 0-5)
 ];
 
-// A lead counts as "contacted" once any of the three signals fires.
-function isContacted(status: string, callAttempts: number, notes: string): boolean {
-  const s = (status || "").trim();
-  if (callAttempts >= 1) return true;
-  if (notes && notes.trim().length > 0) return true;
-  return !!s && s.toLowerCase() !== "new" && s !== "—";
-}
 
 export async function GET(req: Request) {
   // Same sales-lead PII (names + mobile numbers) as the parent /api/leads-crm —

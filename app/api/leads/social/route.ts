@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { safeError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase";
-import { airtableList, dateRangeFormula, pickName, CRM_TABLE, REVENUE_TABLE, SALES_HUB_BASE } from "@/lib/sales-hub";
+import { airtableList, dateRangeFormula, pickName, pickNumber, isContacted, CRM_TABLE, REVENUE_TABLE, SALES_HUB_BASE } from "@/lib/sales-hub";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { classifyThread } from "@/lib/lead-detection";
 import { getAdAccount, fetchCampaigns } from "@/lib/meta-ads";
@@ -175,7 +175,7 @@ async function computeComments(from: string, to: string) {
 async function computeCRM(from: string, to: string) {
   const rows = await airtableList<Record<string, unknown>>(CRM_TABLE, {
     filterByFormula: dateRangeFormula("Created Date", from, to),
-    fields: ["Full Name", "Created Date", "Lead Status", "Lead Source (n8n)", "Primary Interest (n8n)"],
+    fields: ["Full Name", "Created Date", "Lead Status", "Lead Source (n8n)", "Primary Interest (n8n)", "Call Attempts", "Notes", "Counsellor"],
     pageSize: 100,
     maxRecords: 20_000,
   });
@@ -183,7 +183,7 @@ async function computeCRM(from: string, to: string) {
   let closedWonStatus = 0;
   const byStatus: Record<string, number> = {};
   const genBySource: Record<string, number> = {};
-  const dmLeadRows: { name: string; source: string; status: string; interest: string; when: string }[] = [];
+  const dmLeadRows: { name: string; source: string; status: string; interest: string; when: string; contacted: boolean; calls: number; counsellor: string }[] = [];
   for (const rec of rows) {
     const status = (pickName(rec.fields["Lead Status"]) || "—").trim();
     const source = pickName(rec.fields["Lead Source (n8n)"]) || "—";
@@ -197,6 +197,10 @@ async function computeCRM(from: string, to: string) {
         status,
         interest: pickName(rec.fields["Primary Interest (n8n)"]) || "—",
         when: String(rec.fields["Created Date"] || ""),
+        // Same rule as Sales Hub: a call, a note, or the status left "New". Notes stay server-side.
+        calls: pickNumber(rec.fields["Call Attempts"]),
+        contacted: isContacted(status, pickNumber(rec.fields["Call Attempts"]), pickName(rec.fields["Notes"])),
+        counsellor: pickName(rec.fields["Counsellor"]) || "Unassigned",
       });
     }
   }

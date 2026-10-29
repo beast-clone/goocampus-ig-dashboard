@@ -279,3 +279,15 @@ export function idleDays(fields: Record<string, unknown>): number {
   const v = fields["Days Untouched"];
   return typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0;
 }
+
+/**
+ * A lead counts as "contacted" once any of three signals fires: a call was attempted,
+ * a note was added, or its status left "New". Shared by Sales Hub (leads-crm/counsellor)
+ * and Marketing Leads (leads/social) so both pages agree.
+ */
+export function isContacted(status: string, callAttempts: number, notes: string): boolean {
+  const s = (status || "").trim();
+  if (callAttempts >= 1) return true;
+  if (notes && notes.trim().length > 0) return true;
+  return !!s && s.toLowerCase() !== "new" && s !== "—";
+}

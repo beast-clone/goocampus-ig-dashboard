@@ -1,6 +1,7 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 
@@ -28,7 +29,7 @@ type Snap = {
     note?: string;
     error?: string;
   };
-  crm: { generated: number; dmLeads: number; genBySource: Record<string, number>; byStatus: { name: string; count: number }[]; closedWonStatus: number; dmLeadRows?: { name: string; source: string; status: string; interest: string; when: string }[] };
+  crm: { generated: number; dmLeads: number; genBySource: Record<string, number>; byStatus: { name: string; count: number }[]; closedWonStatus: number; dmLeadRows?: { name: string; source: string; status: string; interest: string; when: string; contacted?: boolean; calls?: number; counsellor?: string }[] };
   revenue: { converted: number; revenue: number; bySource: SourceAgg; byMonth: SourceAgg; adConverted: number; adRevenue: number; dmConverted: number; dmRevenue: number };
   ads: { leads: number; spend: number; costPerLead: number; campaigns: { name: string; leads: number; spend: number; costPerLead: number }[] } | null;
   samvaya: {
@@ -41,6 +42,8 @@ type Snap = {
 const fmt = (n: number) => (n ?? 0).toLocaleString("en-IN");
 const fmtINR = (n: number) => (n >= 100000 ? `₹${(n / 100000).toFixed(2)}L` : `₹${Math.round(n || 0).toLocaleString("en-IN")}`);
 const fmtWhen = (s: string) => fmtDateShort(s, s || "—");
+// "28 Oct, 5:30 pm" in IST — CRM Created Date carries the time.
+const fmtWhenTime = (s: string) => { const d = new Date(s); return isNaN(+d) ? (s || "—") : d.toLocaleString("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }); };
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "New": { bg: "#E1F0FB", fg: "#0C447C" },
   "Junk lead": { bg: "#FBE4EC", fg: "#C03221" },
@@ -70,15 +73,18 @@ export default function LeadsPage() {
 
 function SocialLeads() {
   const [tab, setTab] = useState<"dm" | "ads" | "samvaya">("dm");
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState<number | "custom">(30);
+  const today = new Date().toISOString().slice(0, 10);
+  const [cFrom, setCFrom] = useState(new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10));
+  const [cTo, setCTo] = useState(today);
   const [data, setData] = useState<Snap | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = useCallback(async (d: number, force = false) => {
+  const load = useCallback(async (d: number | "custom", force = false) => {
     setLoading(true);
-    const to = new Date().toISOString().slice(0, 10);
-    const from = new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+    const to = d === "custom" ? cTo : new Date().toISOString().slice(0, 10);
+    const from = d === "custom" ? cFrom : new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
     try {
       const r = await fetch(`/api/leads/social?from=${from}&to=${to}${force ? "&force=1" : ""}`, { cache: "no-store" });
       const j = await r.json();
@@ -90,8 +96,14 @@ function SocialLeads() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cFrom, cTo]);
   useEffect(() => { load(days); }, [load, days]);
+  // A visible date box; clicking it opens the picker.
+  const dateBox = (v: string, set: (s: string) => void) => (
+    <input type="date" className="sl-date" value={v} max={today}
+      onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* opens natively */ } }}
+      onChange={(e) => e.target.value && set(e.target.value)} />
+  );
 
   const synced = fmtDateTime(data?.generatedAt);
 
@@ -104,10 +116,20 @@ function SocialLeads() {
           <span className="sl-dot" /> Synced daily · last: {synced}
           <button className="sl-refresh" onClick={() => load(days, true)} disabled={loading}>↻ Refresh</button>
         </div>
-        <div className="sl-period">
-          {[7, 30, 90].map((d) => (
-            <button key={d} className={days === d ? "on" : ""} onClick={() => setDays(d)}>{d}d</button>
-          ))}
+        <div className="sl-range">
+          {days === "custom" && (
+            <span className="sl-custom">
+              {dateBox(cFrom, (v) => { setCFrom(v); if (v > cTo) setCTo(v); })}
+              <span>to</span>
+              {dateBox(cTo, (v) => { setCTo(v); if (v < cFrom) setCFrom(v); })}
+            </span>
+          )}
+          <div className="sl-period">
+            {[7, 30, 90].map((d) => (
+              <button key={d} className={days === d ? "on" : ""} onClick={() => setDays(d)}>{d}d</button>
+            ))}
+            <button className={days === "custom" ? "on" : ""} onClick={() => setDays("custom")}>Custom</button>
+          </div>
         </div>
       </div>
 
@@ -128,18 +150,42 @@ function SocialLeads() {
 }
 
 /* ---------------- DM ---------------- */
+// Statuses where the counsellor is in a real conversation — same set as Sales Hub's follow-up card.
+const TALKING = new Set(["Initial discussions", "Hot lead", "Interested", "Bookings", "Re-Enquiry", "Future prospect", "Qualified", "Negotiation", "Payment pending", "Closed won"]);
+
 function DMTab({ d }: { d: Snap }) {
   const dmLeads = d.crm?.dmLeads || 0;
   const won = d.revenue?.dmConverted || 0;
   const rev = d.revenue?.dmRevenue || 0;
   const convRate = dmLeads ? Math.round((won / dmLeads) * 1000) / 10 : 0;
-  const topKw = Math.max(1, ...(d.dm?.keywords || []).map((k) => k.n));
   const leadRows = d.crm?.dmLeadRows || [];
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const booked = leadRows.filter((r) => r.source.includes("Booking")).length;
   const statusList = Object.entries(leadRows.reduce<Record<string, number>>((m, r) => { m[r.status] = (m[r.status] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
-  const shown = statusFilter ? leadRows.filter((r) => r.status === statusFilter) : leadRows;
   // Leads still worth chasing — "Hot lead" / "Interested" statuses (not "Not interested").
   const warm = leadRows.filter((r) => /hot|interested/i.test(r.status) && !/not interested/i.test(r.status)).length;
+
+  // Contacted = same rule as Sales Hub (a call, a note, or status left "New").
+  const contactedN = leadRows.filter((r) => r.contacted).length;
+  const pct = leadRows.length ? Math.round((contactedN / leadRows.length) * 100) : 0;
+  const byCounsellor = [...leadRows.reduce((m, l) => {
+    const name = l.counsellor || "Unassigned";
+    const r = m.get(name) || { name, n: 0, contacted: 0, notYet: 0, noAnswer: 0, talking: 0 };
+    r.n++;
+    if (l.contacted) r.contacted++; else r.notYet++;
+    if (/^attempted to contact$/i.test(l.status)) r.noAnswer++;
+    else if (TALKING.has(l.status)) r.talking++;
+    return m.set(name, r);
+  }, new Map<string, { name: string; n: number; contacted: number; notYet: number; noAnswer: number; talking: number }>()).values()].sort((a, b) => b.n - a.n);
+  const sum = byCounsellor.reduce((t, r) => ({ notYet: t.notYet + r.notYet, noAnswer: t.noAnswer + r.noAnswer, talking: t.talking + r.talking }), { notYet: 0, noAnswer: 0, talking: 0 });
+
+  const [contactF, setContactF] = useState<"all" | "yes" | "no">("all");
+  const [who, setWho] = useState("");
+  const [statusF, setStatusF] = useState("");
+  const shown = leadRows.filter((r) => (!statusF || r.status === statusF) && (!who || (r.counsellor || "Unassigned") === who) && (contactF === "all" || (contactF === "yes") === !!r.contacted));
+  const tableRef = useRef<HTMLDivElement>(null);
+  // Clicking a counsellor opens their not-contacted leads in the table, like Sales Hub.
+  const focus = (name: string) => { setWho(name); setContactF("no"); setStatusF(""); tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+
   return (
     <>
       <div className="sl-kpis">
@@ -152,112 +198,90 @@ function DMTab({ d }: { d: Snap }) {
       <div className="sl-cols">
         <div className="sl-stack">
           <div className="sl-card pad">
-            <H ic="◫" t="Where DM leads come from" />
-            <div className="sl-note" style={{ marginTop: 0, color: "var(--ink-soft)" }}>
-              The <b style={{ color: "var(--ink)" }}>{fmt(dmLeads)}</b> DM leads are counted from your <b>CRM</b> (lead source = “Instagram/Facebook DMs” + “DM Booking”) — each one is a real lead who shared a contact. A per-page split (Edu · 12thplus · World) will appear here once those Instagram inboxes are connected to the dashboard mirror. Today only <b>@goocampus</b> is partly connected ({d.dm?.total?.threads ?? 0} threads).
-            </div>
-          </div>
-
-          <div className="sl-card pad">
-            <H ic="#" t="Top keywords" hint="in DMs" />
-            {(d.dm?.keywords || []).length === 0 ? <div className="sl-empty">No keyword hits in the mirrored inbox yet.</div> : (
-              <div className="sl-bars">
-                {(d.dm?.keywords || []).map((k) => (
-                  <div key={k.keyword} className="br">
-                    <div className="brhead"><span>{k.keyword}</span><b>{k.n}</b></div>
-                    <div className="track"><div className="fill" style={{ width: `${(k.n / topKw) * 100}%` }} /></div>
-                  </div>
-                ))}
-              </div>
+            <H ic="◷" t="DM leads · follow-up" hint="share contacted · follows the selected range" />
+            {byCounsellor.length === 0 ? <div className="sl-empty">No DM leads in this range.</div> : (
+              <>
+                {byCounsellor.map((r) => {
+                  const p = Math.round((r.contacted / Math.max(1, r.n)) * 100);
+                  return (
+                    <button key={r.name} className="sl-fu" onClick={() => focus(r.name)} title={`Show ${r.name}'s leads not contacted yet`}>
+                      <span className="sl-fu-top">
+                        <span className="sl-fu-av">{r.name.trim().charAt(0).toUpperCase()}</span>
+                        <span className="sl-fu-name">{r.name}</span>
+                        <span className="sl-fu-pct">{p}%<small>contacted</small></span>
+                      </span>
+                      <span className="sl-fu-bar"><i style={{ width: `${p}%` }} /></span>
+                      <span className="sl-fu-meta">
+                        <span>{r.n} assigned</span>
+                        <span><b className="red">{r.notYet}</b> not contacted</span>
+                        <span><b>{r.noAnswer}</b> no answer</span>
+                        <span><b>{r.talking}</b> talking</span>
+                      </span>
+                    </button>
+                  );
+                })}
+                <div className="sl-tiles">
+                  <div className="sl-tile"><b style={{ color: "#C0201F" }}>{sum.notYet}</b><span>not contacted</span></div>
+                  <div className="sl-tile"><b style={{ color: "#B7791F" }}>{sum.noAnswer}</b><span>called, no answer</span></div>
+                  <div className="sl-tile"><b style={{ color: "#1A8A4A" }}>{sum.talking}</b><span>in conversation</span></div>
+                </div>
+              </>
             )}
           </div>
 
-          <div className="sl-card pad">
-            <H ic="☰" t="Leads · contact shared" hint={`${fmt(dmLeads)} total`} />
-            <div className="sl-filters">
-              <button className={`fpill ${!statusFilter ? "on" : ""}`} onClick={() => setStatusFilter(null)}>All <span>{fmt(leadRows.length)}</span></button>
-              {statusList.map(([st, ct]) => (
-                <button key={st} className={`fpill ${statusFilter === st ? "on" : ""}`} style={stStyle(st)} onClick={() => setStatusFilter(statusFilter === st ? null : st)}>{st} <span>{fmt(ct)}</span></button>
-              ))}
+          <div className="sl-card pad" ref={tableRef}>
+            <H ic="☰" t="Leads · first-contact tracking" hint={`${fmt(contactedN)} of ${fmt(leadRows.length)} contacted · ${pct}%`} />
+            <div className="sl-toolbar">
+              <div className="sl-seg">
+                {([["all", "All"], ["yes", "Contacted"], ["no", "Not yet"]] as const).map(([k, lbl]) => (
+                  <button key={k} className={contactF === k ? "on" : ""} onClick={() => setContactF(k)}>{lbl}</button>
+                ))}
+              </div>
+              <PreviewSelect value={who} onChange={setWho} ariaLabel="Counsellor"
+                options={[{ value: "", label: "All counsellors" }, ...byCounsellor.map((r) => ({ value: r.name, label: `${r.name} · ${r.n}` }))]} />
+              <PreviewSelect value={statusF} onChange={setStatusF} ariaLabel="Status"
+                options={[{ value: "", label: "All statuses" }, ...statusList.map(([st, n]) => ({ value: st, label: `${st} · ${n}` }))]} />
             </div>
             <div className="sl-tblscroll">
-              <table className="sl-tbl">
-                <thead><tr><th>Person</th><th>Source</th><th>Interest</th><th>Status</th><th>When</th></tr></thead>
+              <table className="sl-tbl nw">
+                <thead><tr><th>Person</th><th>Status</th><th>Contacted</th><th>Assigned to</th><th>Source</th><th>When</th></tr></thead>
                 <tbody>
                   {shown.map((r, i) => (
                     <tr key={i}>
-                      <td className="strong">{r.name}</td>
-                      <td><span className={`chip ${r.source.includes("Booking") ? "cm" : "dm"}`}>{r.source.includes("Booking") ? "◎ DM Booking" : "✉ IG/FB DM"}</span></td>
-                      <td>{r.interest}</td>
+                      <td className="strong">{r.name}<span className="sub" title={r.interest}>{r.interest}</span></td>
                       <td><span className="schip" style={stStyle(r.status)}>{r.status}</span></td>
-                      <td className="num">{fmtWhen(r.when)}</td>
+                      <td>{r.contacted ? <span className="sl-ct yes"><i />Contacted</span> : <span className="sl-ct no"><i />Not yet</span>}</td>
+                      <td>{r.counsellor || "—"}</td>
+                      <td><span className={`chip ${r.source.includes("Booking") ? "cm" : "dm"}`}>{r.source.includes("Booking") ? "◎ DM Booking" : "✉ IG/FB DM"}</span></td>
+                      <td className="num">{fmtWhenTime(r.when)}</td>
                     </tr>
                   ))}
-                  {shown.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)" }}>No leads in this group.</td></tr>}
+                  {shown.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>No leads match these filters.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="sl-note">{statusFilter ? <>Showing <b>{fmt(shown.length)}</b> “{statusFilter}” of {fmt(leadRows.length)}</> : <>Showing all {fmt(leadRows.length)} · scroll for more</>} · all are in the CRM. The <b>evidence snippet</b> (the DM where they shared their contact) appears once the inbox mirror connects.</div>
+            <div className="sl-note">Showing <b>{fmt(shown.length)}</b> of {fmt(leadRows.length)} · Contacted = a call was attempted, a note was added, or the status left “New” — the same rule as Sales Hub.</div>
           </div>
 
-          {(() => {
-            const c = d.comments;
-            const cErr = !c || !!c.error;
-            const topPosts = c?.topPosts || [];
-            const cKw = c?.keywords || [];
-            const topCKw = Math.max(1, ...cKw.map((k) => k.n));
-            return (
-              <div className="sl-card pad">
-                <H ic="◎" t="Comments → leads · Top posts" hint={cErr ? "unavailable" : `${fmt(c?.totalComments || 0)} prospect comments`} />
-                {cErr ? (
-                  <div className="sl-empty">Couldn’t read Instagram comments{c?.error ? ` — ${c.error}` : ""}.</div>
-                ) : topPosts.length === 0 ? (
-                  <div className="sl-empty">No prospect comments in this period (your own CTA replies are excluded).</div>
-                ) : (
-                  <>
-                    <div className="cposts">
-                      {topPosts.map((p, i) => (
-                        <a key={p.id} className="cpost" href={p.permalink} target="_blank" rel="noreferrer">
-                          <span className="cpost-rank">{i + 1}</span>
-                          <span className="cpost-body">
-                            <span className="cpost-cap">{p.caption || "(no caption)"}</span>
-                            <span className="cpost-meta">
-                              <span className="cpost-date">{fmtWhen(p.when)}</span>
-                              {p.keywords.map((k) => <span key={k} className="chip dm">{k}</span>)}
-                            </span>
-                          </span>
-                          <span className="cpost-n"><b>{fmt(p.comments)}</b><small>comments</small></span>
-                        </a>
-                      ))}
-                    </div>
-                    {cKw.length > 0 && (
-                      <>
-                        <div className="sl-subh">Keywords in comments</div>
-                        <div className="sl-bars">
-                          {cKw.map((k) => (
-                            <div key={k.keyword} className="br">
-                              <div className="brhead"><span>{k.keyword}</span><b>{k.n}</b></div>
-                              <div className="track"><div className="fill" style={{ width: `${(k.n / topCKw) * 100}%` }} /></div>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                    <div className="sl-note">Live from Instagram (read-only) · {fmt(c?.postsWithComments || 0)} posts with prospect comments · {fmt(c?.ownReplies || 0)} own CTA replies excluded. <b>Comment-vs-direct-DM split</b> needs inbox read access (Meta Advanced messaging) — in progress.</div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-
+          <div className="sl-card pad">
+            <H ic="◫" t="Where DM leads come from" />
+            <div className="sl-bars">
+              {[["✉ Instagram / Facebook DMs", leadRows.length - booked], ["◎ DM Booking", booked]].map(([lbl, n]) => (
+                <div key={lbl} className="br">
+                  <div className="brhead"><span>{lbl}</span><b>{fmt(n as number)}</b></div>
+                  <div className="track"><div className="fill" style={{ width: `${leadRows.length ? ((n as number) / leadRows.length) * 100 : 0}%` }} /></div>
+                </div>
+              ))}
+            </div>
+            <div className="sl-note">Counted from your CRM — each one is a real lead who shared a contact.</div>
+          </div>
         </div>
         <AIRail lines={[
           `${fmt(dmLeads)} DM leads this period; ${won} already Closed won.`,
+          leadRows.length - contactedN ? `${fmt(leadRows.length - contactedN)} leads not contacted yet (${pct}% contacted).` : "Every lead has been contacted.",
           warm ? `${fmt(warm)} hot or interested leads to follow up.` : "",
-          (d.dm?.keywords || [])[0] ? `Top hook: ${d.dm.keywords[0].keyword} (${d.dm.keywords[0].n}).` : "",
-          (d.comments?.totalComments || 0) > 0 ? `${fmt(d.comments!.totalComments!)} prospect comments across posts; top post drew ${d.comments!.topPosts?.[0]?.comments ?? 0}.` : "",
-          (d.comments?.keywords || [])[0] ? `Most-commented keyword: ${d.comments!.keywords![0].keyword} (${d.comments!.keywords![0].n}).` : "",
-          "Start the World & 12thplus inbox mirrors to see their DM detail here.",
+          statusList[0] ? `Most leads are “${statusList[0][0]}” (${fmt(statusList[0][1])}).` : "",
+          booked ? `${fmt(booked)} came in through DM Booking.` : "",
         ]} />
       </div>
     </>
@@ -398,6 +422,36 @@ const CSS = `
 .sl-period{display:flex;gap:.3rem;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.26rem}
 .sl-period button{font:inherit;font-size:.78rem;border:0;background:none;color:var(--muted);padding:.32rem .6rem;border-radius:7px;cursor:pointer}
 .sl-period button.on{background:var(--brand);color:#fff;font-weight:500}
+.sl-range{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.sl-custom{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--muted)}
+.sl-date{font:inherit;font-size:.78rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.3rem .55rem;cursor:pointer}
+.sl-ct{display:inline-flex;align-items:center;gap:.4rem;font-size:.74rem;font-weight:600;white-space:nowrap}
+.sl-ct i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.sl-ct.yes{color:#137A3E}.sl-ct.yes i{background:#1AA053}
+.sl-ct.no{color:var(--muted)}.sl-ct.no i{background:#C6CBD6}
+.sl-fu{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line2);padding:.6rem 0;cursor:pointer;font:inherit}
+.sl-fu:last-of-type{border-bottom:0}
+.sl-fu-top{display:flex;align-items:center;gap:.5rem}
+.sl-fu-av{width:20px;height:20px;border-radius:50%;background:var(--brand-soft);color:var(--brand-ink);font-size:.62rem;font-weight:600;display:grid;place-items:center}
+.sl-fu-name{font-size:.82rem;font-weight:600;color:var(--ink)}
+.sl-fu:hover .sl-fu-name{color:var(--brand)}
+.sl-fu-pct{margin-left:auto;font-size:.88rem;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sl-fu-pct small{font-size:.68rem;font-weight:400;color:var(--muted);margin-left:.25rem}
+.sl-fu-bar{display:block;height:4px;border-radius:4px;background:var(--line);margin:.4rem 0;overflow:hidden}
+.sl-fu-bar i{display:block;height:100%;background:var(--brand);border-radius:4px}
+.sl-fu-meta{display:flex;flex-wrap:wrap;gap:.2rem .75rem;font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.sl-fu-meta b{font-weight:600;color:var(--ink)}.sl-fu-meta b.red{color:#C0201F}
+.sl-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.5rem}
+.sl-tile{border-radius:8px;background:var(--panel2);padding:.4rem .65rem}
+.sl-tile b{display:block;font-size:.88rem;font-weight:600;font-variant-numeric:tabular-nums}
+.sl-tile span{font-size:.7rem;color:var(--muted)}
+.sl-toolbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.1rem 0 .8rem}
+.sl-seg{display:inline-flex;gap:.2rem;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.22rem}
+.sl-seg button{font:inherit;font-size:.76rem;border:0;background:none;color:var(--muted);padding:.28rem .7rem;border-radius:7px;cursor:pointer}
+.sl-seg button.on{background:var(--brand);color:#fff;font-weight:500}
+.sl-tbl.nw td,.sl-tbl.nw th{white-space:nowrap}
+.sl-tbl .sub{display:block;font-size:.7rem;color:var(--muted);font-weight:400;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.sl-ct small{font-weight:400;color:var(--muted)}
 .sl-tabs{display:flex;gap:.35rem;border-bottom:1px solid var(--line);margin-bottom:1.1rem}
 .sl-tab{font:inherit;font-size:.92rem;font-weight:500;border:0;background:none;color:var(--muted);padding:.7rem 1rem;cursor:pointer;position:relative;display:flex;align-items:center;gap:.5rem}
 .sl-tab .n{font-size:.72rem;font-weight:600;background:var(--panel2);color:var(--ink-soft);border-radius:20px;padding:.05rem .5rem}
@@ -446,25 +500,7 @@ const CSS = `
 .sl-tbl .chip{font-size:.68rem;font-weight:600;padding:.16rem .5rem;border-radius:20px;white-space:nowrap;display:inline-block}
 .sl-tbl .chip.dm{background:var(--brand-soft);color:var(--brand-ink)}
 .sl-tbl .chip.cm{background:var(--dk-sl-EFEBFE);color:#6E48F8}
-.cposts{display:flex;flex-direction:column;gap:.4rem;margin:.15rem 0 .35rem}
-.cpost{display:flex;align-items:center;gap:.7rem;padding:.55rem .6rem;border:1px solid var(--line);border-radius:10px;text-decoration:none;transition:background .12s}
-.cpost:hover{background:var(--panel2)}
-.cpost-rank{flex:none;width:22px;height:22px;border-radius:6px;background:var(--brand-soft);color:var(--brand-ink);font-size:.74rem;font-weight:700;display:flex;align-items:center;justify-content:center}
-.cpost-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.22rem}
-.cpost-cap{font-size:.82rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cpost-meta{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
-.cpost-date{font-size:.72rem;color:var(--muted)}
-.cpost-meta .chip{font-size:.66rem;font-weight:600;padding:.1rem .45rem;border-radius:20px;white-space:nowrap}
-.cpost-meta .chip.dm{background:var(--brand-soft);color:var(--brand-ink)}
-.cpost-n{flex:none;text-align:right;display:flex;flex-direction:column;line-height:1.05}
-.cpost-n b{font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums}
-.cpost-n small{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-.sl-subh{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:.85rem 0 .5rem}
 .sl-tbl .schip{font-size:.7rem;font-weight:600;padding:.16rem .55rem;border-radius:20px;white-space:nowrap;display:inline-block}
-.sl-filters{display:flex;flex-wrap:wrap;gap:.4rem;margin:.1rem 0 .85rem}
-.fpill{font:inherit;font-size:.73rem;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);border-radius:20px;padding:.28rem .62rem;cursor:pointer;display:inline-flex;gap:.4rem;align-items:center}
-.fpill span{font-weight:700;opacity:.65}
-.fpill.on{box-shadow:0 0 0 2px var(--brand) inset}
 .sl-tblscroll{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .sl-tblscroll .sl-tbl th{position:sticky;top:0;background:var(--panel2);z-index:1}
 .sl-tblscroll .sl-tbl td,.sl-tblscroll .sl-tbl th{padding-left:.9rem}
