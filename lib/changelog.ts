@@ -32,6 +32,14 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
+    date: "2026-10-29",
+    title: "Your real sign-in time",
+    summary: "The Started badge shows when you actually signed in.",
+    changes: [
+      { kind: "fixed", what: "Started shows the real time before 9 AM", detail: "Signing in at 8:58 showed \"Started 9:00 AM\" — anything before 9 was rounded up. It now shows 8:58. Today's plan still begins at your shift.", where: "My Day" },
+    ],
+  },
+  {
     date: "2026-10-28",
     title: "GEO SEO, eBooks, filters that stay, and posts that go to the right place",
     summary: "A new GEO SEO tab, eBook Orders straight from Razorpay, filters that remember what you picked, videos that play with sound, and the Scheduler sending each file where it can actually be posted.",
