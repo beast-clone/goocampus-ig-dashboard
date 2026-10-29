@@ -69,7 +69,13 @@ function loadFromEnv(): IGAccountConfig[] {
   return [{ id: username, label: process.env.IG_PAGE_NAME || username, handle: `@${username}`, igUserId, pageAccessToken: token }];
 }
 
-export function getConfiguredAccounts(): IGAccountConfig[] {
+// Brands connected on the Brands page (docs/BRANDS_SPEC.md): their page keys live in the
+// database, loaded by lib/brand-accounts.ts (warmBrandAccounts, run by requireSection and the
+// snapshot crons) — this stays synchronous for the ~30 routes that call it.
+let dbAccounts: IGAccountConfig[] = [];
+export function setDbAccounts(list: IGAccountConfig[]) { dbAccounts = list; }
+
+function baseAccounts(): IGAccountConfig[] {
   if (cached) return cached;
   // Priority: file (local dev) → ACCOUNTS_JSON env (production) → single-account env (fallback)
   const fromFile = loadFromFile();
@@ -78,6 +84,13 @@ export function getConfiguredAccounts(): IGAccountConfig[] {
   if (fromEnvJson.length) { cached = fromEnvJson; return cached; }
   cached = loadFromEnv();
   return cached;
+}
+
+/** Settings-file / env accounts, plus database-connected brands not already among them. */
+export function getConfiguredAccounts(): IGAccountConfig[] {
+  const base = baseAccounts();
+  const extra = dbAccounts.filter((d) => !base.some((b) => b.id === d.id));
+  return extra.length ? [...base, ...extra] : base;
 }
 
 const PREFERRED_DEFAULT = "goocampus";

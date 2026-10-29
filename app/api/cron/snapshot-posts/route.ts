@@ -3,6 +3,7 @@ import { getAccount } from "@/lib/instagram";
 import { snapshotPostsForMonth, snapshotAllAccountsPostsForMonth, currentMonth } from "@/lib/post-history";
 import { snapshotAudienceForMonth, snapshotAllAccountsAudienceForMonth } from "@/lib/audience-history";
 import { safeError } from "@/lib/errors";
+import { warmBrandAccounts } from "@/lib/brand-accounts";
 
 // Freeze one month of post performance per account into Supabase, so past months
 // stay stable + instant on the Overview (see lib/post-history.ts).
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
   if (req.headers.get("x-cron-secret") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  await warmBrandAccounts();   // include brands connected on the Brands page
 
   const url = new URL(req.url);
   const month = url.searchParams.get("month") || currentMonth();

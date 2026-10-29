@@ -18,7 +18,7 @@ import { MonthlyOutputBar } from "@/components/MonthlyOutputBar";
 import { PostDetailModal } from "@/components/PostDetailModal";
 import { FacebookOverview, LinkedInOverview, YouTubeOverview } from "@/components/PlatformOverviews";
 import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
-import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
+import { ACCOUNTS, DEFAULT_ACCOUNT_ID, type IGAccount } from "@/lib/accounts";
 import Link from "next/link";
 
 // A future date returns nothing from any analytics source, so the custom range
@@ -295,15 +295,22 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
   // a maintained logo; /api/account-avatars already inlines them as data URIs and
   // caches them for a day, so this costs nothing per page load.
   const [brandLogos, setBrandLogos] = useState<Record<string, string>>({});
+  // Brands added on the Brands page (Instagram + Facebook connected) follow the built-in ones.
+  const [addedBrands, setAddedBrands] = useState<IGAccount[]>([]);
+  const switchable = useMemo(() => [...SWITCHABLE_ACCOUNTS, ...addedBrands], [addedBrands]);
   useEffect(() => {
     let alive = true;
     fetch("/api/account-avatars")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (alive && j?.avatars) setBrandLogos(j.avatars as Record<string, string>); })
+      .then((j) => {
+        if (!alive) return;
+        if (j?.avatars) setBrandLogos(j.avatars as Record<string, string>);
+        if (Array.isArray(j?.brands)) setAddedBrands(j.brands as IGAccount[]);
+      })
       .catch(() => { /* initials instead — the picker still works */ });
     return () => { alive = false; };
   }, []);
-  const currentAccount = SWITCHABLE_ACCOUNTS.find((a) => a.id === accountId) ?? SWITCHABLE_ACCOUNTS[0];
+  const currentAccount = switchable.find((a) => a.id === accountId) ?? switchable[0];
   // Only offer the platforms this brand actually has. No `platforms` list = all
   // four, which is how every GooCampus brand behaves.
   const availablePlatforms = useMemo(
@@ -573,7 +580,7 @@ export function PreviewOverview({ person = "" }: { person?: string }) {
               <>
                 <div onClick={() => setBrandOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
                 <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 260, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, boxShadow: "0 16px 40px rgba(15,18,40,0.16)", padding: 6, zIndex: 41 }}>
-                  {SWITCHABLE_ACCOUNTS.map((a) => {
+                  {switchable.map((a) => {
                     const on = a.id === accountId;
                     return (
                       <button

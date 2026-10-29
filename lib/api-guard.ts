@@ -5,6 +5,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { rosterById } from "@/lib/team-db";
 import { CAPABILITIES, hasCapability, canAccessSection, canSeeTab, apiTabFor, maySchedulePage, type Capability, type Section } from "@/lib/permissions";
 import { getSupabase } from "@/lib/supabase";
+import { warmBrandAccounts } from "@/lib/brand-accounts";
 
 // Per-user (falls back to IP) rate-limit guard for expensive routes — the ones
 // that call paid third parties (OpenAI/Perplexity, HikerAPI, Airtable). Returns a
@@ -76,5 +77,8 @@ export async function requireSection(sec: Section): Promise<NextResponse | null>
   if (tab && !canSeeTab(me, tab.key)) {
     return NextResponse.json({ error: `Your access doesn't include ${tab.label} — ask an admin to switch it on in Team & access.` }, { status: 403 });
   }
+  // Brands connected on the Brands page keep their Instagram/Facebook keys in the database;
+  // load them (cached a minute) so getConfiguredAccounts() in the route includes them.
+  await warmBrandAccounts();
   return null;
 }

@@ -3,6 +3,7 @@ import { getConfiguredAccounts, type IGAccountConfig } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { safeError } from "@/lib/errors";
+import { warmBrandAccounts } from "@/lib/brand-accounts";
 
 // Hourly cron. For every account, fetch currently-live stories + insights, download the
 // (soon-to-expire) image bytes from Meta's CDN, upload to the story-snapshots bucket in
@@ -35,6 +36,7 @@ export async function GET(req: Request) {
   if (req.headers.get("x-cron-secret") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  await warmBrandAccounts();   // include brands connected on the Brands page
 
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });

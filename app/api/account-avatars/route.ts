@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSection } from "@/lib/api-guard";
 import { getConfiguredAccounts, fetchBasic } from "@/lib/instagram";
 import { getSupabase } from "@/lib/supabase";
+import { readRegistry } from "@/lib/brand-accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,15 @@ async function uploadedLogos(db: ReturnType<typeof getSupabase>): Promise<Avatar
     const { data } = await db.from("discover_cache").select("payload").eq("cache_key", "brands:logos").maybeSingle();
     return (data?.payload as Avatars) || {};
   } catch { return {}; }
+}
+
+// Brands added on the Brands page that have Instagram + Facebook connected — the pickers list
+// them after the built-in brands. An added brand with nothing connected stays off the picker:
+// every tab would be empty for it.
+async function addedBrands() {
+  const live = new Map(getConfiguredAccounts().map((a) => [a.id, a.handle]));
+  return (await readRegistry()).added.filter((b) => live.has(b.id))
+    .map((b) => ({ ...b, handle: live.get(b.id) || b.handle, platforms: ["instagram", "facebook"] }));
 }
 
 async function toDataUri(url: string): Promise<string | null> {
@@ -55,7 +65,7 @@ export async function GET() {
         .maybeSingle();
       const age = data?.last_fetched ? Date.now() - new Date(data.last_fetched).getTime() : Infinity;
       if (data?.payload && age < CACHE_TTL_MS) {
-        return NextResponse.json({ avatars: { ...(data.payload as Avatars), ...(await uploadedLogos(db)) }, cached: true });
+        return NextResponse.json({ avatars: { ...(data.payload as Avatars), ...(await uploadedLogos(db)) }, brands: await addedBrands(), cached: true });
       }
     } catch {
       /* fall through to a live fetch */
@@ -90,5 +100,5 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ avatars: { ...avatars, ...(await uploadedLogos(db)) }, cached: false });
+  return NextResponse.json({ avatars: { ...avatars, ...(await uploadedLogos(db)) }, brands: await addedBrands(), cached: false });
 }

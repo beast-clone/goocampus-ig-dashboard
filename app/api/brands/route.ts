@@ -8,10 +8,12 @@ import { LI_PAGE, YT_CHANNEL } from "@/lib/brand-platforms";
 import { getAccount } from "@/lib/instagram";
 import { CHANNELS } from "@/lib/youtube-channels";
 import { hasChannelGrant } from "@/lib/youtube";
+import { readRegistry, writeRegistry, brandIdOf, META_PAGE_PREFIX } from "@/lib/brand-accounts";
 
 // Brands page (docs/BRANDS_SPEC.md, stage 1): every brand, its logo, and whether each of its
 // four accounts is really connected — read from the same places the data tabs read, so the page
-// can't say "connected" while a tab shows nothing. POST saves an uploaded logo.
+// can't say "connected" while a tab shows nothing. POST saves an uploaded logo, or adds a brand
+// (stage 2); DELETE removes an added brand.
 export const dynamic = "force-dynamic";
 
 const LOGOS_KEY = "brands:logos";            // { brandId: data URI } — uploaded logos
@@ -32,14 +34,19 @@ export async function GET() {
   try {
     const sb = getSupabase();
     const [uploaded, avatars] = await Promise.all([readCache(sb, LOGOS_KEY), readCache(sb, AVATARS_KEY)]);
-    const brands = await Promise.all(ACCOUNTS.map(async (a) => {
+    const added = (await readRegistry()).added;
+    // Brands whose Instagram + Facebook were connected on this page (these can be disconnected here).
+    const onPage = new Set(((sb ? (await sb.from("mh_integration_tokens").select("provider").like("provider", `${META_PAGE_PREFIX}%`)).data : null) || [])
+      .map((r) => String(r.provider).slice(META_PAGE_PREFIX.length)));
+    const all = [...ACCOUNTS.map((a) => ({ ...a, added: false })), ...added.map((a) => ({ ...a, added: true }))];
+    const brands = await Promise.all(all.map(async (a) => {
       const meta = getAccount(a.id);                       // null = no Instagram/Facebook key configured
       const li = LI_PAGE[a.id] ?? null;
       const liOn = !!li && !!process.env[`LINKEDIN_ORG_URN_${li.toUpperCase()}`];
       const yt = YT_CHANNEL[a.id] ?? null;
       const ytOn = yt ? await hasChannelGrant(yt).catch(() => false) : false;
       return {
-        id: a.id, name: a.label, handle: a.handle,
+        id: a.id, name: a.label, handle: a.handle, added: a.added, metaOnPage: onPage.has(a.id),
         logo: uploaded[a.id] || avatars[a.id] || null,
         logoUploaded: !!uploaded[a.id],
         accounts: {
@@ -56,16 +63,29 @@ export async function GET() {
   }
 }
 
-/** Body: { id, logo } — logo is a PNG/JPEG/WebP data URI (≤300 KB), or null to remove it. Admin only. */
+/** Body: { name, handle? } adds a brand; { id, logo } saves a logo — a PNG/JPEG/WebP data URI
+ *  (≤300 KB), or null to remove it. Admin only. */
 export async function POST(req: Request) {
   const denied = await requireSection("system");
   if (denied) return denied;
-  if (!getSessionIsAdmin()) return NextResponse.json({ error: "Only an admin can change a brand's logo." }, { status: 403 });
+  if (!getSessionIsAdmin()) return NextResponse.json({ error: "Only an admin can change brands." }, { status: 403 });
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ error: "no db" }, { status: 500 });
   try {
-    const b = (await req.json()) as { id?: string; logo?: string | null };
-    if (!ACCOUNTS.some((a) => a.id === b.id)) return NextResponse.json({ error: "No such brand." }, { status: 404 });
+    const b = (await req.json()) as { id?: string; logo?: string | null; name?: string; handle?: string };
+    const reg = await readRegistry();
+    if (b.name !== undefined) {
+      const name = b.name.trim().slice(0, 60);
+      const id = brandIdOf(name);
+      if (!id) return NextResponse.json({ error: "Give the brand a name." }, { status: 400 });
+      if (ACCOUNTS.some((a) => a.id === id || a.label.toLowerCase() === name.toLowerCase()) || reg.added.some((a) => a.id === id))
+        return NextResponse.json({ error: `There's already a brand called ${name}.` }, { status: 400 });
+      const h = (b.handle || "").trim().replace(/^@+/, "").slice(0, 40);
+      reg.added.push({ id, label: name, handle: h ? `@${h}` : "" });
+      await writeRegistry(reg);
+      return NextResponse.json({ ok: true, id });
+    }
+    if (!ACCOUNTS.some((a) => a.id === b.id) && !reg.added.some((a) => a.id === b.id)) return NextResponse.json({ error: "No such brand." }, { status: 404 });
     if (b.logo != null && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(b.logo) || b.logo.length > MAX_LOGO))
       return NextResponse.json({ error: "Use a PNG, JPG or WebP image under 300 KB." }, { status: 400 });
     const logos = await readCache(sb, LOGOS_KEY);
@@ -77,5 +97,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not save the logo"), { status: 400 });
+  }
+}
+
+/** Body: { id } — removes a brand added on this page. Its Instagram/Facebook must be disconnected first. Admin only. */
+export async function DELETE(req: Request) {
+  const denied = await requireSection("system");
+  if (denied) return denied;
+  if (!getSessionIsAdmin()) return NextResponse.json({ error: "Only an admin can change brands." }, { status: 403 });
+  const sb = getSupabase();
+  if (!sb) return NextResponse.json({ error: "no db" }, { status: 500 });
+  try {
+    const { id } = (await req.json()) as { id?: string };
+    const reg = await readRegistry();
+    if (!reg.added.some((a) => a.id === id)) return NextResponse.json({ error: "Only brands added on this page can be removed." }, { status: 400 });
+    const { data } = await sb.from("mh_integration_tokens").select("provider").eq("provider", `${META_PAGE_PREFIX}${id}`).maybeSingle();
+    if (data) return NextResponse.json({ error: "Disconnect its Instagram + Facebook first." }, { status: 400 });
+    await writeRegistry({ ...reg, added: reg.added.filter((a) => a.id !== id) });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(safeError(err, "Could not remove the brand"), { status: 400 });
   }
 }

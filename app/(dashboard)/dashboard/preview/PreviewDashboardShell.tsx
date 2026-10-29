@@ -6,7 +6,7 @@ import { DateRangePicker, type Range, rangeDays } from "@/components/DateRangePi
 import { TokenExpiryBadge } from "@/components/TokenExpiryBadge";
 import { HEADER_SLOT_ID } from "./HeaderSlot";
 import { TabIntro } from "./TabIntro";
-import { ACCOUNTS, DEFAULT_ACCOUNT_ID } from "@/lib/accounts";
+import { ACCOUNTS, DEFAULT_ACCOUNT_ID, type IGAccount } from "@/lib/accounts";
 import { PreviewSelect } from "./PreviewSelect";
 import { useProfile } from "@/lib/profile";
 import { PreviewShell, type PreviewTab } from "./PreviewShell";
@@ -61,6 +61,9 @@ export function PreviewDashboardShell({
   const [accountId, setAccountIdRaw] = useState(DEFAULT_ACCOUNT_ID);
   // Real Instagram profile pictures for the account picker (accountId -> data URI).
   const [avatars, setAvatars] = useState<Record<string, string>>({});
+  // Brands added on the Brands page (with Instagram + Facebook connected), after the built-in ones.
+  const [added, setAdded] = useState<IGAccount[]>([]);
+  const brands = [...ACCOUNTS, ...added];
   const [range, setRangeRaw] = useState<Range>({
     from: daysAgoIST(30),
     to: todayIST(),
@@ -93,7 +96,18 @@ export function PreviewDashboardShell({
     let alive = true;
     fetch("/api/account-avatars")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (alive && j?.avatars) setAvatars(j.avatars as Record<string, string>); })
+      .then((j) => {
+        if (!alive) return;
+        if (j?.avatars) setAvatars(j.avatars as Record<string, string>);
+        if (Array.isArray(j?.brands) && j.brands.length) {
+          setAdded(j.brands as IGAccount[]);
+          // A saved added brand can only be restored once we know it exists.
+          try {
+            const saved = window.localStorage.getItem(LS_ACCOUNT);
+            if (saved && (j.brands as IGAccount[]).some((b) => b.id === saved)) setAccountIdRaw(saved);
+          } catch { /* ignore */ }
+        }
+      })
       .catch(() => { /* text-only picker */ });
     return () => { alive = false; };
   }, [hideAccountPicker]);
@@ -105,7 +119,7 @@ export function PreviewDashboardShell({
 
   const profile = useProfile();
   const effectiveAccountId = profile ?? accountId;
-  const account = ACCOUNTS.find((a) => a.id === effectiveAccountId);
+  const account = brands.find((a) => a.id === effectiveAccountId);
   const headerSub = subtitle ?? account?.handle;
 
   // A control bar shows only if there's something in it (range and/or account).
@@ -145,7 +159,7 @@ export function PreviewDashboardShell({
                 <PreviewSelect
                   value={accountId}
                   onChange={setAccountId}
-                  options={ACCOUNTS.map((a) => ({ value: a.id, label: a.label, img: avatars[a.id] }))}
+                  options={brands.map((a) => ({ value: a.id, label: a.label, img: avatars[a.id] }))}
                 />
               ))}
               {/* Pages portal their live/refresh indicator in here, so it sits with
