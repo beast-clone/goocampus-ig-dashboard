@@ -102,3 +102,19 @@ numbers, then (for No brand yet) the interest matcher, then the leads as a full-
 (person + interest, status, contacted, assigned to, date + short channel), then Where they came from
 and Follow-up by counsellor side by side. Clicking a lead opens its details in a popup. Checked at
 1,366px (no sideways scroll) and 1,872px.
+
+## Current scope — DM leads only (29 Oct 2026, replaces the brand model above)
+Praveen: Marketing Leads is for **DM leads only — the non-paid leads**. Paid leads (Ads & lead
+forms, Meta ad campaigns) belong in Campaigns; Samvaya (its own paid intake) is off this page too.
+Brand grouping was removed at his request (the brand list itself, incl. IMT Programme, stays in
+Marketing Hub).
+
+- Leads: CRM leads whose Lead Source is **Instagram/Facebook DMs** or **DM Booking**
+  (`DM_SOURCES` in `lib/lead-channel.ts`), live from `/api/leads-crm/counsellor`.
+- Left list: All DM leads · Instagram / Facebook DMs · DM Booking (count + not contacted).
+- Main: numbers (DM leads, contacted %, not contacted yet, hot & interested) → leads table
+  (search, All / Not yet / Contacted; click → popup with Open in CRM) → How they reached us +
+  Follow-up by counsellor. Period: 7d / 30d / 90d / Custom.
+- Removed: brand matching + `/api/leads/brand-matches`, Ad campaigns and Samvaya views. One unused
+  `discover_cache` row (`leadbrand:matches`) remains from the brand matching.
+- Idea parked: Master-sheet-style saved views on this table.
