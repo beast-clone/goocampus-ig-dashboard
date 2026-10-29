@@ -11,6 +11,7 @@ import { useApi } from "@/lib/use-api";
 import { fmtDateShort, fmtDateTime } from "@/lib/date";
 import { IconUsers, IconChartLine, IconUserCheck, IconClock, IconTrophy } from "@tabler/icons-react";
 import { IndiaStatesMap } from "@/components/GeoMaps";
+import { BUCKET_NAME, isBucket, counsellorLabel } from "@/lib/counsellor";
 
 type Counsellor = {
   name: string;
@@ -125,11 +126,6 @@ function fmtHrs(n: number | null): string {
 // largest-first, so index 0 (the biggest source) gets the darkest shade.
 const SOURCE_SHADES = ["#2138B0", "#3A57E8", "#5A72EC", "#8496F2", "#A6B4F6", "#C6D0FA", "#DCE2FB"];
 
-// Maheen isn't a counsellor — it's the holding pool where leads park as New / Re-Enquiry
-// for the assignment automation. Relabel it everywhere in the UI.
-const BUCKET_NAME = "Maheen Ejaz";
-const isBucket = (name: string) => name === BUCKET_NAME;
-const counsellorLabel = (name: string) => (isBucket(name) ? "New Leads (Maheen)" : name);
 
 const STATUS_HEX: Record<string, { bg: string; fg: string }> = {
   "New": { bg: "#E1F0FB", fg: "#0C447C" },

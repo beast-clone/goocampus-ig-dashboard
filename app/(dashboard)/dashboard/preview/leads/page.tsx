@@ -5,6 +5,7 @@ import { IconSearch, IconUsers, IconMessageCircle, IconCalendarEvent, IconLayout
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { DM_SOURCES, TALKING, isWarm } from "@/lib/lead-channel";
 import { fmtDateShort } from "@/lib/date";
+import { isBucket, counsellorLabel } from "@/lib/counsellor";
 
 // Marketing Leads (docs/MARKETING_LEADS_SPEC.md) — DM leads only: the non-paid leads who reached
 // us through Instagram/Facebook DMs or the DM booking form. Paid leads live in Campaigns.
@@ -148,7 +149,7 @@ function MarketingLeads() {
                         <td className="px-4 py-3.5 max-w-[220px]"><div className={`font-medium ${INK} truncate`}>{l.name || "—"}</div><div className={`text-[12.5px] ${MUTED} truncate`}>{l.interest || "No interest set"}</div></td>
                         <td className="px-4 py-3.5"><span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 leading-snug" style={stStyle(l.status)}>{l.status || "—"}</span></td>
                         <td className="px-4 py-3.5 whitespace-nowrap"><ContactedDot on={l.contacted} /></td>
-                        <td className="px-4 py-3.5 text-[#4A5468]">{l.counsellor}</td>
+                        <td className={`px-4 py-3.5 ${isBucket(l.counsellor) ? MUTED : "text-[#4A5468]"}`}>{counsellorLabel(l.counsellor)}</td>
                         <td className="px-4 py-3.5 whitespace-nowrap"><div className="text-[#4A5468]">{fmtWhenTime(l.createdAt)}</div><div className={`text-[12.5px] ${MUTED}`}>{srcInfo(l.src).short}</div></td>
                       </tr>
                     ))}
@@ -227,9 +228,12 @@ function Sources({ sel }: { sel: SelLead[] }) {
 }
 
 function FollowUp({ sel }: { sel: SelLead[] }) {
+  // Counsellors only — the New Leads (Maheen) pool and unassigned leads aren't anyone's follow-up.
+  const waiting = sel.filter((l) => !l.counsellor || isBucket(l.counsellor)).length;
   const fu = new Map<string, { n: number; c: number; na: number; t: number }>();
   for (const l of sel) {
-    const k = l.counsellor || "Unassigned", x = fu.get(k) || { n: 0, c: 0, na: 0, t: 0 };
+    if (!l.counsellor || isBucket(l.counsellor)) continue;
+    const k = l.counsellor, x = fu.get(k) || { n: 0, c: 0, na: 0, t: 0 };
     x.n++; if (l.contacted) x.c++;
     if (/^attempted to contact$/i.test(l.status)) x.na++; else if (TALKING.has(l.status)) x.t++;
     fu.set(k, x);
@@ -247,7 +251,8 @@ function FollowUp({ sel }: { sel: SelLead[] }) {
           </div>
         );
       })}
-      {sel.length === 0 && <div className={`text-[14px] ${MUTED}`}>No leads.</div>}
+      {fu.size === 0 && <div className={`text-[14px] ${MUTED}`}>No leads assigned to a counsellor.</div>}
+      {waiting > 0 && <div className={`mt-3 pt-3 border-t border-gray-100 text-[13px] ${MUTED}`}><b className={`font-medium ${INK}`}>{fmt(waiting)}</b> waiting to be assigned (New Leads (Maheen) pool)</div>}
     </div>
   );
 }
@@ -266,7 +271,7 @@ function LeadDetail({ l, via, onClose }: { l: Lead; via: string; onClose: () => 
       <div className="grid grid-cols-[150px_1fr] gap-x-[18px] gap-y-4 text-[14px] mt-5">
         {row("Status", <span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap" style={stStyle(l.status)}>{l.status || "—"}</span>)}
         {row("Contacted", <><ContactedDot on={l.contacted} />{l.callAttempts ? <span className={MUTED}> · {l.callAttempts} call{l.callAttempts > 1 ? "s" : ""}</span> : null}</>)}
-        {row("Assigned to", l.counsellor)}
+        {row("Assigned to", isBucket(l.counsellor) ? "Not assigned yet — New Leads (Maheen)" : l.counsellor)}
         {row("Primary Interest", l.interest || "—")}
         {row("Campaign", l.campaign || "—")}
         {row("Idle", l.daysUntouched != null ? `${l.daysUntouched} day${l.daysUntouched === 1 ? "" : "s"} since last update` : "—")}
