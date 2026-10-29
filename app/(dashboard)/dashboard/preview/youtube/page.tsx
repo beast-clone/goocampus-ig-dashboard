@@ -61,18 +61,16 @@ function duration(sec: number): string {
 export default function YouTubePage() {
   return (
     <PreviewDashboardShell active="youtube" title="YouTube" subtitle="Channel analytics — views, watch time, subscribers, audience.">
-      {({ range }) => <Inner range={range} />}
+      {({ range, accountId }) => <Inner range={range} accountId={accountId} />}
     </PreviewDashboardShell>
   );
 }
 
-function Inner({ range }: { range: { from: string; to: string } }) {
-  // Profile mode locks this tab to the brand's own channel — no switcher, no
-  // other brand's data reachable. Main mode keeps the free channel switcher.
+function Inner({ range, accountId }: { range: { from: string; to: string }; accountId: string }) {
+  // The channel follows the brand picker at the top, like every other tab (profile
+  // mode pins the brand). A brand with no YouTube channel says so.
   const profile = useProfile();
-  const profileChannel = profile ? YT_CHANNEL[profile] ?? null : undefined;
-  const [picked, setChannel] = useState("goocampus");
-  const channel = profile ? (profileChannel ?? "") : picked;
+  const channel = YT_CHANNEL[profile ?? accountId] ?? "";
   const qs = new URLSearchParams({ channel, from: range.from, to: range.to }).toString();
   const { data, error, isLoading, refresh } = useApi<Resp>(channel ? `/api/youtube?${qs}` : null);
   const [, setFetchedAt] = useState<number | null>(null);
@@ -82,8 +80,6 @@ function Inner({ range }: { range: { from: string; to: string } }) {
   const [connectNote, setConnectNote] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    const ch = q.get("channel");
-    if (ch && CHANNELS.some((c) => c.key === ch)) setChannel(ch);
     const flag = q.get("yt"), why = q.get("why") || "";
     if (!flag) return;
     setConnectNote(flag === "connected" ? { ok: true, text: `Connected ${why || "the channel"} — its numbers load below.` }
@@ -93,7 +89,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
-  if (profile && !profileChannel) {
+  if (!channel) {
     return (
       <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center">
         <div className="text-base font-medium text-gray-700 mb-1">No YouTube channel</div>
@@ -106,22 +102,7 @@ function Inner({ range }: { range: { from: string; to: string } }) {
     <div className="space-y-5">
       {/* Channel switcher + status */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        {profile ? (
-          <div className="text-base font-medium text-[#232D42]">{CHANNELS.find((c) => c.key === channel)?.label ?? channel} channel</div>
-        ) : (
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
-          {CHANNELS.map((c) => (
-            <button
-              key={c.key}
-              onClick={() => setChannel(c.key)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${channel === c.key ? "text-white" : "text-gray-600 hover:text-gray-900"}`}
-              style={channel === c.key ? { background: YT } : {}}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-        )}
+        <div className="text-base font-medium text-[#232D42]">{CHANNELS.find((c) => c.key === channel)?.label ?? channel} channel</div>
         <div className="flex items-center gap-3">
           {/* Live only: the API no longer falls back to sample data, so no Demo badge. */}
           <LiveIndicator loading={isLoading} onRefresh={refresh} error={error ? error.message : null} />

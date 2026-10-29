@@ -5,7 +5,7 @@ import { parseISO } from "date-fns";
 import { fmtDateShort } from "@/lib/date";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
-import { YT_CHANNEL, YT_CHANNEL_PILLS } from "@/lib/brand-platforms";
+import { YT_CHANNEL } from "@/lib/brand-platforms";
 import { useProfile } from "@/lib/profile";
 import { useApi } from "@/lib/use-api";
 import { IconEye, IconThumbUp, IconMessageCircle, IconClock, IconTrophy, IconRefresh, IconPlayerPlayFilled } from "@tabler/icons-react";
@@ -72,26 +72,15 @@ export default function YouTubeVideosPage() {
 
 function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; setKind: (k: Kind) => void }) {
   const profile = useProfile();
-  const [channelPick, setChannelPick] = useState<string | null>(null);
-  const channel = profile ? (YT_CHANNEL[profile] ?? "") : (channelPick ?? YT_CHANNEL[accountId] ?? "goocampus");
+  // Follows the brand picker at the top, like every other tab.
+  const channel = YT_CHANNEL[profile ?? accountId] ?? "";
   const { data, isLoading } = useApi<Resp>(channel ? `/api/youtube/uploads?channel=${channel}` : null);
   const [sort, setSort] = useState<Sort>("views");
   const [selected, setSelected] = useState<Video | null>(null);
 
-  if (profile && !channel) {
+  if (!channel) {
     return <div className="bg-white border border-gray-100 rounded-2xl p-14 text-center text-sm text-gray-400">This brand doesn&apos;t have a YouTube channel connected.</div>;
   }
-
-  const channelPills = profile ? null : (
-    <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
-      {YT_CHANNEL_PILLS.map((c) => (
-        <button key={c.key} onClick={() => setChannelPick(c.key)}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${channel === c.key ? "bg-red-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
 
   // Dedupe by id — the uploads feed can return the same video twice, which caused a
   // React "duplicate key" warning and could duplicate/omit rows in the list.
@@ -117,7 +106,6 @@ function Inner({ accountId, kind, setKind }: { accountId: string; kind: Kind; se
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          {channelPills}
           <div className="bg-white border border-gray-100 rounded-lg p-1.5 inline-flex items-center gap-1">
             {KINDS.map((k) => (
               <button key={k.key} onClick={() => setKind(k.key)}
