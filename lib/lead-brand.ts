@@ -3,12 +3,12 @@
 
 /** Channels, from the CRM's "Lead Source (n8n)". Anything unknown is "Other". */
 export const CHANNELS = [
-  { key: "ads", label: "Ads & lead forms", color: "#3A57E8", sources: ["Digital marketing activity"] },
-  { key: "dm", label: "Instagram / Facebook DMs", color: "#1AA053", sources: ["Instagram/Facebook DMs", "DM Booking"] },
-  { key: "yt", label: "YouTube", color: "#C03221", sources: ["YouTube"] },
-  { key: "web", label: "Website", color: "#F16A1B", sources: ["Website"] },
-  { key: "book", label: "Bookings", color: "#2138B0", sources: ["Bookings"] },
-  { key: "other", label: "Other", color: "#8A92A6", sources: [] as string[] },
+  { key: "ads", label: "Ads & lead forms", short: "Ads", color: "#3A57E8", sources: ["Digital marketing activity"] },
+  { key: "dm", label: "Instagram / Facebook DMs", short: "IG / FB DMs", color: "#1AA053", sources: ["Instagram/Facebook DMs", "DM Booking"] },
+  { key: "yt", label: "YouTube", short: "YouTube", color: "#C03221", sources: ["YouTube"] },
+  { key: "web", label: "Website", short: "Website", color: "#F16A1B", sources: ["Website"] },
+  { key: "book", label: "Bookings", short: "Bookings", color: "#2138B0", sources: ["Bookings"] },
+  { key: "other", label: "Other", short: "Other", color: "#8A92A6", sources: [] as string[] },
 ] as const;
 export type ChannelKey = (typeof CHANNELS)[number]["key"];
 export const channelOf = (source: string): ChannelKey =>

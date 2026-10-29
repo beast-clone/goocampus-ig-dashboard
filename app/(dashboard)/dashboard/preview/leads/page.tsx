@@ -1,7 +1,7 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { IconSearch, IconUsers, IconTag, IconHelpCircle, IconLayoutGrid, IconSpeakerphone, IconMessageCircle, IconBrandYoutube, IconWorld, IconCalendarEvent, IconDots, IconCurrencyRupee, IconHeartHandshake, IconPlus, IconArrowLeft, IconExternalLink, IconListDetails, IconChartBar, IconSparkles, type Icon } from "@tabler/icons-react";
+import { IconSearch, IconUsers, IconTag, IconHelpCircle, IconLayoutGrid, IconSpeakerphone, IconMessageCircle, IconBrandYoutube, IconWorld, IconCalendarEvent, IconDots, IconCurrencyRupee, IconHeartHandshake, IconPlus, IconExternalLink, IconListDetails, IconChartBar, IconSparkles, IconX, type Icon } from "@tabler/icons-react";
 import { addBrand } from "@/lib/use-sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { CHANNELS, type ChannelKey, TALKING, brandFor, channelOf, interestKey, isBlankInterest, isWarm, leadBrands } from "@/lib/lead-brand";
@@ -188,7 +188,7 @@ function MarketingLeads() {
       </div>
 
       {err ? <div className="bg-white border border-gray-100 rounded-2xl px-6 py-10 text-center text-[14px] text-[#8A92A6]">Couldn&apos;t load leads: {err} <button onClick={load} className="text-brand font-medium">Try again</button></div> : (
-      <div className="grid gap-5 items-start grid-cols-1 xl:grid-cols-[300px_minmax(380px,1fr)_minmax(460px,1.25fr)]">
+      <div className="grid gap-5 items-start grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
         {/* left — brands, channels, other views */}
         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className={`px-[22px] pt-5 pb-3 text-[17px] font-medium ${INK}`}>Brands</div>
@@ -239,55 +239,80 @@ function MarketingLeads() {
         </div>
 
         {picked.kind === "view" ? (
-          // The two views that aren't CRM leads keep their existing layout, across both columns.
-          <div className="xl:col-span-2 sl"><style dangerouslySetInnerHTML={{ __html: CSS }} />
+          // The two views that aren't CRM leads keep their existing layout.
+          <div className="min-w-0 sl"><style dangerouslySetInnerHTML={{ __html: CSS }} />
             {!snap ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label="Loading…" /></div>
               : picked.view === "ads" ? <AdsTab d={snap} /> : <SamvayaTab d={snap} />}
           </div>
-        ) : (<>
-          {/* middle — the selection's leads */}
-          <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-            <div className="px-[22px] pt-5 pb-3">
-              <div className={`text-[17px] font-medium ${INK}`}>{title}</div>
-              <div className={`text-[13px] ${MUTED}`}>{leads ? `${fmt(sel.length)} leads${ch !== "all" ? ` · ${chan(ch).label}` : ""} · newest first` : "Loading…"}</div>
+        ) : (
+          <div className="min-w-0 space-y-5">
+            {/* the selection: name, numbers, filters */}
+            <div className="bg-white border border-gray-100 rounded-2xl px-6 py-5">
+              <div className="flex items-end gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className={`text-[20px] font-medium ${INK}`}>{title}</div>
+                  <div className={`text-[13px] ${MUTED}`}>{leads ? `${fmt(sel.length)} leads${ch !== "all" ? ` · ${chan(ch).label}` : ""}` : "Loading…"}</div>
+                </div>
+              </div>
+              <SummaryCards sel={sel} title={title} />
             </div>
-            <div className="mx-5 mb-3 flex items-center gap-2.5 border border-gray-100 rounded-xl px-3.5 h-11">
-              <IconSearch size={16} className="text-[#8A92A6]" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, status, counsellor…" className={`flex-1 outline-none text-[14px] ${INK} bg-transparent`} />
-            </div>
-            <div className="mx-5 mb-3.5 flex gap-1.5">
-              {([["all", "All", sel.length], ["no", "Not yet", sel.length - cN], ["yes", "Contacted", cN]] as const).map(([k, lbl, n]) => (
-                <button key={k} onClick={() => setContactF(k)}
-                  className={`flex-1 h-[38px] rounded-[10px] border text-[13.5px] font-medium whitespace-nowrap ${contactF === k ? "bg-brand-light text-brand border-brand-light" : "bg-white text-[#4A5468] border-gray-100"}`}>
-                  {lbl} <span className={`font-normal ${MUTED}`}>{fmt(n)}</span>
-                </button>
-              ))}
-            </div>
-            <div className="border-t border-gray-100 overflow-auto" style={{ height: "calc(100vh - 360px)", minHeight: 480 }}>
-              {!leads ? <LoadingBlock /> : shown.length === 0 ? <div className={`py-10 text-center text-[14px] ${MUTED}`}>No leads here.</div> : shown.map((l) => (
-                <button key={l.id} onClick={() => setLeadId(leadId === l.id ? null : l.id)}
-                  className={`block w-full text-left px-[22px] py-4 border-b border-gray-100 ${leadId === l.id ? "bg-[#F5F7FE] shadow-[inset_3px_0_0_#3A57E8]" : "hover:bg-[#FAFBFD]"}`}>
-                  <span className="flex items-center gap-2.5">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: l.contacted ? "#1AA053" : "#C6CBD6" }} title={l.contacted ? "Contacted" : "Not contacted yet"} />
-                    <span className={`flex-1 min-w-0 truncate text-[15px] font-medium ${INK}`}>{l.name || "—"}</span>
-                    <span className={`text-[12.5px] ${MUTED} whitespace-nowrap`}>{fmtWhenTime(l.createdAt)}</span>
-                  </span>
-                  <span className={`flex items-center gap-2.5 mt-1.5 pl-[18px] text-[12.5px] ${MUTED} whitespace-nowrap overflow-hidden`}>
-                    <span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap" style={stStyle(l.status)}>{l.status || "—"}</span><span>{l.counsellor}</span><span>· {chan(l.ch).label}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* right — one lead, or the selection's summary */}
-          <div className="bg-white border border-gray-100 rounded-2xl px-[26px] pt-[22px] pb-[26px]">
-            {lead ? <LeadDetail l={lead} brand={lead.brand} channel={chan(lead.ch).label} onBack={() => setLeadId(null)} backLabel={title} />
-              : <Summary sel={sel} title={title} showSources={ch === "all"} unmatched={picked.kind === "brand" && picked.brand === NONE}
-                  brands={brands} matches={matches} isAdmin={isAdmin} onMatch={saveMatch} onCreate={createBrand} />}
+            {picked.brand === NONE && <Matcher sel={sel} brands={brands} matches={matches} isAdmin={isAdmin} onMatch={saveMatch} onCreate={createBrand} />}
+
+            {/* the leads */}
+            <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+              <div className="px-6 pt-5 pb-4 flex items-center gap-3 flex-wrap">
+                <div className={`text-[16px] font-medium ${INK} mr-auto`}>Leads <span className={`text-[13px] font-normal ${MUTED}`}>· newest first · click one for details</span></div>
+                <div className="flex items-center gap-2 border border-gray-100 rounded-xl px-3 h-10 w-[260px]">
+                  <IconSearch size={16} className="text-[#8A92A6] shrink-0" />
+                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, status, counsellor…" className={`flex-1 min-w-0 outline-none text-[14px] ${INK} bg-transparent`} />
+                </div>
+                <div className="inline-flex border border-gray-100 rounded-lg overflow-hidden">
+                  {([["all", "All", sel.length], ["no", "Not yet", sel.length - cN], ["yes", "Contacted", cN]] as const).map(([k, lbl, n]) => (
+                    <button key={k} onClick={() => setContactF(k)}
+                      className={`h-10 px-4 text-[13.5px] font-medium whitespace-nowrap ${contactF === k ? "bg-brand-light text-brand" : "bg-white text-[#4A5468] hover:text-brand"}`}>
+                      {lbl} <span className={`font-normal ${contactF === k ? "" : MUTED}`}>{fmt(n)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="overflow-auto border-t border-gray-100" style={{ maxHeight: "max(480px, calc(100vh - 420px))" }}>
+                {!leads ? <LoadingBlock /> : shown.length === 0 ? <div className={`py-10 text-center text-[14px] ${MUTED}`}>No leads here.</div> : (
+                  <table className="w-full min-w-[600px] text-[14px]">
+                    <thead className="sticky top-0 bg-white z-[1]"><tr className={`text-left text-[12.5px] ${MUTED}`}>
+                      {["Person", "Status", "Contacted", "Assigned to", "When"].map((h) => <th key={h} className="font-normal px-4 py-3 border-b border-gray-100 whitespace-nowrap">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {shown.map((l) => (
+                        <tr key={l.id} onClick={() => setLeadId(l.id)} className="cursor-pointer hover:bg-[#FAFBFD] border-b border-gray-100 last:border-0">
+                          <td className="px-4 py-3.5 max-w-[220px]"><div className={`font-medium ${INK} truncate`}>{l.name || "—"}</div><div className={`text-[12.5px] ${MUTED} truncate`}>{l.interest || "No interest set"}</div></td>
+                          <td className="px-4 py-3.5"><span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 leading-snug" style={stStyle(l.status)}>{l.status || "—"}</span></td>
+                          <td className="px-4 py-3.5 whitespace-nowrap"><ContactedDot on={l.contacted} /></td>
+                          <td className="px-4 py-3.5 text-[#4A5468]">{l.counsellor}</td>
+                          <td className="px-4 py-3.5 whitespace-nowrap"><div className="text-[#4A5468]">{fmtWhenTime(l.createdAt)}</div><div className={`text-[12.5px] ${MUTED}`}>{chan(l.ch).short}</div></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <div className={`grid gap-5 items-start ${ch === "all" ? "lg:grid-cols-2" : ""}`}>
+              {ch === "all" && <Sources sel={sel} />}
+              <FollowUp sel={sel} />
+            </div>
           </div>
-        </>)}
+        )}
       </div>
+      )}
+
+      {lead && (
+        <div className="fixed inset-0 z-50 bg-[#232D42]/40 flex items-center justify-center p-4" onClick={() => setLeadId(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-[560px] max-h-[90vh] overflow-auto px-7 py-6" onClick={(e) => e.stopPropagation()}>
+            <LeadDetail l={lead} brand={lead.brand} channel={chan(lead.ch).label} onClose={() => setLeadId(null)} />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -308,86 +333,121 @@ function NavItem({ on, onClick, icon: I, color, name, sub, count }: { on: boolea
   );
 }
 
-function Summary({ sel, title, showSources, unmatched, brands, matches, isAdmin, onMatch, onCreate }: {
-  sel: { contacted: boolean; status: string; counsellor: string; ch: ChannelKey; interest: string }[]; title: string; showSources: boolean; unmatched: boolean;
-  brands: string[]; matches: Record<string, string>; isAdmin: boolean; onMatch: (interest: string, brand: string) => void; onCreate: (name: string) => Promise<string | null>;
-}) {
+type SelLead = { contacted: boolean; status: string; counsellor: string; ch: ChannelKey; interest: string };
+const ContactedDot = ({ on }: { on: boolean }) => (
+  <span className={`inline-flex items-center gap-1.5 font-medium ${on ? "text-[#137A3E]" : MUTED}`}>
+    <span className="w-2 h-2 rounded-full" style={{ background: on ? "#1AA053" : "#C6CBD6" }} />{on ? "Contacted" : "Not yet"}
+  </span>
+);
+const CardHead = ({ icon: I, t, sub }: { icon: Icon; t: string; sub?: string }) => (
+  <div className="flex items-center gap-3 mb-4">
+    <span className="w-9 h-9 rounded-[10px] bg-brand-light text-brand grid place-items-center shrink-0"><I size={18} stroke={1.8} /></span>
+    <div><div className={`text-[16px] font-medium ${INK}`}>{t}</div>{sub && <div className={`text-[13px] ${MUTED}`}>{sub}</div>}</div>
+  </div>
+);
+
+function SummaryCards({ sel, title }: { sel: SelLead[]; title: string }) {
   const cN = sel.filter((l) => l.contacted).length;
   const card = (l: string, v: ReactNode, s: string) => (
-    <div className="border border-gray-100 rounded-[14px] px-5 py-[18px]">
-      <div className={`text-[13px] ${MUTED}`}>{l}</div><div className={`text-[30px] font-medium ${INK} mt-1 mb-0.5 leading-tight`}>{v}</div><div className={`text-[12.5px] ${MUTED}`}>{s}</div>
+    <div className="border border-gray-100 rounded-[14px] px-5 py-4">
+      <div className={`text-[13px] ${MUTED}`}>{l}</div><div className={`text-[28px] font-medium ${INK} mt-1 leading-tight`}>{v}</div><div className={`text-[12.5px] ${MUTED} mt-0.5`}>{s}</div>
     </div>
   );
-  const fu = new Map<string, { n: number; c: number; na: number; t: number }>();
-  for (const l of sel) {
-    const x = fu.get(l.counsellor || "Unassigned") || { n: 0, c: 0, na: 0, t: 0 };
-    x.n++; if (l.contacted) x.c++;
-    if (/^attempted to contact$/i.test(l.status)) x.na++; else if (TALKING.has(l.status)) x.t++;
-    fu.set(l.counsellor || "Unassigned", x);
-  }
-  const um = new Map<string, number>();
-  if (unmatched) for (const l of sel) um.set(l.interest || "", (um.get(l.interest || "") || 0) + 1);
-  const sec = (t: string) => <div className={`text-[15px] font-medium ${INK} mt-[26px] mb-3`}>{t}</div>;
   return (
-    <>
-      <div className="grid grid-cols-2 gap-3.5">
-        {card("Leads", fmt(sel.length), title)}
-        {card("Contacted", `${pctOf(cN, sel.length)}%`, `${fmt(cN)} of ${fmt(sel.length)}`)}
-        {card("Not contacted yet", <span className="text-[#C0201F]">{fmt(sel.length - cN)}</span>, "no call, note or status change")}
-        {card("Hot & interested", fmt(sel.filter((l) => isWarm(l.status)).length), "Hot lead + Interested")}
-      </div>
-      {showSources && sel.length > 0 && (<>
-        {sec("Where they came from")}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mt-5">
+      {card("Leads", fmt(sel.length), title)}
+      {card("Contacted", `${pctOf(cN, sel.length)}%`, `${fmt(cN)} of ${fmt(sel.length)}`)}
+      {card("Not contacted yet", <span className="text-[#C0201F]">{fmt(sel.length - cN)}</span>, "no call, note or status change")}
+      {card("Hot & interested", fmt(sel.filter((l) => isWarm(l.status)).length), "Hot lead + Interested")}
+    </div>
+  );
+}
+
+function Sources({ sel }: { sel: SelLead[] }) {
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl px-6 py-5">
+      <CardHead icon={IconLayoutGrid} t="Where they came from" sub="by channel" />
+      {sel.length === 0 ? <div className={`text-[14px] ${MUTED}`}>No leads.</div> : (<>
         <div className="flex h-3 rounded-full overflow-hidden bg-[#EEF0F4]">
           {CHANNELS.map((c) => { const n = sel.filter((l) => l.ch === c.key).length; return n ? <i key={c.key} style={{ width: `${(n / sel.length) * 100}%`, background: c.color }} /> : null; })}
         </div>
-        <div className="flex flex-wrap gap-x-[18px] gap-y-2 text-[13px] text-[#4A5468] mt-3">
-          {CHANNELS.map((c) => { const n = sel.filter((l) => l.ch === c.key).length; return n ? <span key={c.key} className="inline-flex items-center gap-1.5"><i className="w-[9px] h-[9px] rounded-[3px] inline-block" style={{ background: c.color }} />{c.label} {fmt(n)}</span> : null; })}
+        <div className="mt-4 space-y-2.5">
+          {CHANNELS.map((c) => { const n = sel.filter((l) => l.ch === c.key).length; return n ? (
+            <div key={c.key} className="flex items-center gap-2.5 text-[14px]"><i className="w-[10px] h-[10px] rounded-[3px] inline-block" style={{ background: c.color }} /><span className={INK}>{c.label}</span><span className={`ml-auto ${MUTED}`}>{fmt(n)} · {pctOf(n, sel.length)}%</span></div>
+          ) : null; })}
         </div>
       </>)}
-      {unmatched && (<>
-        {sec("Match these interests to a brand")}
-        <div className={`text-[13px] ${MUTED} -mt-1.5 mb-2`}>{isAdmin ? "Pick once — every lead with that interest moves there, now and in future. Not in the list? Add a new brand from the picker." : "An admin can match these to a brand."}</div>
-        {[...um.entries()].sort((a, b) => b[1] - a[1]).map(([i, n]) => {
-          const k = interestKey(i);
-          return (
-            <div key={i} className="flex items-center gap-3 py-3 border-t border-gray-100 text-[14px]">
-              <span className={`flex-1 ${INK}`}>{i || "(blank)"}</span><span className={`${MUTED} w-10 text-right`}>{fmt(n)}</span>
-              <span className="w-[230px]">{isBlankInterest(k) ? <span className={`text-[13px] ${MUTED}`}>no interest — fix in CRM</span>
-                : isAdmin ? <PreviewSelect value={matches[k] || ""} onChange={(b) => onMatch(i, b)} placeholder="Choose a brand…" ariaLabel={`Brand for ${i}`}
-                    options={[{ value: "", label: "Choose a brand…" }, ...brands.map((b) => ({ value: b, label: b }))]}
-                    addOption={{ label: "Add a new brand", onAdd: async (name) => { const b = await onCreate(name); if (b) onMatch(i, b); } }} />
-                : <span className={`text-[13px] ${MUTED}`}>not matched</span>}</span>
-            </div>
-          );
-        })}
-      </>)}
-      {sec("Follow-up by counsellor")}
+    </div>
+  );
+}
+
+function FollowUp({ sel }: { sel: SelLead[] }) {
+  const fu = new Map<string, { n: number; c: number; na: number; t: number }>();
+  for (const l of sel) {
+    const k = l.counsellor || "Unassigned", x = fu.get(k) || { n: 0, c: 0, na: 0, t: 0 };
+    x.n++; if (l.contacted) x.c++;
+    if (/^attempted to contact$/i.test(l.status)) x.na++; else if (TALKING.has(l.status)) x.t++;
+    fu.set(k, x);
+  }
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl px-6 py-5">
+      <CardHead icon={IconUsers} t="Follow-up by counsellor" sub="share contacted" />
       {[...fu.entries()].sort((a, b) => b[1].n - a[1].n).map(([k, x]) => {
         const p = pctOf(x.c, x.n);
         return (
-          <div key={k} className="py-3.5 border-t border-gray-100 first-of-type:border-t-0">
+          <div key={k} className="py-3 border-t border-gray-100 first-of-type:border-t-0">
             <div className="flex items-center"><span className={`text-[14px] font-medium ${INK}`}>{k}</span><span className={`ml-auto text-[14px] font-medium ${INK}`}>{p}% <span className={`text-[11px] font-normal ${MUTED}`}>contacted</span></span></div>
             <div className="h-1.5 rounded-full bg-[#EEF0F4] my-2 overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${p}%` }} /></div>
-            <div className={`flex gap-4 text-[13px] ${MUTED}`}><span>{x.n} assigned</span><span><b className="font-medium text-[#C0201F]">{x.n - x.c}</b> not contacted</span><span>{x.na} no answer</span><span>{x.t} talking</span></div>
+            <div className={`flex flex-wrap gap-x-4 gap-y-1 text-[13px] ${MUTED}`}><span>{x.n} assigned</span><span><b className="font-medium text-[#C0201F]">{x.n - x.c}</b> not contacted</span><span>{x.na} no answer</span><span>{x.t} talking</span></div>
           </div>
         );
       })}
       {sel.length === 0 && <div className={`text-[14px] ${MUTED}`}>No leads.</div>}
-    </>
+    </div>
   );
 }
 
-function LeadDetail({ l, brand, channel, onBack, backLabel }: { l: Lead; brand: string | null; channel: string; onBack: () => void; backLabel: string }) {
+function Matcher({ sel, brands, matches, isAdmin, onMatch, onCreate }: {
+  sel: SelLead[]; brands: string[]; matches: Record<string, string>; isAdmin: boolean;
+  onMatch: (interest: string, brand: string) => void; onCreate: (name: string) => Promise<string | null>;
+}) {
+  const um = new Map<string, number>();
+  for (const l of sel) um.set(l.interest || "", (um.get(l.interest || "") || 0) + 1);
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl px-6 py-5">
+      <CardHead icon={IconHelpCircle} t="Match these interests to a brand"
+        sub={isAdmin ? "Pick once — every lead with that interest moves there, now and in future. Not in the list? Add a new brand from the picker." : "An admin can match these to a brand."} />
+      {[...um.entries()].sort((a, b) => b[1] - a[1]).map(([i, n]) => {
+        const k = interestKey(i);
+        return (
+          <div key={i} className="flex items-center gap-4 py-3 border-t border-gray-100 text-[14px]">
+            <span className={`flex-1 min-w-0 truncate ${INK}`}>{i || "(blank)"}</span><span className={`${MUTED} w-16 text-right`}>{fmt(n)} lead{n === 1 ? "" : "s"}</span>
+            <span className="w-[240px] shrink-0">{isBlankInterest(k) ? <span className={`text-[13px] ${MUTED}`}>no interest — fix in CRM</span>
+              : isAdmin ? <PreviewSelect value={matches[k] || ""} onChange={(b) => onMatch(i, b)} placeholder="Choose a brand…" ariaLabel={`Brand for ${i}`}
+                  options={[{ value: "", label: "Choose a brand…" }, ...brands.map((b) => ({ value: b, label: b }))]}
+                  addOption={{ label: "Add a new brand", onAdd: async (name) => { const b = await onCreate(name); if (b) onMatch(i, b); } }} />
+              : <span className={`text-[13px] ${MUTED}`}>not matched</span>}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LeadDetail({ l, brand, channel, onClose }: { l: Lead; brand: string | null; channel: string; onClose: () => void }) {
   const row = (k: string, v: ReactNode) => <><span className={MUTED}>{k}</span><div className={INK}>{v}</div></>;
   return (
     <>
-      <button onClick={onBack} className="text-brand text-[13px] font-medium mb-3 inline-flex items-center gap-1"><IconArrowLeft size={15} stroke={1.8} />{backLabel} summary</button>
-      <div className={`text-[22px] font-medium ${INK}`}>{l.name || "—"}</div>
-      <div className={`${MUTED} text-[13px] mt-0.5 mb-4`}>{fmtWhenTime(l.createdAt)} · {channel}</div>
-      <div className="grid grid-cols-[160px_1fr] gap-x-[18px] gap-y-4 text-[14px]">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className={`text-[22px] font-medium ${INK}`}>{l.name || "—"}</div>
+          <div className={`${MUTED} text-[13px] mt-0.5`}>{fmtWhenTime(l.createdAt)} · {channel}</div>
+        </div>
+        <button onClick={onClose} aria-label="Close" className={`w-9 h-9 rounded-lg grid place-items-center ${MUTED} hover:bg-[#F6F7FB]`}><IconX size={18} stroke={1.8} /></button>
+      </div>
+      <div className="grid grid-cols-[150px_1fr] gap-x-[18px] gap-y-4 text-[14px] mt-5">
         {row("Status", <span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap" style={stStyle(l.status)}>{l.status || "—"}</span>)}
-        {row("Contacted", <><span className={`inline-flex items-center gap-1.5 font-medium ${l.contacted ? "text-[#137A3E]" : MUTED}`}><span className="w-2 h-2 rounded-full" style={{ background: l.contacted ? "#1AA053" : "#C6CBD6" }} />{l.contacted ? "Contacted" : "Not contacted yet"}</span>{l.callAttempts ? ` · ${l.callAttempts} call${l.callAttempts > 1 ? "s" : ""}` : ""}</>)}
+        {row("Contacted", <><ContactedDot on={l.contacted} />{l.callAttempts ? <span className={MUTED}> · {l.callAttempts} call{l.callAttempts > 1 ? "s" : ""}</span> : null}</>)}
         {row("Assigned to", l.counsellor)}
         {row("Brand", brand || "No brand yet")}
         {row("Primary Interest", l.interest || "—")}
@@ -395,7 +455,7 @@ function LeadDetail({ l, brand, channel, onBack, backLabel }: { l: Lead; brand: 
         {row("Campaign", l.campaign || "—")}
         {row("Idle", l.daysUntouched != null ? `${l.daysUntouched} day${l.daysUntouched === 1 ? "" : "s"} since last update` : "—")}
       </div>
-      {l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="mt-5 text-brand text-[14px] font-medium inline-flex items-center gap-1">Open in CRM<IconExternalLink size={15} stroke={1.8} /></a>}
+      {l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="mt-6 h-10 px-4 rounded-lg bg-brand text-white text-[14px] font-medium inline-flex items-center gap-1.5">Open in CRM<IconExternalLink size={15} stroke={1.8} /></a>}
     </>
   );
 }

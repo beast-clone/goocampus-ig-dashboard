@@ -93,3 +93,12 @@ until the CRM field is filled.
 - **Time to first contact**: not shown. Sales Hub's number falls back to the CRM's last-modified
   time, which the automation sets right after creation — 124 of 205 leads read ~0h. Needs the
   Airtable "First Contacted At" field to be real.
+
+## Layout change after build (29 Oct 2026)
+v3's three columns needed ~1,180px of content width: on a laptop (~1,280–1,560px screen) they
+overlapped, and below 1,280px they stacked. Praveen also found three columns hard to follow. Now
+**two columns**: the left list (brands, channels, More) and one main area — the selection's name and
+numbers, then (for No brand yet) the interest matcher, then the leads as a full-width table
+(person + interest, status, contacted, assigned to, date + short channel), then Where they came from
+and Follow-up by counsellor side by side. Clicking a lead opens its details in a popup. Checked at
+1,366px (no sideways scroll) and 1,872px.
