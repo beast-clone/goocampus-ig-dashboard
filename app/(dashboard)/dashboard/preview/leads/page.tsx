@@ -1,13 +1,16 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { IconSearch } from "@tabler/icons-react";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
+import { CHANNELS, type ChannelKey, TALKING, brandFor, channelOf, interestKey, isBlankInterest, isWarm, leadBrands } from "@/lib/lead-brand";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
-import { fmtDateShort, fmtDateTime } from "@/lib/date";
+import { fmtDateShort } from "@/lib/date";
 
-// Social Leads — DM Leads (CRM-sourced) · Meta Ads (Samvaya excluded) · Samvaya.
-// Reads the once-a-day cached snapshot from /api/leads/social. Conversions come from
-// the Revenue Tracker ("Closed won" ledger), never the under-maintained CRM status.
+// Marketing Leads (docs/MARKETING_LEADS_SPEC.md). Every CRM lead in the range, grouped by
+// brand automatically from its Primary Interest; channel is a filter. Leads come live from
+// /api/leads-crm/counsellor (same data + "contacted" rule as Sales Hub). Ad spend and Samvaya
+// are not CRM leads — they keep their views, read from the daily /api/leads/social snapshot.
 
 type SourceAgg = Record<string, { count: number; revenue: number }>;
 type Snap = {
@@ -65,225 +68,298 @@ const stStyle = (s: string) => { const c = STATUS_STYLE[s] || { bg: "#F0F2F8", f
 
 export default function LeadsPage() {
   return (
-    <PreviewDashboardShell active="leads" title="Marketing Leads" subtitle="Inbox DMs & paid leads — a lead counts only when a contact is shared; conversions are real Closed-won." hideAccountPicker hideRange>
-      {() => <SocialLeads />}
+    <PreviewDashboardShell active="leads" title="Marketing Leads" subtitle="Every marketing lead, grouped by brand automatically — ads, DMs, YouTube and the website. Contacted uses the same rule as Sales Hub." hideAccountPicker hideRange>
+      {() => <MarketingLeads />}
     </PreviewDashboardShell>
   );
 }
 
-function SocialLeads() {
-  const [tab, setTab] = useState<"dm" | "ads" | "samvaya">("dm");
-  const [days, setDays] = useState<number | "custom">(30);
-  const today = new Date().toISOString().slice(0, 10);
-  const [cFrom, setCFrom] = useState(new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10));
-  const [cTo, setCTo] = useState(today);
-  const [data, setData] = useState<Snap | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+/* ---------------- Marketing Leads (docs/MARKETING_LEADS_SPEC.md · prototype v3) ---------------- */
+type Lead = { id: string; name: string; source: string; status: string; interest: string; campaign: string; createdAt: string; daysUntouched: number | null; linkToRecord: string; counsellor: string; callAttempts: number; contacted: boolean };
+type Picked = { kind: "brand"; brand: string } | { kind: "view"; view: "ads" | "samvaya" };
+const ALL = "__all", NONE = "__none";
+const INK = "text-[#232D42]", MUTED = "text-[#8A92A6]";
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const pctOf = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+const chan = (k: ChannelKey) => CHANNELS.find((c) => c.key === k)!;
+const BRAND_COLORS = ["#3A57E8", "#1AA053", "#F16A1B", "#2138B0", "#0E9F9F", "#7A5AF8", "#C03221", "#B7791F"];
 
-  const load = useCallback(async (d: number | "custom", force = false) => {
-    setLoading(true);
-    const to = d === "custom" ? cTo : new Date().toISOString().slice(0, 10);
-    const from = d === "custom" ? cFrom : new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+function MarketingLeads() {
+  const [days, setDays] = useState<number | "custom">(30);
+  const today = ymd(new Date());
+  const [cFrom, setCFrom] = useState(ymd(new Date(Date.now() - 30 * 86_400_000)));
+  const [cTo, setCTo] = useState(today);
+  const from = days === "custom" ? cFrom : ymd(new Date(Date.now() - days * 86_400_000));
+  const to = days === "custom" ? cTo : today;
+
+  const [brands, setBrands] = useState<string[]>([]);
+  const [matches, setMatches] = useState<Record<string, string>>({});
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [snap, setSnap] = useState<Snap | null>(null);   // ad spend + Samvaya — the daily snapshot, loaded on demand
+
+  const [picked, setPicked] = useState<Picked>({ kind: "brand", brand: ALL });
+  const [ch, setCh] = useState<ChannelKey | "all">("all");
+  const [contactF, setContactF] = useState<"all" | "no" | "yes">("all");
+  const [q, setQ] = useState("");
+  const [leadId, setLeadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/sbus").then((r) => r.json()).then((d) => setBrands(leadBrands(d.sbus || []))).catch(() => {});
+    fetch("/api/leads/brand-matches").then((r) => r.json()).then((d) => setMatches(d.matches || {})).catch(() => {});
+    fetch("/api/me", { cache: "no-store" }).then((r) => r.json()).then((d) => setIsAdmin(!!d?.user?.isAdmin)).catch(() => {});
+  }, []);
+  const load = useCallback(async () => {
+    setLeads(null); setErr(null); setSnap(null);
     try {
-      const r = await fetch(`/api/leads/social?from=${from}&to=${to}${force ? "&force=1" : ""}`, { cache: "no-store" });
+      const r = await fetch(`/api/leads-crm/counsellor?name=all&from=${from}&to=${to}`, { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-      setData(j as Snap);
-      setErr(null);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, [cFrom, cTo]);
-  useEffect(() => { load(days); }, [load, days]);
-  // A visible date box; clicking it opens the picker.
+      setLeads(j.leads || []);
+    } catch (e) { setErr((e as Error).message); }
+  }, [from, to]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (picked.kind !== "view" || snap) return;
+    fetch(`/api/leads/social?from=${from}&to=${to}`).then((r) => r.json()).then((d) => setSnap(d as Snap)).catch(() => {});
+  }, [picked, snap, from, to]);
+
+  const rows = useMemo(() => (leads || []).map((l) => ({ ...l, ch: channelOf(l.source), brand: brandFor(l.interest, brands, matches) })), [leads, brands, matches]);
+  type Row = (typeof rows)[number];
+  const inBrand = (l: Row) => picked.kind === "brand" && (picked.brand === ALL || (picked.brand === NONE ? !l.brand : l.brand === picked.brand));
+  const inCh = (l: Row) => ch === "all" || l.ch === ch;
+  const notC = (ls: Row[]) => ls.filter((l) => !l.contacted).length;
+
+  // Left list: brands (counts follow the channel), then channels (counts follow the brand).
+  const byBrand = new Map<string, Row[]>();
+  for (const l of rows.filter(inCh)) { const k = l.brand ?? NONE; byBrand.set(k, [...(byBrand.get(k) || []), l]); }
+  const brandList = [...byBrand.entries()].filter(([k]) => k !== NONE).sort((a, b) => b[1].length - a[1].length);
+  const quiet = brands.filter((b) => !byBrand.has(b));
+  const inSelBrand = picked.kind === "brand" ? rows.filter(inBrand) : [];
+  const sel = inSelBrand.filter(inCh);
+  const cN = sel.filter((l) => l.contacted).length;
+  const title = picked.kind === "view" ? (picked.view === "ads" ? "Ad campaigns" : "Samvaya") : picked.brand === ALL ? "All leads" : picked.brand === NONE ? "No brand yet" : picked.brand;
+  const shown = sel
+    .filter((l) => (contactF === "all" || (contactF === "yes") === l.contacted) && (!q || `${l.name} ${l.status} ${l.counsellor} ${l.interest}`.toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const lead = leadId ? rows.find((l) => l.id === leadId) : undefined;
+  const pick = (p: Picked) => { setPicked(p); setLeadId(null); };
+
+  const saveMatch = async (interest: string, brand: string) => {
+    const r = await fetch("/api/leads/brand-matches", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interest, brand }) });
+    const j = await r.json();
+    if (r.ok) setMatches(j.matches || {}); else alert(j.error || "Couldn't save the match.");
+  };
   const dateBox = (v: string, set: (s: string) => void) => (
-    <input type="date" className="sl-date" value={v} max={today}
-      onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* opens natively */ } }}
-      onChange={(e) => e.target.value && set(e.target.value)} />
+    <input type="date" value={v} max={today} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* opens natively */ } }}
+      onChange={(e) => e.target.value && set(e.target.value)}
+      className={`h-10 border border-gray-100 rounded-lg px-3 text-[14px] ${INK} bg-white cursor-pointer`} />
   );
 
-  const synced = fmtDateTime(data?.generatedAt);
-
   return (
-    <div className="sl">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-
-      <div className="sl-top">
-        <div className="sl-fresh">
-          <span className="sl-dot" /> Synced daily · last: {synced}
-          <button className="sl-refresh" onClick={() => load(days, true)} disabled={loading}>↻ Refresh</button>
+    <div className="preview-scope space-y-5">
+      {/* period */}
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="inline-flex border border-gray-100 rounded-lg overflow-hidden bg-white">
+          {([7, 30, 90, "custom"] as const).map((d) => (
+            <button key={d} onClick={() => { setDays(d); setLeadId(null); }}
+              className={`h-10 px-[18px] text-[14px] font-medium ${days === d ? "bg-brand-light text-brand" : "text-[#4A5468] hover:text-brand"}`}>{d === "custom" ? "Custom" : `${d}d`}</button>
+          ))}
         </div>
-        <div className="sl-range">
-          {days === "custom" && (
-            <span className="sl-custom">
-              {dateBox(cFrom, (v) => { setCFrom(v); if (v > cTo) setCTo(v); })}
-              <span>to</span>
-              {dateBox(cTo, (v) => { setCTo(v); if (v < cFrom) setCFrom(v); })}
-            </span>
-          )}
-          <div className="sl-period">
-            {[7, 30, 90].map((d) => (
-              <button key={d} className={days === d ? "on" : ""} onClick={() => setDays(d)}>{d}d</button>
-            ))}
-            <button className={days === "custom" ? "on" : ""} onClick={() => setDays("custom")}>Custom</button>
+        {days === "custom" && <span className="inline-flex items-center gap-2">{dateBox(cFrom, (v) => { setCFrom(v); if (v > cTo) setCTo(v); })}<span className={MUTED}>to</span>{dateBox(cTo, (v) => { setCTo(v); if (v < cFrom) setCFrom(v); })}</span>}
+        <span className={`ml-auto text-[13px] ${MUTED}`}>{fmtWhen(from)} – {fmtWhen(to)} · by lead created date</span>
+      </div>
+
+      {err ? <div className="bg-white border border-gray-100 rounded-2xl px-6 py-10 text-center text-[14px] text-[#8A92A6]">Couldn&apos;t load leads: {err} <button onClick={load} className="text-brand font-medium">Try again</button></div> : (
+      <div className="grid gap-5 items-start grid-cols-1 xl:grid-cols-[300px_minmax(380px,1fr)_minmax(460px,1.25fr)]">
+        {/* left — brands, channels, other views */}
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <div className={`px-[22px] pt-5 pb-3 text-[17px] font-medium ${INK}`}>Brands</div>
+          <div className="px-3 pb-3.5">
+            {!leads ? <LoadingBlock /> : (<>
+              <NavItem on={picked.kind === "brand" && picked.brand === ALL} onClick={() => pick({ kind: "brand", brand: ALL })} icon="★" color="#3A57E8"
+                name="All leads" sub={notCSub(notC(rows.filter(inCh)))} count={rows.filter(inCh).length} />
+              {brandList.map(([b, ls], i) => (
+                <NavItem key={b} on={picked.kind === "brand" && picked.brand === b} onClick={() => pick({ kind: "brand", brand: b })}
+                  icon={b.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase()} color={BRAND_COLORS[i % BRAND_COLORS.length]} name={b} sub={notCSub(notC(ls))} count={ls.length} />
+              ))}
+              {byBrand.has(NONE) && <NavItem on={picked.kind === "brand" && picked.brand === NONE} onClick={() => pick({ kind: "brand", brand: NONE })} icon="?" color="#B4540F"
+                name="No brand yet" sub={<>interest not matched — fix</>} count={byBrand.get(NONE)!.length} />}
+              {quiet.length > 0 && <div className={`text-[12.5px] ${MUTED} px-2.5 pt-2`} title={quiet.join(" · ")}>No leads in this range: {quiet.length} brand{quiet.length > 1 ? "s" : ""}</div>}
+
+              {picked.kind === "brand" && (<>
+                <div className={`text-[12px] uppercase tracking-wide ${MUTED} px-2.5 pt-5 pb-1.5`}>Channels</div>
+                <NavItem on={ch === "all"} onClick={() => { setCh("all"); setLeadId(null); }} icon="◎" color="#4A5468" name="All channels" count={inSelBrand.length} />
+                {CHANNELS.map((c) => { const ls = inSelBrand.filter((l) => l.ch === c.key); return ls.length ? (
+                  <NavItem key={c.key} on={ch === c.key} onClick={() => { setCh(c.key); setLeadId(null); }} icon="●" color={c.color} name={c.label} sub={notCSub(notC(ls))} count={ls.length} />
+                ) : null; })}
+              </>)}
+
+              <div className={`text-[12px] uppercase tracking-wide ${MUTED} px-2.5 pt-5 pb-1.5`}>More</div>
+              <NavItem on={picked.kind === "view" && picked.view === "ads"} onClick={() => pick({ kind: "view", view: "ads" })} icon="₹" color="#2138B0" name="Ad campaigns" sub="Meta spend & cost per lead" />
+              <NavItem on={picked.kind === "view" && picked.view === "samvaya"} onClick={() => pick({ kind: "view", view: "samvaya" })} icon="SA" color="#7A5AF8" name="Samvaya" sub="own intake base" />
+            </>)}
           </div>
         </div>
+
+        {picked.kind === "view" ? (
+          // The two views that aren't CRM leads keep their existing layout, across both columns.
+          <div className="xl:col-span-2 sl"><style dangerouslySetInnerHTML={{ __html: CSS }} />
+            {!snap ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label="Loading…" /></div>
+              : picked.view === "ads" ? <AdsTab d={snap} /> : <SamvayaTab d={snap} />}
+          </div>
+        ) : (<>
+          {/* middle — the selection's leads */}
+          <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+            <div className="px-[22px] pt-5 pb-3">
+              <div className={`text-[17px] font-medium ${INK}`}>{title}</div>
+              <div className={`text-[13px] ${MUTED}`}>{leads ? `${fmt(sel.length)} leads${ch !== "all" ? ` · ${chan(ch).label}` : ""} · newest first` : "Loading…"}</div>
+            </div>
+            <div className="mx-5 mb-3 flex items-center gap-2.5 border border-gray-100 rounded-xl px-3.5 h-11">
+              <IconSearch size={16} className="text-[#8A92A6]" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, status, counsellor…" className={`flex-1 outline-none text-[14px] ${INK} bg-transparent`} />
+            </div>
+            <div className="mx-5 mb-3.5 flex gap-1.5">
+              {([["all", "All", sel.length], ["no", "Not yet", sel.length - cN], ["yes", "Contacted", cN]] as const).map(([k, lbl, n]) => (
+                <button key={k} onClick={() => setContactF(k)}
+                  className={`flex-1 h-[38px] rounded-[10px] border text-[13.5px] font-medium whitespace-nowrap ${contactF === k ? "bg-brand-light text-brand border-brand-light" : "bg-white text-[#4A5468] border-gray-100"}`}>
+                  {lbl} <span className={`font-normal ${MUTED}`}>{fmt(n)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-gray-100 overflow-auto" style={{ height: "calc(100vh - 360px)", minHeight: 480 }}>
+              {!leads ? <LoadingBlock /> : shown.length === 0 ? <div className={`py-10 text-center text-[14px] ${MUTED}`}>No leads here.</div> : shown.map((l) => (
+                <button key={l.id} onClick={() => setLeadId(leadId === l.id ? null : l.id)}
+                  className={`block w-full text-left px-[22px] py-4 border-b border-gray-100 ${leadId === l.id ? "bg-[#F5F7FE] shadow-[inset_3px_0_0_#3A57E8]" : "hover:bg-[#FAFBFD]"}`}>
+                  <span className="flex items-center gap-2.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: l.contacted ? "#1AA053" : "#C6CBD6" }} title={l.contacted ? "Contacted" : "Not contacted yet"} />
+                    <span className={`flex-1 min-w-0 truncate text-[15px] font-medium ${INK}`}>{l.name || "—"}</span>
+                    <span className={`text-[12.5px] ${MUTED} whitespace-nowrap`}>{fmtWhenTime(l.createdAt)}</span>
+                  </span>
+                  <span className={`flex items-center gap-2.5 mt-1.5 pl-[18px] text-[12.5px] ${MUTED} whitespace-nowrap overflow-hidden`}>
+                    <span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap" style={stStyle(l.status)}>{l.status || "—"}</span><span>{l.counsellor}</span><span>· {chan(l.ch).label}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* right — one lead, or the selection's summary */}
+          <div className="bg-white border border-gray-100 rounded-2xl px-[26px] pt-[22px] pb-[26px]">
+            {lead ? <LeadDetail l={lead} brand={lead.brand} channel={chan(lead.ch).label} onBack={() => setLeadId(null)} backLabel={title} />
+              : <Summary sel={sel} title={title} showSources={ch === "all"} unmatched={picked.kind === "brand" && picked.brand === NONE}
+                  brands={brands} matches={matches} isAdmin={isAdmin} onMatch={saveMatch} />}
+          </div>
+        </>)}
       </div>
-
-      <div className="sl-tabs">
-        <button className={`sl-tab ${tab === "dm" ? "on" : ""}`} onClick={() => setTab("dm")}>DM Leads {data && <span className="n">{fmt(data.crm?.dmLeads)}</span>}</button>
-        <button className={`sl-tab ${tab === "ads" ? "on" : ""}`} onClick={() => setTab("ads")}>Meta Ads Leads {data?.ads && <span className="n">{fmt(data.ads.leads)}</span>}</button>
-        <button className={`sl-tab ${tab === "samvaya" ? "on" : ""}`} onClick={() => setTab("samvaya")}>Samvaya {data?.samvaya && <span className="n">{fmt((data.samvaya.intake as { total?: number })?.total || 0)}</span>}</button>
-      </div>
-
-      {err && <div className="sl-err">Couldn’t load: {err} <button onClick={() => load(days, true)}>Retry</button></div>}
-      {loading && !data && <LoadingBlock label="Loading snapshot…" />}
-
-      {data && tab === "dm" && <DMTab d={data} />}
-      {data && tab === "ads" && <AdsTab d={data} />}
-      {data && tab === "samvaya" && <SamvayaTab d={data} />}
+      )}
     </div>
   );
 }
 
-/* ---------------- DM ---------------- */
-// Statuses where the counsellor is in a real conversation — same set as Sales Hub's follow-up card.
-const TALKING = new Set(["Initial discussions", "Hot lead", "Interested", "Bookings", "Re-Enquiry", "Future prospect", "Qualified", "Negotiation", "Payment pending", "Closed won"]);
+const notCSub = (n: number) => (n ? <><b className="font-medium text-[#C0201F]">{fmt(n)}</b> not contacted</> : <>all contacted</>);
 
-function DMTab({ d }: { d: Snap }) {
-  const dmLeads = d.crm?.dmLeads || 0;
-  const won = d.revenue?.dmConverted || 0;
-  const rev = d.revenue?.dmRevenue || 0;
-  const convRate = dmLeads ? Math.round((won / dmLeads) * 1000) / 10 : 0;
-  const leadRows = d.crm?.dmLeadRows || [];
-  const booked = leadRows.filter((r) => r.source.includes("Booking")).length;
-  const statusList = Object.entries(leadRows.reduce<Record<string, number>>((m, r) => { m[r.status] = (m[r.status] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
-  // Leads still worth chasing — "Hot lead" / "Interested" statuses (not "Not interested").
-  const warm = leadRows.filter((r) => /hot|interested/i.test(r.status) && !/not interested/i.test(r.status)).length;
+function NavItem({ on, onClick, icon, color, name, sub, count }: { on: boolean; onClick: () => void; icon: string; color: string; name: string; sub?: ReactNode; count?: number }) {
+  return (
+    <button onClick={onClick} className={`w-full flex items-center gap-3 text-left px-2.5 py-[11px] rounded-xl mb-0.5 ${on ? "bg-brand-light" : "hover:bg-[#FAFBFD]"}`}>
+      <span className="w-9 h-9 rounded-[10px] grid place-items-center shrink-0 text-[13px] font-medium" style={{ background: `${color}1F`, color }}>{icon}</span>
+      <span className="flex-1 min-w-0">
+        <span className={`block truncate text-[14.5px] font-medium ${INK}`}>{name}</span>
+        {sub && <span className={`block truncate text-[12.5px] ${MUTED} mt-px`}>{sub}</span>}
+      </span>
+      {count != null && <span className={`shrink-0 min-w-[32px] h-[26px] px-2 rounded-full grid place-items-center text-[13px] font-medium ${on ? "bg-white text-brand" : "bg-[#F0F2F8] text-[#4A5468]"}`}>{fmt(count)}</span>}
+    </button>
+  );
+}
 
-  // Contacted = same rule as Sales Hub (a call, a note, or status left "New").
-  const contactedN = leadRows.filter((r) => r.contacted).length;
-  const pct = leadRows.length ? Math.round((contactedN / leadRows.length) * 100) : 0;
-  const byCounsellor = [...leadRows.reduce((m, l) => {
-    const name = l.counsellor || "Unassigned";
-    const r = m.get(name) || { name, n: 0, contacted: 0, notYet: 0, noAnswer: 0, talking: 0 };
-    r.n++;
-    if (l.contacted) r.contacted++; else r.notYet++;
-    if (/^attempted to contact$/i.test(l.status)) r.noAnswer++;
-    else if (TALKING.has(l.status)) r.talking++;
-    return m.set(name, r);
-  }, new Map<string, { name: string; n: number; contacted: number; notYet: number; noAnswer: number; talking: number }>()).values()].sort((a, b) => b.n - a.n);
-  const sum = byCounsellor.reduce((t, r) => ({ notYet: t.notYet + r.notYet, noAnswer: t.noAnswer + r.noAnswer, talking: t.talking + r.talking }), { notYet: 0, noAnswer: 0, talking: 0 });
-
-  const [contactF, setContactF] = useState<"all" | "yes" | "no">("all");
-  const [who, setWho] = useState("");
-  const [statusF, setStatusF] = useState("");
-  const shown = leadRows.filter((r) => (!statusF || r.status === statusF) && (!who || (r.counsellor || "Unassigned") === who) && (contactF === "all" || (contactF === "yes") === !!r.contacted));
-  const tableRef = useRef<HTMLDivElement>(null);
-  // Clicking a counsellor opens their not-contacted leads in the table, like Sales Hub.
-  const focus = (name: string) => { setWho(name); setContactF("no"); setStatusF(""); tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
-
+function Summary({ sel, title, showSources, unmatched, brands, matches, isAdmin, onMatch }: {
+  sel: { contacted: boolean; status: string; counsellor: string; ch: ChannelKey; interest: string }[]; title: string; showSources: boolean; unmatched: boolean;
+  brands: string[]; matches: Record<string, string>; isAdmin: boolean; onMatch: (interest: string, brand: string) => void;
+}) {
+  const cN = sel.filter((l) => l.contacted).length;
+  const card = (l: string, v: ReactNode, s: string) => (
+    <div className="border border-gray-100 rounded-[14px] px-5 py-[18px]">
+      <div className={`text-[13px] ${MUTED}`}>{l}</div><div className={`text-[30px] font-medium ${INK} mt-1 mb-0.5 leading-tight`}>{v}</div><div className={`text-[12.5px] ${MUTED}`}>{s}</div>
+    </div>
+  );
+  const fu = new Map<string, { n: number; c: number; na: number; t: number }>();
+  for (const l of sel) {
+    const x = fu.get(l.counsellor || "Unassigned") || { n: 0, c: 0, na: 0, t: 0 };
+    x.n++; if (l.contacted) x.c++;
+    if (/^attempted to contact$/i.test(l.status)) x.na++; else if (TALKING.has(l.status)) x.t++;
+    fu.set(l.counsellor || "Unassigned", x);
+  }
+  const um = new Map<string, number>();
+  if (unmatched) for (const l of sel) um.set(l.interest || "", (um.get(l.interest || "") || 0) + 1);
+  const sec = (t: string) => <div className={`text-[15px] font-medium ${INK} mt-[26px] mb-3`}>{t}</div>;
   return (
     <>
-      <div className="sl-kpis">
-        <Kpi accent lbl="DM Leads · contact shared" val={fmt(dmLeads)} foot="from CRM (IG/FB DMs + DM Booking)" />
-        <Kpi lbl="Converted · Closed won" val={fmt(won)} foot={`${convRate}% of DM leads`} />
-        <Kpi lbl="Revenue (won)" val={rev > 0 ? fmtINR(rev) : "—"} foot={rev > 0 ? "from Revenue Tracker" : "amounts pending this month"} />
-        <Kpi lbl="Hot & interested" val={fmt(warm)} foot={leadRows.length ? `${Math.round((warm / leadRows.length) * 100)}% of DM leads` : "from lead statuses"} />
+      <div className="grid grid-cols-2 gap-3.5">
+        {card("Leads", fmt(sel.length), title)}
+        {card("Contacted", `${pctOf(cN, sel.length)}%`, `${fmt(cN)} of ${fmt(sel.length)}`)}
+        {card("Not contacted yet", <span className="text-[#C0201F]">{fmt(sel.length - cN)}</span>, "no call, note or status change")}
+        {card("Hot & interested", fmt(sel.filter((l) => isWarm(l.status)).length), "Hot lead + Interested")}
       </div>
-
-      <div className="sl-cols">
-        <div className="sl-stack">
-          <div className="sl-card pad">
-            <H ic="◷" t="DM leads · follow-up" hint="share contacted · follows the selected range" />
-            {byCounsellor.length === 0 ? <div className="sl-empty">No DM leads in this range.</div> : (
-              <>
-                {byCounsellor.map((r) => {
-                  const p = Math.round((r.contacted / Math.max(1, r.n)) * 100);
-                  return (
-                    <button key={r.name} className="sl-fu" onClick={() => focus(r.name)} title={`Show ${r.name}'s leads not contacted yet`}>
-                      <span className="sl-fu-top">
-                        <span className="sl-fu-av">{r.name.trim().charAt(0).toUpperCase()}</span>
-                        <span className="sl-fu-name">{r.name}</span>
-                        <span className="sl-fu-pct">{p}%<small>contacted</small></span>
-                      </span>
-                      <span className="sl-fu-bar"><i style={{ width: `${p}%` }} /></span>
-                      <span className="sl-fu-meta">
-                        <span>{r.n} assigned</span>
-                        <span><b className="red">{r.notYet}</b> not contacted</span>
-                        <span><b>{r.noAnswer}</b> no answer</span>
-                        <span><b>{r.talking}</b> talking</span>
-                      </span>
-                    </button>
-                  );
-                })}
-                <div className="sl-tiles">
-                  <div className="sl-tile"><b style={{ color: "#C0201F" }}>{sum.notYet}</b><span>not contacted</span></div>
-                  <div className="sl-tile"><b style={{ color: "#B7791F" }}>{sum.noAnswer}</b><span>called, no answer</span></div>
-                  <div className="sl-tile"><b style={{ color: "#1A8A4A" }}>{sum.talking}</b><span>in conversation</span></div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="sl-card pad" ref={tableRef}>
-            <H ic="☰" t="Leads · first-contact tracking" hint={`${fmt(contactedN)} of ${fmt(leadRows.length)} contacted · ${pct}%`} />
-            <div className="sl-toolbar">
-              <div className="sl-seg">
-                {([["all", "All"], ["yes", "Contacted"], ["no", "Not yet"]] as const).map(([k, lbl]) => (
-                  <button key={k} className={contactF === k ? "on" : ""} onClick={() => setContactF(k)}>{lbl}</button>
-                ))}
-              </div>
-              <PreviewSelect value={who} onChange={setWho} ariaLabel="Counsellor"
-                options={[{ value: "", label: "All counsellors" }, ...byCounsellor.map((r) => ({ value: r.name, label: `${r.name} · ${r.n}` }))]} />
-              <PreviewSelect value={statusF} onChange={setStatusF} ariaLabel="Status"
-                options={[{ value: "", label: "All statuses" }, ...statusList.map(([st, n]) => ({ value: st, label: `${st} · ${n}` }))]} />
-            </div>
-            <div className="sl-tblscroll">
-              <table className="sl-tbl nw">
-                <thead><tr><th>Person</th><th>Status</th><th>Contacted</th><th>Assigned to</th><th>Source</th><th>When</th></tr></thead>
-                <tbody>
-                  {shown.map((r, i) => (
-                    <tr key={i}>
-                      <td className="strong">{r.name}<span className="sub" title={r.interest}>{r.interest}</span></td>
-                      <td><span className="schip" style={stStyle(r.status)}>{r.status}</span></td>
-                      <td>{r.contacted ? <span className="sl-ct yes"><i />Contacted</span> : <span className="sl-ct no"><i />Not yet</span>}</td>
-                      <td>{r.counsellor || "—"}</td>
-                      <td><span className={`chip ${r.source.includes("Booking") ? "cm" : "dm"}`}>{r.source.includes("Booking") ? "◎ DM Booking" : "✉ IG/FB DM"}</span></td>
-                      <td className="num">{fmtWhenTime(r.when)}</td>
-                    </tr>
-                  ))}
-                  {shown.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>No leads match these filters.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            <div className="sl-note">Showing <b>{fmt(shown.length)}</b> of {fmt(leadRows.length)} · Contacted = a call was attempted, a note was added, or the status left “New” — the same rule as Sales Hub.</div>
-          </div>
-
-          <div className="sl-card pad">
-            <H ic="◫" t="Where DM leads come from" />
-            <div className="sl-bars">
-              {[["✉ Instagram / Facebook DMs", leadRows.length - booked], ["◎ DM Booking", booked]].map(([lbl, n]) => (
-                <div key={lbl} className="br">
-                  <div className="brhead"><span>{lbl}</span><b>{fmt(n as number)}</b></div>
-                  <div className="track"><div className="fill" style={{ width: `${leadRows.length ? ((n as number) / leadRows.length) * 100 : 0}%` }} /></div>
-                </div>
-              ))}
-            </div>
-            <div className="sl-note">Counted from your CRM — each one is a real lead who shared a contact.</div>
-          </div>
+      {showSources && sel.length > 0 && (<>
+        {sec("Where they came from")}
+        <div className="flex h-3 rounded-full overflow-hidden bg-[#EEF0F4]">
+          {CHANNELS.map((c) => { const n = sel.filter((l) => l.ch === c.key).length; return n ? <i key={c.key} style={{ width: `${(n / sel.length) * 100}%`, background: c.color }} /> : null; })}
         </div>
-        <AIRail lines={[
-          `${fmt(dmLeads)} DM leads this period; ${won} already Closed won.`,
-          leadRows.length - contactedN ? `${fmt(leadRows.length - contactedN)} leads not contacted yet (${pct}% contacted).` : "Every lead has been contacted.",
-          warm ? `${fmt(warm)} hot or interested leads to follow up.` : "",
-          statusList[0] ? `Most leads are “${statusList[0][0]}” (${fmt(statusList[0][1])}).` : "",
-          booked ? `${fmt(booked)} came in through DM Booking.` : "",
-        ]} />
+        <div className="flex flex-wrap gap-x-[18px] gap-y-2 text-[13px] text-[#4A5468] mt-3">
+          {CHANNELS.map((c) => { const n = sel.filter((l) => l.ch === c.key).length; return n ? <span key={c.key} className="inline-flex items-center gap-1.5"><i className="w-[9px] h-[9px] rounded-[3px] inline-block" style={{ background: c.color }} />{c.label} {fmt(n)}</span> : null; })}
+        </div>
+      </>)}
+      {unmatched && (<>
+        {sec("Match these interests to a brand")}
+        <div className={`text-[13px] ${MUTED} -mt-1.5 mb-2`}>{isAdmin ? "Pick once — every lead with that interest moves there, now and in future." : "An admin can match these to a brand."}</div>
+        {[...um.entries()].sort((a, b) => b[1] - a[1]).map(([i, n]) => {
+          const k = interestKey(i);
+          return (
+            <div key={i} className="flex items-center gap-3 py-3 border-t border-gray-100 text-[14px]">
+              <span className={`flex-1 ${INK}`}>{i || "(blank)"}</span><span className={`${MUTED} w-10 text-right`}>{fmt(n)}</span>
+              <span className="w-[230px]">{isBlankInterest(k) ? <span className={`text-[13px] ${MUTED}`}>no interest — fix in CRM</span>
+                : isAdmin ? <PreviewSelect value={matches[k] || ""} onChange={(b) => onMatch(i, b)} placeholder="Choose a brand…" ariaLabel={`Brand for ${i}`}
+                    options={[{ value: "", label: "Choose a brand…" }, ...brands.map((b) => ({ value: b, label: b }))]} />
+                : <span className={`text-[13px] ${MUTED}`}>not matched</span>}</span>
+            </div>
+          );
+        })}
+      </>)}
+      {sec("Follow-up by counsellor")}
+      {[...fu.entries()].sort((a, b) => b[1].n - a[1].n).map(([k, x]) => {
+        const p = pctOf(x.c, x.n);
+        return (
+          <div key={k} className="py-3.5 border-t border-gray-100 first-of-type:border-t-0">
+            <div className="flex items-center"><span className={`text-[14px] font-medium ${INK}`}>{k}</span><span className={`ml-auto text-[14px] font-medium ${INK}`}>{p}% <span className={`text-[11px] font-normal ${MUTED}`}>contacted</span></span></div>
+            <div className="h-1.5 rounded-full bg-[#EEF0F4] my-2 overflow-hidden"><span className="block h-full rounded-full bg-brand" style={{ width: `${p}%` }} /></div>
+            <div className={`flex gap-4 text-[13px] ${MUTED}`}><span>{x.n} assigned</span><span><b className="font-medium text-[#C0201F]">{x.n - x.c}</b> not contacted</span><span>{x.na} no answer</span><span>{x.t} talking</span></div>
+          </div>
+        );
+      })}
+      {sel.length === 0 && <div className={`text-[14px] ${MUTED}`}>No leads.</div>}
+    </>
+  );
+}
+
+function LeadDetail({ l, brand, channel, onBack, backLabel }: { l: Lead; brand: string | null; channel: string; onBack: () => void; backLabel: string }) {
+  const row = (k: string, v: ReactNode) => <><span className={MUTED}>{k}</span><div className={INK}>{v}</div></>;
+  return (
+    <>
+      <button onClick={onBack} className="text-brand text-[13px] font-medium mb-3">← {backLabel} summary</button>
+      <div className={`text-[22px] font-medium ${INK}`}>{l.name || "—"}</div>
+      <div className={`${MUTED} text-[13px] mt-0.5 mb-4`}>{fmtWhenTime(l.createdAt)} · {channel}</div>
+      <div className="grid grid-cols-[160px_1fr] gap-x-[18px] gap-y-4 text-[14px]">
+        {row("Status", <span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap" style={stStyle(l.status)}>{l.status || "—"}</span>)}
+        {row("Contacted", <>{l.contacted ? <span className="text-[#137A3E] font-medium">● Contacted</span> : <span className={`${MUTED} font-medium`}>● Not contacted yet</span>}{l.callAttempts ? ` · ${l.callAttempts} call${l.callAttempts > 1 ? "s" : ""}` : ""}</>)}
+        {row("Assigned to", l.counsellor)}
+        {row("Brand", brand || "No brand yet")}
+        {row("Primary Interest", l.interest || "—")}
+        {row("Source (CRM)", l.source || "—")}
+        {row("Campaign", l.campaign || "—")}
+        {row("Idle", l.daysUntouched != null ? `${l.daysUntouched} day${l.daysUntouched === 1 ? "" : "s"} since last update` : "—")}
       </div>
+      {l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="inline-block mt-5 text-brand text-[14px] font-medium">Open in CRM ↗</a>}
     </>
   );
 }

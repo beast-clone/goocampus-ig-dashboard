@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marketing Leads prototype v1</title>
+<!-- Prototype for docs/MARKETING_LEADS_SPEC.md. Open it from the local dashboard (copy to public/,
+     visit localhost:3000/<file>) — it reads LIVE data from /api/sbus and /api/leads-crm/counsellor
+     with your session, so no lead data is stored in this file. -->
+<style>
+:root{--brand:#3A57E8;--brand-d:#2138B0;--brand-l:#E9ECFB;--ink:#232D42;--soft:#4A5468;--muted:#8A92A6;--line:#EEF0F4;--bg:#F6F7FB;--ok:#1AA053;--bad:#C0201F;--warn:#B7791F}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);font-size:13px}
+.wrap{max-width:1200px;margin:0 auto;padding:20px}
+.hero{background:linear-gradient(90deg,#3A57E8,#5D74F0);color:#fff;border-radius:16px;padding:22px 26px;margin-bottom:16px}
+.hero h1{margin:0;font-size:22px;font-weight:500}.hero p{margin:6px 0 0;opacity:.85}
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{height:34px;padding:0 14px;border:0;background:#fff;font:500 13px inherit;font-family:inherit;color:var(--soft);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:var(--brand-l);color:var(--brand-d)}.seg button small{color:var(--muted);font-weight:400}
+.date{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:13px inherit;font-family:inherit;color:var(--ink);background:#fff;cursor:pointer}
+.ml{margin-left:auto}.muted{color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.card .l{font-size:12.5px;color:var(--muted)}.card .v{font-size:24px;font-weight:500;margin-top:2px}.card .s{font-size:12px;color:var(--muted)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;margin-bottom:16px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 10px;flex-wrap:wrap}
+.ph h3{margin:0;font-size:15px;font-weight:500}.ph .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.lg{display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}.lg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);font-weight:500;text-align:left;padding:10px 20px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 20px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr.row{cursor:pointer}tr.row:hover td{background:#FAFBFD}tr.row.sel td{background:#F5F7FE}
+.b{font-weight:500}.r{text-align:right}
+.stack{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--line);min-width:160px}
+.stack i{display:block;height:100%}
+.pct{display:flex;align-items:center;gap:8px;min-width:130px}.pct .t{flex:1;height:5px;border-radius:99px;background:var(--line);overflow:hidden}.pct .t i{display:block;height:100%;background:var(--brand)}
+.red{color:var(--bad);font-weight:500}
+.caret{color:var(--muted);font-size:11px;margin-left:6px}
+tr.open>td{background:#FAFBFD;padding:6px 20px 14px 20px}
+.inner{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+.inner th{position:sticky;top:0;background:#fff;padding:8px 14px}.inner td{padding:8px 14px;font-size:12.5px;color:var(--soft)}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;border-radius:99px;padding:2px 9px;background:#F0F2F8;color:var(--soft)}
+.ct{display:inline-flex;align-items:center;gap:6px;font-weight:500}.ct i{width:7px;height:7px;border-radius:99px;display:inline-block}
+.ct.y{color:#137A3E}.ct.y i{background:var(--ok)}.ct.n{color:var(--muted)}.ct.n i{background:#C6CBD6}
+.tag{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px}
+select{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:13px inherit;font-family:inherit;color:var(--ink);background:#fff}
+.two{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;align-items:start}
+.fu{padding:10px 20px;border-top:1px solid var(--line)}.fu:first-child{border-top:0}
+.fu .top{display:flex;align-items:center;gap:8px}.fu .top .p{margin-left:auto;font-weight:500}
+.fu .t{height:4px;border-radius:99px;background:var(--line);margin:6px 0;overflow:hidden}.fu .t i{display:block;height:100%;background:var(--brand)}
+.fu .m{display:flex;gap:12px;font-size:12px;color:var(--muted)}
+.empty{padding:30px 20px;text-align:center;color:var(--muted)}
+.note{font-size:12px;color:var(--muted);padding:0 20px 14px}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+</style></head><body><div class="wrap">
+<div class="hero"><h1>Marketing Leads</h1><p>Every marketing lead, grouped by brand automatically — from ads, DMs, YouTube and the website. Prototype v1 · live data.</p></div>
+
+<div class="bar">
+  <div class="seg" id="period"><button data-d="7">7d</button><button data-d="30">30d</button><button data-d="90">90d</button><button data-d="custom">Custom</button></div>
+  <span id="custom" style="display:none;align-items:center;gap:6px"><input class="date" type="date" id="from"><span class="muted">to</span><input class="date" type="date" id="to"></span>
+  <span class="ml muted" id="rangeLbl"></span>
+</div>
+<div class="bar"><div class="seg" id="chan"></div></div>
+
+<div class="cards" id="cards"></div>
+<div id="main"><div class="panel loading">Loading your leads…</div></div>
+</div>
+<script>
+// ── rules (the spec) ───────────────────────────────────────────────────────
+const CHANNELS=[
+  {k:"ads",n:"Ads & lead forms",c:"#3A57E8",src:["Digital marketing activity"]},
+  {k:"dm",n:"Instagram / Facebook DMs",c:"#1AA053",src:["Instagram/Facebook DMs","DM Booking"]},
+  {k:"yt",n:"YouTube",c:"#C03221",src:["YouTube"]},
+  {k:"web",n:"Website",c:"#F16A1B",src:["Website"]},
+  {k:"book",n:"Bookings",c:"#2138B0",src:["Bookings"]},
+  {k:"other",n:"Other",c:"#8A92A6",src:[]},
+];
+const chanOf=s=>(CHANNELS.find(c=>c.src.includes(s))||CHANNELS[5]).k;
+// Interest → brand: automatic match against the live brand list; then the saved matches
+// (an admin picks a brand once for an interest that doesn't match by name).
+const norm=s=>(s||"").toLowerCase().replace(/\bprogram(me)?s?\b/g,"").replace(/[^a-z0-9]+/g," ").trim();
+let SAVED={}; try{SAVED=JSON.parse(localStorage.getItem("ml-matches")||"{}")}catch{}
+if(!("united arab emirates" in SAVED))SAVED["united arab emirates"]="Middle East";   // suggested
+function brandOf(interest,brands){
+  const n=norm(interest); if(!n||n==="unverified interest")return {b:null,why:"none"};
+  if(SAVED[n]!==undefined)return {b:SAVED[n]||null,why:"saved"};
+  const ex=brands.find(b=>norm(b)===n); if(ex)return {b:ex,why:"auto"};
+  const c=brands.filter(b=>{const bn=norm(b);return bn.length>=4&&(n.includes(bn)||bn.includes(n))});
+  return c.length===1?{b:c[0],why:"auto"}:{b:null,why:"unmatched"};
+}
+const WARM=l=>/hot|interested/i.test(l.status)&&!/not interested/i.test(l.status);
+const TALKING=new Set(["Initial discussions","Hot lead","Interested","Bookings","Re-Enquiry","Future prospect","Qualified","Negotiation","Payment pending","Closed won"]);
+
+// ── state ──────────────────────────────────────────────────────────────────
+const iso=d=>d.toISOString().slice(0,10), today=iso(new Date());
+let days=30, from=iso(new Date(Date.now()-30*864e5)), to=today, chan="all", open=null, BRANDS=[], LEADS=null;
+const fmt=n=>Number(n||0).toLocaleString("en-IN");
+const when=s=>{const d=new Date(s);return isNaN(+d)?(s||"—"):d.toLocaleString("en-GB",{timeZone:"Asia/Kolkata",day:"numeric",month:"short",hour:"numeric",minute:"2-digit",hour12:true})};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function load(){
+  document.getElementById("main").innerHTML=`<div class="panel loading">Loading your leads…</div>`;
+  if(days!=="custom"){from=iso(new Date(Date.now()-days*864e5));to=today}
+  const [s,l]=await Promise.all([fetch("/api/sbus").then(r=>r.json()),fetch(`/api/leads-crm/counsellor?name=all&from=${from}&to=${to}`).then(r=>r.json())]);
+  BRANDS=(s.sbus||[]).filter(b=>!/^(general content|special days)$/i.test(b));   // content buckets, not products
+  LEADS=(l.leads||[]).map(x=>({...x,ch:chanOf(x.source),...brandOf(x.interest,BRANDS)}));
+  render();
+}
+
+function render(){
+  // controls
+  document.querySelectorAll("#period button").forEach(b=>b.classList.toggle("on",String(days)===b.dataset.d));
+  document.getElementById("custom").style.display=days==="custom"?"inline-flex":"none";
+  document.getElementById("from").value=from;document.getElementById("to").value=to;
+  document.getElementById("rangeLbl").textContent=`${when(from+"T00:00:00+05:30").split(",")[0]} – ${when(to+"T00:00:00+05:30").split(",")[0]} · by lead created date`;
+  if(!LEADS)return;
+  const byCh=k=>LEADS.filter(l=>l.ch===k).length;
+  document.getElementById("chan").innerHTML=`<button data-c="all" class="${chan==="all"?"on":""}">All channels <small>${fmt(LEADS.length)}</small></button>`+
+    CHANNELS.filter(c=>byCh(c.k)).map(c=>`<button data-c="${c.k}" class="${chan===c.k?"on":""}"><i style="width:8px;height:8px;border-radius:2px;background:${c.c};display:inline-block"></i>${c.n} <small>${fmt(byCh(c.k))}</small></button>`).join("");
+  document.querySelectorAll("#chan button").forEach(b=>b.onclick=()=>{chan=b.dataset.c;open=null;render()});
+
+  const L=LEADS.filter(l=>chan==="all"||l.ch===chan);
+  const cont=L.filter(l=>l.contacted).length;
+  document.getElementById("cards").innerHTML=[
+    ["Leads",fmt(L.length),chan==="all"?"all marketing channels":CHANNELS.find(c=>c.k===chan).n],
+    ["Contacted",`${L.length?Math.round(cont/L.length*100):0}%`,`${fmt(cont)} of ${fmt(L.length)}`],
+    ["Not contacted yet",`<span class="red">${fmt(L.length-cont)}</span>`,"no call, note or status change"],
+    // Not "time to first contact": the CRM's fallback (last-modified) reads ~0h for most leads,
+    // because the automation edits each lead right after it's created. See the spec.
+    ["Hot & interested",fmt(L.filter(WARM).length),"Hot lead + Interested statuses"],
+  ].map(([l,v,s])=>`<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+
+  // group by brand: every brand in the list that has leads, then "No brand yet"
+  const groups=new Map();
+  for(const l of L){const k=l.b||"__none";if(!groups.has(k))groups.set(k,[]);groups.get(k).push(l)}
+  const rows=[...groups.entries()].filter(([k])=>k!=="__none").sort((a,b)=>b[1].length-a[1].length);
+  if(groups.has("__none"))rows.push(["__none",groups.get("__none")]);
+  const quiet=BRANDS.filter(b=>!groups.has(b));
+
+  const legend=`<div class="lg">${CHANNELS.filter(c=>L.some(l=>l.ch===c.k)).map(c=>`<span><i style="background:${c.c}"></i>${c.n}</span>`).join("")}</div>`;
+  let h=`<div class="panel"><div class="ph"><div><h3>Leads by brand</h3><div class="sub">Grouped automatically from each lead's Primary Interest · click a brand for its leads</div></div>${legend}</div>
+  <table><thead><tr><th>Brand</th><th class="r">Leads</th><th>Where they came from</th><th>Contacted</th><th class="r">Not contacted</th><th class="r">Hot & interested</th><th></th></tr></thead><tbody>`;
+  for(const [k,ls] of rows){
+    const n=ls.length, c=ls.filter(l=>l.contacted).length, p=Math.round(c/n*100), isNone=k==="__none";
+    const stack=CHANNELS.map(ch=>{const m=ls.filter(l=>l.ch===ch.k).length;return m?`<i title="${ch.n}: ${m}" style="width:${m/n*100}%;background:${ch.c}"></i>`:""}).join("");
+    h+=`<tr class="row${open===k?" sel":""}" data-k="${esc(k)}"><td class="b">${isNone?`No brand yet<span class="tag">interest not matched</span>`:esc(k)}</td><td class="r b">${fmt(n)}</td><td><div class="stack">${stack}</div></td>
+      <td><div class="pct"><span class="t"><i style="width:${p}%"></i></span><span>${p}%</span></div></td><td class="r ${n-c?"red":""}">${fmt(n-c)}</td><td class="r">${fmt(ls.filter(WARM).length)}</td><td><span class="caret">${open===k?"▲":"▼"}</span></td></tr>`;
+    if(open===k){
+      h+=`<tr class="open"><td colspan="7"><div class="inner"><table><thead><tr><th>Person</th><th>Status</th><th>Contacted</th><th>Assigned to</th><th>Channel</th><th>Interest</th><th>When</th></tr></thead><tbody>`+
+        ls.slice().sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")).map(l=>`<tr><td class="b" style="color:var(--ink)">${esc(l.name||"—")}</td><td><span class="chip">${esc(l.status||"—")}</span></td>
+          <td>${l.contacted?`<span class="ct y"><i></i>Contacted</span>`:`<span class="ct n"><i></i>Not yet</span>`}</td><td>${esc(l.counsellor)}</td>
+          <td>${CHANNELS.find(c=>c.k===l.ch).n}</td><td>${esc(l.interest||"—")}</td><td>${when(l.createdAt)}</td></tr>`).join("")+`</tbody></table></div></td></tr>`;
+    }
+  }
+  h+=`</tbody></table>${quiet.length?`<div class="note" style="padding-top:12px">No leads in this range: ${quiet.map(esc).join(" · ")}</div>`:""}</div>`;
+
+  // unmatched interests → pick a brand once
+  const um={};LEADS.filter(l=>!l.b).forEach(l=>{const k=l.interest||"";um[k]=(um[k]||0)+1});
+  const umRows=Object.entries(um).sort((a,b)=>b[1]-a[1]);
+  const fu=new Map();for(const l of L){const k=l.counsellor||"Unassigned";const r=fu.get(k)||{n:0,c:0,na:0,t:0};r.n++;if(l.contacted)r.c++;if(/^attempted to contact$/i.test(l.status))r.na++;else if(TALKING.has(l.status))r.t++;fu.set(k,r)}
+  h+=`<div class="two"><div class="panel"><div class="ph"><div><h3>Interests not matched to a brand</h3><div class="sub">Pick a brand once — every future lead with that interest goes there automatically</div></div></div>
+  ${umRows.length?`<table><thead><tr><th>Primary Interest (from CRM)</th><th class="r">Leads</th><th>Brand</th></tr></thead><tbody>`+umRows.map(([i,n])=>{const nn=norm(i);const none=!nn||nn==="unverified interest";
+    return `<tr><td>${esc(i||"(blank)")}</td><td class="r">${fmt(n)}</td><td>${none?`<span class="muted">no interest set — fix in CRM</span>`:`<select data-i="${esc(nn)}"><option value="">Choose a brand…</option>${BRANDS.map(b=>`<option${SAVED[nn]===b?" selected":""}>${esc(b)}</option>`).join("")}</select>`}</td></tr>`}).join("")+`</tbody></table>`:`<div class="empty">Every interest matches a brand.</div>`}
+  <div class="note" style="padding-top:10px">Matched automatically when the interest name matches a brand. Suggested: “United Arab Emirates” → Middle East.</div></div>
+  <div class="panel"><div class="ph"><div><h3>Follow-up by counsellor</h3><div class="sub">Share contacted · follows the filters above</div></div></div>
+  ${[...fu.entries()].sort((a,b)=>b[1].n-a[1].n).map(([k,r])=>{const p=Math.round(r.c/r.n*100);return `<div class="fu"><div class="top"><span class="b">${esc(k)}</span><span class="p">${p}% <span class="muted" style="font-weight:400;font-size:11px">contacted</span></span></div><div class="t"><i style="width:${p}%"></i></div><div class="m"><span>${r.n} assigned</span><span><b class="red">${r.n-r.c}</b> not contacted</span><span>${r.na} no answer</span><span>${r.t} talking</span></div></div>`}).join("")}</div></div>`;
+  document.getElementById("main").innerHTML=h;
+
+  document.querySelectorAll("tr.row").forEach(tr=>tr.onclick=()=>{open=open===tr.dataset.k?null:tr.dataset.k;render()});
+  document.querySelectorAll("select[data-i]").forEach(s=>s.onchange=()=>{SAVED[s.dataset.i]=s.value;try{localStorage.setItem("ml-matches",JSON.stringify(SAVED))}catch{};LEADS=LEADS.map(l=>({...l,...brandOf(l.interest,BRANDS)}));render()});
+}
+document.querySelectorAll("#period button").forEach(b=>b.onclick=()=>{days=b.dataset.d==="custom"?"custom":+b.dataset.d;open=null;load()});
+document.querySelectorAll("input.date").forEach(el=>{el.max=today;el.onclick=e=>{try{e.target.showPicker()}catch{}}});
+document.getElementById("from").onchange=e=>{if(e.target.value){from=e.target.value;if(from>to)to=from;load()}};
+document.getElementById("to").onchange=e=>{if(e.target.value){to=e.target.value;if(to<from)from=to;load()}};
+load().catch(e=>{document.getElementById("main").innerHTML=`<div class="panel empty">Couldn't load: ${esc(e.message)} — open this from the local dashboard while signed in.</div>`});
+</script></body></html>

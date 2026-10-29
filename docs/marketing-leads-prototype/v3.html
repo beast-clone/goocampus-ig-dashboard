@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marketing Leads prototype v3</title>
+<!-- v3 = v2 made roomy for a big screen: full width, larger type, more spacing, lists fill
+     the screen height (Praveen, 29 Oct: "looks compact and stuffed").
+     v2 = v1's rules in the Scheduler layout: brands + channels in a list on the left, the
+     selection's leads in the middle, summary / lead details on the right (Praveen, 29 Oct).
+     Reads LIVE data from /api/sbus and /api/leads-crm/counsellor — open it from the local
+     dashboard (copy to public/). No lead data is stored in this file. -->
+<style>
+:root{--brand:#3A57E8;--brand-d:#2138B0;--brand-l:#E9ECFB;--ink:#232D42;--soft:#4A5468;--muted:#8A92A6;--line:#EEF0F4;--bg:#F6F7FB;--ok:#1AA053;--bad:#C0201F}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);font-size:14px}
+.wrap{max-width:1680px;margin:0 auto;padding:24px 32px}
+.hero{background:linear-gradient(90deg,#3A57E8,#5D74F0);color:#fff;border-radius:18px;padding:26px 32px;margin-bottom:20px}
+.hero h1{margin:0;font-size:26px;font-weight:500}.hero p{margin:6px 0 0;opacity:.85}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{height:40px;padding:0 18px;border:0;background:#fff;font:500 14px inherit;font-family:inherit;color:var(--soft);cursor:pointer}
+.seg button.on{background:var(--brand-l);color:var(--brand-d)}
+.date{height:40px;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:13px inherit;font-family:inherit;color:var(--ink);background:#fff;cursor:pointer}
+.muted{color:var(--muted)}.ml{margin-left:auto}
+.cols{display:grid;grid-template-columns:300px minmax(380px,1fr) minmax(460px,1.25fr);gap:20px;align-items:start}
+.box{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.bh{padding:20px 22px 12px}.bh h3{margin:0;font-size:17px;font-weight:500}.bh .sub{font-size:13px;color:var(--muted);margin-top:2px}
+/* left list — Scheduler's Status list */
+.nav{padding:4px 12px 14px}
+.nav .grp{font-size:12px;padding-top:18px!important;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:12px 8px 4px}
+.it{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;text-align:left;padding:11px 10px;border-radius:12px;margin-bottom:2px;cursor:pointer;font:inherit}
+.it:hover{background:#FAFBFD}.it.on{background:var(--brand-l)}
+.it .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none;font-size:13px;font-weight:500}
+.it .tx{flex:1;min-width:0}.it .n{display:block;font-weight:500;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .s{display:block;font-size:12.5px;margin-top:1px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .s b{color:var(--bad);font-weight:500}
+.it .ct{flex:none;min-width:32px;height:26px;border-radius:99px;background:#F0F2F8;color:var(--soft);font-size:13px;font-weight:500;display:grid;place-items:center;padding:0 7px}
+.it.on .ct{background:#fff;color:var(--brand-d)}
+.quiet{font-size:12.5px;color:var(--muted);padding:6px 8px 4px;line-height:1.5}
+/* middle list */
+.search{margin:4px 20px 12px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:0 14px;height:44px}
+.search input{border:0;outline:0;flex:1;font:14px inherit;font-family:inherit;color:var(--ink)}
+.tabs2{display:flex;gap:6px;margin:0 20px 14px}
+.tabs2 button{flex:1;white-space:nowrap;height:38px;border:1px solid var(--line);background:#fff;border-radius:10px;font:500 13.5px inherit;font-family:inherit;color:var(--soft);cursor:pointer}
+.tabs2 button.on{background:var(--brand-l);color:var(--brand-d);border-color:var(--brand-l)}
+.list{height:calc(100vh - 330px);min-height:480px;overflow:auto;border-top:1px solid var(--line)}
+.ld{display:block;width:100%;border:0;background:none;text-align:left;padding:16px 22px;border-bottom:1px solid var(--line);cursor:pointer;font:inherit}
+.ld:hover{background:#FAFBFD}.ld.on{background:#F5F7FE;box-shadow:inset 3px 0 0 var(--brand)}
+.ld .t{display:flex;align-items:center;gap:10px}.ld .nm{font-weight:500;font-size:15px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ld .w{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.ld .m{display:flex;align-items:center;gap:10px;margin-top:7px;padding-left:17px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.dot{width:8px;height:8px;border-radius:99px;display:inline-block;flex:none}
+.chip{display:inline-block;font-size:12px;font-weight:500;border-radius:99px;padding:2px 10px;background:#F0F2F8;color:var(--soft)}
+/* right pane */
+.pane{padding:22px 26px 26px}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:22px}
+.card{border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.card .l{font-size:13px;color:var(--muted)}.card .v{font-size:30px;font-weight:500;margin:4px 0 2px}.card .s{font-size:12.5px;color:var(--muted)}
+.red{color:var(--bad)}
+.sec{font-size:15px;font-weight:500;margin:26px 0 12px}
+.stack{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--line)}
+.stack i{display:block;height:100%}
+.lg{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--soft);margin-top:12px}.lg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.fu{padding:14px 0;border-top:1px solid var(--line)}.fu:first-of-type{border-top:0}
+.fu .top{display:flex;align-items:center}.fu .top .p{margin-left:auto;font-weight:500}
+.fu .tr{height:6px;border-radius:99px;background:var(--line);margin:9px 0;overflow:hidden}.fu .tr i{display:block;height:100%;background:var(--brand)}
+.fu .m{display:flex;gap:16px;font-size:13px;color:var(--muted)}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:16px 18px;font-size:14px}.kv span{color:var(--muted)}
+.back{border:0;background:none;color:var(--brand);font:500 12.5px inherit;font-family:inherit;cursor:pointer;padding:0;margin-bottom:10px}
+.mt{width:100%;border-collapse:collapse}.mt td{padding:12px 0;border-top:1px solid var(--line);vertical-align:middle}.mt td.r{text-align:right;padding-right:10px;color:var(--muted)}
+select{height:38px;font-size:14px!important;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:13px inherit;font-family:inherit;color:var(--ink);background:#fff;max-width:230px}
+.empty{padding:30px 16px;text-align:center;color:var(--muted)}
+a{color:var(--brand)}
+</style></head><body><div class="wrap">
+<div class="hero"><h1>Marketing Leads</h1><p>Every marketing lead, grouped by brand automatically — ads, DMs, YouTube and the website. Prototype v3 · live data.</p></div>
+<div class="bar">
+  <div class="seg" id="period"><button data-d="7">7d</button><button data-d="30">30d</button><button data-d="90">90d</button><button data-d="custom">Custom</button></div>
+  <span id="custom" style="display:none;align-items:center;gap:6px"><input class="date" type="date" id="from"><span class="muted">to</span><input class="date" type="date" id="to"></span>
+  <span class="ml muted" id="rangeLbl"></span>
+</div>
+<div class="cols">
+  <div class="box"><div class="bh"><h3>Brands</h3></div><div class="nav" id="nav"><div class="empty">Loading…</div></div></div>
+  <div class="box" id="mid"></div>
+  <div class="box" id="right"></div>
+</div>
+</div>
+<script>
+// ── rules (same as v1 — docs/MARKETING_LEADS_SPEC.md) ──────────────────────
+const CHANNELS=[
+  {k:"ads",n:"Ads & lead forms",c:"#3A57E8",src:["Digital marketing activity"]},
+  {k:"dm",n:"Instagram / Facebook DMs",c:"#1AA053",src:["Instagram/Facebook DMs","DM Booking"]},
+  {k:"yt",n:"YouTube",c:"#C03221",src:["YouTube"]},
+  {k:"web",n:"Website",c:"#F16A1B",src:["Website"]},
+  {k:"book",n:"Bookings",c:"#2138B0",src:["Bookings"]},
+  {k:"other",n:"Other",c:"#8A92A6",src:[]},
+];
+const chanOf=s=>(CHANNELS.find(c=>c.src.includes(s))||CHANNELS[5]).k, CH=k=>CHANNELS.find(c=>c.k===k);
+const norm=s=>(s||"").toLowerCase().replace(/\bprogram(me)?s?\b/g,"").replace(/[^a-z0-9]+/g," ").trim();
+let SAVED={}; try{SAVED=JSON.parse(localStorage.getItem("ml-matches")||"{}")}catch{}
+if(!("united arab emirates" in SAVED))SAVED["united arab emirates"]="Middle East";   // suggested
+function brandOf(interest,brands){
+  const n=norm(interest); if(!n||n==="unverified interest")return null;
+  if(SAVED[n]!==undefined)return SAVED[n]||null;
+  const ex=brands.find(b=>norm(b)===n); if(ex)return ex;
+  const c=brands.filter(b=>{const bn=norm(b);return bn.length>=4&&(n.includes(bn)||bn.includes(n))});
+  return c.length===1?c[0]:null;
+}
+const WARM=l=>/hot|interested/i.test(l.status)&&!/not interested/i.test(l.status);
+const TALKING=new Set(["Initial discussions","Hot lead","Interested","Bookings","Re-Enquiry","Future prospect","Qualified","Negotiation","Payment pending","Closed won"]);
+const PALETTE=["#3A57E8","#1AA053","#F16A1B","#2138B0","#0E9F9F","#7A5AF8","#C03221","#B7791F"];
+
+// ── state ──────────────────────────────────────────────────────────────────
+const iso=d=>d.toISOString().slice(0,10), today=iso(new Date());
+let days=30, from=iso(new Date(Date.now()-30*864e5)), to=today;
+let brand="__all", chan="all", contactF="all", q="", lead=null, BRANDS=[], LEADS=null;
+const fmt=n=>Number(n||0).toLocaleString("en-IN");
+const when=s=>{const d=new Date(s);return isNaN(+d)?(s||"—"):d.toLocaleString("en-GB",{timeZone:"Asia/Kolkata",day:"numeric",month:"short",hour:"numeric",minute:"2-digit",hour12:true})};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+
+async function load(){
+  if(days!=="custom"){from=iso(new Date(Date.now()-days*864e5));to=today}
+  document.getElementById("mid").innerHTML=`<div class="empty">Loading your leads…</div>`;document.getElementById("right").innerHTML="";
+  const [s,l]=await Promise.all([fetch("/api/sbus").then(r=>r.json()),fetch(`/api/leads-crm/counsellor?name=all&from=${from}&to=${to}`).then(r=>r.json())]);
+  BRANDS=(s.sbus||[]).filter(b=>!/^(general content|special days)$/i.test(b));
+  LEADS=(l.leads||[]).map(x=>({...x,ch:chanOf(x.source),b:brandOf(x.interest,BRANDS)}));
+  render();
+}
+const inBrand=l=>brand==="__all"||(brand==="__none"?!l.b:l.b===brand);
+const inChan=l=>chan==="all"||l.ch===chan;
+
+function render(){
+  document.querySelectorAll("#period button").forEach(b=>b.classList.toggle("on",String(days)===b.dataset.d));
+  document.getElementById("custom").style.display=days==="custom"?"inline-flex":"none";
+  document.getElementById("from").value=from;document.getElementById("to").value=to;
+  document.getElementById("rangeLbl").textContent=`${when(from+"T00:00:00+05:30").split(",")[0]} – ${when(to+"T00:00:00+05:30").split(",")[0]} · by lead created date`;
+  if(!LEADS)return;
+
+  // ── left: brands (counts follow the channel), then channels (counts follow the brand)
+  const byB=new Map(); for(const l of LEADS.filter(inChan)){const k=l.b||"__none";if(!byB.has(k))byB.set(k,[]);byB.get(k).push(l)}
+  const brandRows=[...byB.entries()].filter(([k])=>k!=="__none").sort((a,b)=>b[1].length-a[1].length);
+  const quiet=BRANDS.filter(b=>!byB.has(b));
+  const allN=LEADS.filter(inChan);
+  const item=(on,attrs,ic,icBg,icFg,name,sub,count)=>`<button class="it${on?" on":""}" ${attrs}><span class="ic" style="background:${icBg};color:${icFg}">${ic}</span><span class="tx"><span class="n">${esc(name)}</span><span class="s">${sub}</span></span><span class="ct">${fmt(count)}</span></button>`;
+  const notC=ls=>ls.filter(l=>!l.contacted).length;
+  let nav=item(brand==="__all",`data-b="__all"`,"★","#E9ECFB","#2138B0","All leads",notC(allN)?`<b>${fmt(notC(allN))}</b> not contacted`:"all contacted",allN.length);
+  brandRows.forEach(([k,ls],i)=>{nav+=item(brand===k,`data-b="${esc(k)}"`,esc(k.replace(/[^A-Za-z0-9]/g,"").slice(0,2).toUpperCase()),PALETTE[i%PALETTE.length]+"1F",PALETTE[i%PALETTE.length],k,notC(ls)?`<b>${fmt(notC(ls))}</b> not contacted`:"all contacted",ls.length)});
+  if(byB.has("__none"))nav+=item(brand==="__none",`data-b="__none"`,"?","#FBEDE6","#B4540F","No brand yet","interest not matched — fix",byB.get("__none").length);
+  if(quiet.length)nav+=`<div class="quiet">No leads in this range: ${quiet.length} brand${quiet.length>1?"s":""}</div>`;
+  const inB=LEADS.filter(inBrand);
+  nav+=`<div class="grp">Channels</div>`+item(chan==="all",`data-c="all"`,"◎","#F0F2F8","#4A5468","All channels","",inB.length);
+  CHANNELS.forEach(c=>{const n=inB.filter(l=>l.ch===c.k).length;if(n)nav+=item(chan===c.k,`data-c="${c.k}"`,"●",c.c+"1F",c.c,c.n,`${fmt(notC(inB.filter(l=>l.ch===c.k)))} not contacted`,n)});
+  document.getElementById("nav").innerHTML=nav;
+  document.querySelectorAll("#nav [data-b]").forEach(b=>b.onclick=()=>{brand=b.dataset.b;lead=null;render()});
+  document.querySelectorAll("#nav [data-c]").forEach(b=>b.onclick=()=>{chan=b.dataset.c;lead=null;render()});
+
+  // ── middle: the selection's leads
+  const sel=LEADS.filter(l=>inBrand(l)&&inChan(l));
+  const title=brand==="__all"?"All leads":brand==="__none"?"No brand yet":brand;
+  const shown=sel.filter(l=>(contactF==="all"||(contactF==="yes")===!!l.contacted)&&(!q||`${l.name} ${l.status} ${l.counsellor} ${l.interest}`.toLowerCase().includes(q)))
+    .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  const cN=sel.filter(l=>l.contacted).length;
+  document.getElementById("mid").innerHTML=`<div class="bh"><h3>${esc(title)}</h3><div class="sub">${fmt(sel.length)} leads${chan!=="all"?` · ${CH(chan).n}`:""} · newest first</div></div>
+    <div class="search"><span class="muted">⌕</span><input id="q" placeholder="Search name, status, counsellor…" value="${esc(q)}"></div>
+    <div class="tabs2">${[["all","All",sel.length],["no","Not yet",sel.length-cN],["yes","Contacted",cN]].map(([k,n,c])=>`<button data-f="${k}" class="${contactF===k?"on":""}">${n} <span class="muted" style="font-weight:400">${fmt(c)}</span></button>`).join("")}</div>
+    <div class="list">${shown.length?shown.map((l,i)=>`<button class="ld${lead===l.id?" on":""}" data-id="${esc(l.id)}">
+      <span class="t"><span class="dot" style="background:${l.contacted?"#1AA053":"#C6CBD6"}" title="${l.contacted?"Contacted":"Not contacted yet"}"></span><span class="nm">${esc(l.name||"—")}</span><span class="w">${when(l.createdAt)}</span></span>
+      <span class="m"><span class="chip">${esc(l.status||"—")}</span><span>${esc(l.counsellor)}</span><span>· ${CH(l.ch).n}</span></span></button>`).join(""):`<div class="empty">No leads here.</div>`}</div>`;
+  const qi=document.getElementById("q"); qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=document.getElementById("q");n.focus();n.setSelectionRange(p,p)};
+  document.querySelectorAll("#mid [data-f]").forEach(b=>b.onclick=()=>{contactF=b.dataset.f;render()});
+  document.querySelectorAll("#mid [data-id]").forEach(b=>b.onclick=()=>{lead=lead===b.dataset.id?null:b.dataset.id;render()});
+
+  // ── right: one lead's details, or the selection's summary
+  const L1=lead&&LEADS.find(l=>l.id===lead);
+  let r="";
+  if(L1){
+    r=`<div class="pane"><button class="back" id="back">← ${esc(title)} summary</button>
+      <div style="font-size:22px;font-weight:500">${esc(L1.name||"—")}</div><div class="muted" style="margin:2px 0 14px">${when(L1.createdAt)} · ${CH(L1.ch).n}</div>
+      <div class="kv"><span>Status</span><div><span class="chip">${esc(L1.status||"—")}</span></div>
+      <span>Contacted</span><div>${L1.contacted?`<span style="color:#137A3E;font-weight:500">● Contacted</span>`:`<span class="muted" style="font-weight:500">● Not contacted yet</span>`}${L1.callAttempts?` · ${L1.callAttempts} call${L1.callAttempts>1?"s":""}`:""}</div>
+      <span>Assigned to</span><div>${esc(L1.counsellor)}</div>
+      <span>Brand</span><div>${esc(L1.b||"No brand yet")}</div>
+      <span>Primary Interest</span><div>${esc(L1.interest||"—")}</div>
+      <span>Source (CRM)</span><div>${esc(L1.source||"—")}</div>
+      <span>Campaign</span><div>${esc(L1.campaign||"—")}</div>
+      <span>Idle</span><div>${L1.daysUntouched!=null?`${L1.daysUntouched} day${L1.daysUntouched===1?"":"s"} since last update`:"—"}</div></div>
+      ${L1.linkToRecord?`<div style="margin-top:16px"><a href="${esc(L1.linkToRecord)}" target="_blank" rel="noreferrer">Open in CRM ↗</a></div>`:""}</div>`;
+  }else{
+    const fu=new Map();for(const l of sel){const k=l.counsellor||"Unassigned";const x=fu.get(k)||{n:0,c:0,na:0,t:0};x.n++;if(l.contacted)x.c++;if(/^attempted to contact$/i.test(l.status))x.na++;else if(TALKING.has(l.status))x.t++;fu.set(k,x)}
+    r=`<div class="pane"><div class="cards">
+      <div class="card"><div class="l">Leads</div><div class="v">${fmt(sel.length)}</div><div class="s">${esc(title)}</div></div>
+      <div class="card"><div class="l">Contacted</div><div class="v">${pct(cN,sel.length)}%</div><div class="s">${fmt(cN)} of ${fmt(sel.length)}</div></div>
+      <div class="card"><div class="l">Not contacted yet</div><div class="v red">${fmt(sel.length-cN)}</div><div class="s">no call, note or status change</div></div>
+      <div class="card"><div class="l">Hot & interested</div><div class="v">${fmt(sel.filter(WARM).length)}</div><div class="s">Hot lead + Interested</div></div></div>`;
+    if(chan==="all"&&sel.length){
+      r+=`<div class="sec">Where they came from</div><div class="stack">${CHANNELS.map(c=>{const n=sel.filter(l=>l.ch===c.k).length;return n?`<i style="width:${n/sel.length*100}%;background:${c.c}"></i>`:""}).join("")}</div>
+        <div class="lg">${CHANNELS.map(c=>{const n=sel.filter(l=>l.ch===c.k).length;return n?`<span><i style="background:${c.c}"></i>${c.n} ${fmt(n)}</span>`:""}).join("")}</div>`;
+    }
+    if(brand==="__none"){
+      const um={};sel.forEach(l=>{const k=l.interest||"";um[k]=(um[k]||0)+1});
+      r+=`<div class="sec">Match these interests to a brand</div><div class="muted" style="font-size:12px;margin-bottom:6px">Pick once — every lead with that interest moves there, now and in future.</div>
+        <table class="mt">${Object.entries(um).sort((a,b)=>b[1]-a[1]).map(([i,n])=>{const nn=norm(i),none=!nn||nn==="unverified interest";
+          return `<tr><td>${esc(i||"(blank)")}</td><td class="r">${fmt(n)}</td><td>${none?`<span class="muted">no interest — fix in CRM</span>`:`<select data-i="${esc(nn)}"><option value="">Choose a brand…</option>${BRANDS.map(b=>`<option${SAVED[nn]===b?" selected":""}>${esc(b)}</option>`).join("")}</select>`}</td></tr>`}).join("")}</table>`;
+    }
+    r+=`<div class="sec">Follow-up by counsellor</div>${[...fu.entries()].sort((a,b)=>b[1].n-a[1].n).map(([k,x])=>{const p=pct(x.c,x.n);return `<div class="fu"><div class="top"><span style="font-weight:500">${esc(k)}</span><span class="p">${p}% <span class="muted" style="font-weight:400;font-size:11px">contacted</span></span></div><div class="tr"><i style="width:${p}%"></i></div><div class="m"><span>${x.n} assigned</span><span><b class="red" style="font-weight:500">${x.n-x.c}</b> not contacted</span><span>${x.na} no answer</span><span>${x.t} talking</span></div></div>`}).join("")||`<div class="muted">No leads.</div>`}</div>`;
+  }
+  document.getElementById("right").innerHTML=r;
+  const bk=document.getElementById("back"); if(bk)bk.onclick=()=>{lead=null;render()};
+  document.querySelectorAll("select[data-i]").forEach(s=>s.onchange=()=>{SAVED[s.dataset.i]=s.value;try{localStorage.setItem("ml-matches",JSON.stringify(SAVED))}catch{};LEADS=LEADS.map(l=>({...l,b:brandOf(l.interest,BRANDS)}));render()});
+}
+document.querySelectorAll("#period button").forEach(b=>b.onclick=()=>{days=b.dataset.d==="custom"?"custom":+b.dataset.d;lead=null;load()});
+document.querySelectorAll("input.date").forEach(el=>{el.max=today;el.onclick=e=>{try{e.target.showPicker()}catch{}}});
+document.getElementById("from").onchange=e=>{if(e.target.value){from=e.target.value;if(from>to)to=from;load()}};
+document.getElementById("to").onchange=e=>{if(e.target.value){to=e.target.value;if(to<from)from=to;load()}};
+load().catch(e=>{document.getElementById("mid").innerHTML=`<div class="empty">Couldn't load: ${esc(e.message)} — open this from the local dashboard while signed in.</div>`});
+</script></body></html>
