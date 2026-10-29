@@ -118,3 +118,14 @@ Marketing Hub).
 - Removed: brand matching + `/api/leads/brand-matches`, Ad campaigns and Samvaya views. One unused
   `discover_cache` row (`leadbrand:matches`) remains from the brand matching.
 - Idea parked: Master-sheet-style saved views on this table.
+
+## Tabs are an admin setting (29 Oct 2026)
+The DM-source tabs are no longer hard-coded. One saved setup for the team (`/api/leads/source-tabs`,
+one `discover_cache` row `leadsources:tabs`): `tabs` = [{ CRM Lead Source, name shown }],
+`hidden` = sources never shown or flagged. Starts as Instagram/Facebook DMs + DM Booking, with
+Digital marketing activity, YouTube, Website, Bookings and blank hidden.
+- **New source detection**: a Lead Source in the loaded range that's neither a tab nor hidden shows
+  admins a note — "New lead source found: WhatsApp · 5 leads" → **Add as a tab** / **Hide**.
+- **Manage tabs** (admins): rename a tab, remove it (it becomes hidden), add any source seen in the
+  CRM. Saving is admin-only; everyone sees the result. Icons follow the name (WhatsApp, booking, DM).
+- A WhatsApp tab fills only once n8n writes those leads to the CRM with their own Lead Source.

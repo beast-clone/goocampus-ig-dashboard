@@ -1,14 +1,16 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { IconSearch, IconUsers, IconMessageCircle, IconCalendarEvent, IconLayoutGrid, IconExternalLink, IconX, type Icon } from "@tabler/icons-react";
+import { IconSearch, IconUsers, IconMessageCircle, IconMessage2, IconBrandWhatsapp, IconCalendarEvent, IconLayoutGrid, IconExternalLink, IconX, IconSettings, IconPlus, IconTrash, IconSparkles, type Icon } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
-import { DM_SOURCES, TALKING, isWarm } from "@/lib/lead-channel";
+import { DEFAULT_HIDDEN, DEFAULT_TABS, TALKING, isWarm, type SourceSetup, type SourceTab } from "@/lib/lead-channel";
 import { fmtDateShort } from "@/lib/date";
 import { isBucket, counsellorLabel } from "@/lib/counsellor";
 
 // Marketing Leads (docs/MARKETING_LEADS_SPEC.md) — DM leads only: the non-paid leads who reached
 // us through Instagram/Facebook DMs or the DM booking form. Paid leads live in Campaigns.
+// Which CRM lead sources show as tabs is an admin setting (/api/leads/source-tabs); a source
+// that's neither a tab nor hidden is flagged to admins as new, to add with one click.
 // Leads come live from /api/leads-crm/counsellor (same data + "contacted" rule as Sales Hub).
 
 const fmt = (n: number) => (n ?? 0).toLocaleString("en-IN");
@@ -40,13 +42,15 @@ export default function LeadsPage() {
 }
 
 type Lead = { id: string; name: string; source: string; status: string; interest: string; campaign: string; createdAt: string; daysUntouched: number | null; linkToRecord: string; counsellor: string; callAttempts: number; contacted: boolean };
-type SourceKey = (typeof DM_SOURCES)[number]["key"];
 const INK = "text-[#232D42]", MUTED = "text-[#8A92A6]";
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const pctOf = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
-const SRC_ICON: Record<SourceKey, Icon> = { dm: IconMessageCircle, booking: IconCalendarEvent };
-const srcOf = (source: string) => DM_SOURCES.find((s) => s.source === source);
-const srcInfo = (k: SourceKey) => DM_SOURCES.find((s) => s.key === k)!;
+const TAB_COLORS = ["#1AA053", "#3A57E8", "#F16A1B", "#0E9F9F", "#7A5AF8", "#2138B0", "#C03221", "#B7791F"];
+// Icon from the source's name, so a new tab (e.g. WhatsApp) gets a sensible one without a code change.
+const tabIcon = (t: SourceTab): Icon => {
+  const k = `${t.source} ${t.label}`;
+  return /whats ?app/i.test(k) ? IconBrandWhatsapp : /booking/i.test(k) ? IconCalendarEvent : /\bdms?\b|instagram|facebook|messenger/i.test(k) ? IconMessageCircle : IconMessage2;
+};
 
 function MarketingLeads() {
   const [days, setDays] = useState<number | "custom">(30);
@@ -58,7 +62,7 @@ function MarketingLeads() {
 
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [src, setSrc] = useState<SourceKey | "all">("all");
+  const [src, setSrc] = useState<string>("all");   // "all" or a CRM lead source
   const [contactF, setContactF] = useState<"all" | "no" | "yes">("all");
   const [q, setQ] = useState("");
   const [leadId, setLeadId] = useState<string | null>(null);
@@ -74,12 +78,37 @@ function MarketingLeads() {
   }, [from, to]);
   useEffect(() => { load(); }, [load]);
 
+  const [setup, setSetup] = useState<SourceSetup>({ tabs: DEFAULT_TABS, hidden: DEFAULT_HIDDEN });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [managing, setManaging] = useState(false);
+  useEffect(() => {
+    fetch("/api/leads/source-tabs", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d) => d?.tabs && setSetup(d)).catch(() => {});
+    fetch("/api/me", { cache: "no-store" }).then((r) => r.json()).then((d) => setIsAdmin(!!d?.user?.isAdmin)).catch(() => {});
+  }, []);
+  const saveSetup = async (next: SourceSetup): Promise<string | null> => {
+    const r = await fetch("/api/leads/source-tabs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return j.error || "Couldn't save the tabs.";
+    setSetup(j as SourceSetup);
+    if (src !== "all" && !(j as SourceSetup).tabs.some((t) => t.source === src)) setSrc("all");
+    return null;
+  };
+  const tabFor = (source: string) => setup.tabs.find((t) => t.source === source);
+  const colorOf = (source: string) => TAB_COLORS[Math.max(0, setup.tabs.findIndex((t) => t.source === source)) % TAB_COLORS.length];
+  // Every lead source in this range with its lead count — what "new source" detection and Manage tabs offer.
+  const seen = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of leads || []) m.set((l.source || "").trim(), (m.get((l.source || "").trim()) || 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [leads]);
+  const newSources = seen.filter(([s]) => !tabFor(s) && !setup.hidden.includes(s));
+
   // DM leads only — every other CRM source is paid or not a DM.
-  const rows = useMemo(() => (leads || []).flatMap((l) => { const s = srcOf(l.source); return s ? [{ ...l, src: s.key as SourceKey }] : []; }), [leads]);
+  const rows = useMemo(() => (leads || []).filter((l) => setup.tabs.some((t) => t.source === l.source)), [leads, setup]);
   type Row = (typeof rows)[number];
-  const sel = rows.filter((l) => src === "all" || l.src === src);
+  const sel = rows.filter((l) => src === "all" || l.source === src);
   const cN = sel.filter((l) => l.contacted).length;
-  const title = src === "all" ? "All DM leads" : srcInfo(src).label;
+  const title = src === "all" ? "All DM leads" : tabFor(src)?.label ?? src;
   const shown = sel
     .filter((l) => (contactF === "all" || (contactF === "yes") === l.contacted) && (!q || `${l.name} ${l.status} ${l.counsellor} ${l.interest}`.toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -96,7 +125,7 @@ function MarketingLeads() {
       {/* one bar: which DM leads, and the period */}
       <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
         <div className="inline-flex gap-1 flex-wrap">
-          {([["all", "All DM leads", IconUsers, rows.length] as const, ...DM_SOURCES.map((x) => [x.key, x.label, SRC_ICON[x.key], rows.filter((l) => l.src === x.key).length] as const)]).map(([k, lbl, I, n]) => (
+          {([["all", "All DM leads", IconUsers, rows.length] as const, ...setup.tabs.map((t) => [t.source, t.label, tabIcon(t), rows.filter((l) => l.source === t.source).length] as const)]).map(([k, lbl, I, n]) => (
             <button key={k} onClick={() => { setSrc(k); setLeadId(null); }}
               className={`h-10 px-3.5 rounded-lg inline-flex items-center gap-2 text-[14px] font-medium ${src === k ? "bg-brand-light text-brand" : "text-[#4A5468] hover:text-brand"}`}>
               <I size={17} stroke={1.8} />{lbl}<span className={`text-[12.5px] rounded-full px-2 py-px ${src === k ? "bg-white text-brand" : "bg-[#F0F2F8] text-[#4A5468]"}`}>{leads ? fmt(n) : "…"}</span>
@@ -111,8 +140,20 @@ function MarketingLeads() {
                 className={`h-10 px-4 text-[14px] font-medium ${days === d ? "bg-brand-light text-brand" : "text-[#4A5468] hover:text-brand"}`}>{d === "custom" ? "Custom" : `${d}d`}</button>
             ))}
           </div>
+          {isAdmin && <button onClick={() => setManaging(true)} title="Choose which lead sources show as tabs"
+            className={`h-10 px-3.5 rounded-lg border border-gray-100 inline-flex items-center gap-1.5 text-[14px] font-medium ${INK} hover:border-brand hover:text-brand`}><IconSettings size={16} stroke={1.8} />Manage tabs</button>}
         </div>
       </div>
+      {isAdmin && newSources.map(([s, n]) => (
+        <div key={s} className="bg-brand-light border border-brand-light rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
+          <span className="w-9 h-9 rounded-[10px] bg-white text-brand grid place-items-center shrink-0"><IconSparkles size={18} stroke={1.8} /></span>
+          <div className={`text-[14px] ${INK} mr-auto`}>New lead source found: <b className="font-medium">{s || "(blank)"}</b> <span className={MUTED}>· {fmt(n)} lead{n === 1 ? "" : "s"} in this range</span></div>
+          <button onClick={() => void saveSetup({ tabs: [...setup.tabs, { source: s, label: s }], hidden: setup.hidden })}
+            className="h-9 px-3.5 rounded-lg bg-brand text-white text-[13px] font-medium inline-flex items-center gap-1.5"><IconPlus size={15} stroke={2} />Add as a tab</button>
+          <button onClick={() => void saveSetup({ tabs: setup.tabs, hidden: [...setup.hidden, s] })}
+            className={`h-9 px-3.5 rounded-lg bg-white border border-gray-100 text-[13px] font-medium ${INK}`}>Hide</button>
+        </div>
+      ))}
       <div className={`-mt-2 text-[13px] ${MUTED} px-1`}>{fmtWhen(from)} – {fmtWhen(to)} · by lead created date{src !== "all" ? ` · ${title}` : ""}</div>
 
       {err ? <div className="bg-white border border-gray-100 rounded-2xl px-6 py-10 text-center text-[14px] text-[#8A92A6]">Couldn&apos;t load leads: {err} <button onClick={load} className="text-brand font-medium">Try again</button></div> : (
@@ -150,7 +191,7 @@ function MarketingLeads() {
                         <td className="px-4 py-3.5"><span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 leading-snug" style={stStyle(l.status)}>{l.status || "—"}</span></td>
                         <td className="px-4 py-3.5 whitespace-nowrap"><ContactedDot on={l.contacted} /></td>
                         <td className={`px-4 py-3.5 ${isBucket(l.counsellor) ? MUTED : "text-[#4A5468]"}`}>{counsellorLabel(l.counsellor)}</td>
-                        <td className="px-4 py-3.5 whitespace-nowrap"><div className="text-[#4A5468]">{fmtWhenTime(l.createdAt)}</div><div className={`text-[12.5px] ${MUTED}`}>{srcInfo(l.src).short}</div></td>
+                        <td className="px-4 py-3.5 whitespace-nowrap"><div className="text-[#4A5468]">{fmtWhenTime(l.createdAt)}</div><div className={`text-[12.5px] ${MUTED}`}>{tabFor(l.source)?.label ?? l.source}</div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -162,7 +203,7 @@ function MarketingLeads() {
           {/* side column on wide screens; under the table, side by side, on a laptop */}
           <div className="grid gap-5 items-start md:grid-cols-2 2xl:grid-cols-1">
             <FollowUp sel={sel} />
-            {src === "all" && <Sources sel={sel} />}
+            {src === "all" && <Sources sel={sel} tabs={setup.tabs} colorOf={colorOf} />}
           </div>
         </div>
       </div>
@@ -171,15 +212,16 @@ function MarketingLeads() {
       {lead && (
         <div className="fixed inset-0 z-50 bg-[#232D42]/40 flex items-center justify-center p-4" onClick={() => setLeadId(null)}>
           <div className="bg-white rounded-2xl w-full max-w-[560px] max-h-[90vh] overflow-auto px-7 py-6" onClick={(e) => e.stopPropagation()}>
-            <LeadDetail l={lead} via={srcInfo(lead.src).label} onClose={() => setLeadId(null)} />
+            <LeadDetail l={lead} via={tabFor(lead.source)?.label ?? lead.source} onClose={() => setLeadId(null)} />
           </div>
         </div>
       )}
+      {managing && <ManageTabs setup={setup} seen={seen} onSave={saveSetup} onClose={() => setManaging(false)} />}
     </div>
   );
 }
 
-type SelLead = { contacted: boolean; status: string; counsellor: string; src: SourceKey };
+type SelLead = { contacted: boolean; status: string; counsellor: string; source: string };
 const ContactedDot = ({ on }: { on: boolean }) => (
   <span className={`inline-flex items-center gap-1.5 font-medium ${on ? "text-[#137A3E]" : MUTED}`}>
     <span className="w-2 h-2 rounded-full" style={{ background: on ? "#1AA053" : "#C6CBD6" }} />{on ? "Contacted" : "Not yet"}
@@ -209,20 +251,75 @@ function SummaryCards({ sel }: { sel: SelLead[] }) {
   );
 }
 
-function Sources({ sel }: { sel: SelLead[] }) {
+function Sources({ sel, tabs, colorOf }: { sel: SelLead[]; tabs: SourceTab[]; colorOf: (source: string) => string }) {
+  const n = (t: SourceTab) => sel.filter((l) => l.source === t.source).length;
   return (
     <div className="bg-white border border-gray-100 rounded-2xl px-6 py-5">
-      <CardHead icon={IconLayoutGrid} t="How they reached us" sub="DM or the DM booking form" />
+      <CardHead icon={IconLayoutGrid} t="How they reached us" sub="by lead source" />
       {sel.length === 0 ? <div className={`text-[14px] ${MUTED}`}>No leads.</div> : (<>
         <div className="flex h-3 rounded-full overflow-hidden bg-[#EEF0F4]">
-          {DM_SOURCES.map((s) => { const n = sel.filter((l) => l.src === s.key).length; return n ? <i key={s.key} style={{ width: `${(n / sel.length) * 100}%`, background: s.color }} /> : null; })}
+          {tabs.map((t) => n(t) ? <i key={t.source} style={{ width: `${(n(t) / sel.length) * 100}%`, background: colorOf(t.source) }} /> : null)}
         </div>
         <div className="mt-4 space-y-2.5">
-          {DM_SOURCES.map((s) => { const n = sel.filter((l) => l.src === s.key).length; return (
-            <div key={s.key} className="flex items-center gap-2.5 text-[14px]"><i className="w-[10px] h-[10px] rounded-[3px] inline-block" style={{ background: s.color }} /><span className={INK}>{s.label}</span><span className={`ml-auto ${MUTED}`}>{fmt(n)} · {pctOf(n, sel.length)}%</span></div>
-          ); })}
+          {tabs.map((t) => (
+            <div key={t.source} className="flex items-center gap-2.5 text-[14px]"><i className="w-[10px] h-[10px] rounded-[3px] inline-block" style={{ background: colorOf(t.source) }} /><span className={INK}>{t.label}</span><span className={`ml-auto ${MUTED}`}>{fmt(n(t))} · {pctOf(n(t), sel.length)}%</span></div>
+          ))}
         </div>
       </>)}
+    </div>
+  );
+}
+
+// Admins: which CRM lead sources show as tabs (rename, remove, add), and which are hidden.
+function ManageTabs({ setup, seen, onSave, onClose }: { setup: SourceSetup; seen: [string, number][]; onSave: (s: SourceSetup) => Promise<string | null>; onClose: () => void }) {
+  const [tabs, setTabs] = useState<SourceTab[]>(setup.tabs);
+  const [hidden, setHidden] = useState<string[]>(setup.hidden);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const count = (s: string) => seen.find(([x]) => x === s)?.[1] ?? 0;
+  const known = new Set([...seen.map(([x]) => x), ...hidden]);
+  const addable = [...known].filter((s) => !tabs.some((t) => t.source === s));
+  const save = async () => { setBusy(true); setErr(null); const e = await onSave({ tabs, hidden }); setBusy(false); if (e) setErr(e); else onClose(); };
+  return (
+    <div className="fixed inset-0 z-50 bg-[#232D42]/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-[620px] max-h-[90vh] overflow-auto px-7 py-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3">
+          <div className="flex-1"><div className={`text-[20px] font-medium ${INK}`}>Manage tabs</div>
+            <div className={`text-[13px] ${MUTED} mt-0.5`}>Each tab is one CRM Lead Source. Changes apply for everyone.</div></div>
+          <button onClick={onClose} aria-label="Close" className={`w-9 h-9 rounded-lg grid place-items-center ${MUTED} hover:bg-[#F6F7FB]`}><IconX size={18} stroke={1.8} /></button>
+        </div>
+
+        <div className={`text-[13px] font-medium ${INK} mt-6 mb-2`}>Tabs on the page</div>
+        {tabs.map((t, i) => (
+          <div key={t.source} className="flex items-center gap-3 py-2.5 border-t border-gray-100">
+            <span className="w-8 h-8 rounded-lg bg-brand-light text-brand grid place-items-center shrink-0">{(() => { const I = tabIcon(t); return <I size={16} stroke={1.8} />; })()}</span>
+            <div className="flex-1 min-w-0">
+              <input value={t.label} onChange={(e) => setTabs(tabs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} aria-label={`Name for ${t.source}`}
+                className={`h-9 w-full rounded-lg border border-gray-200 px-3 text-[14px] ${INK} outline-none focus:border-brand`} />
+              <div className={`text-[12px] ${MUTED} mt-1`}>CRM source: {t.source} · {fmt(count(t.source))} leads in this range</div>
+            </div>
+            <button disabled={tabs.length === 1} onClick={() => { setTabs(tabs.filter((_, j) => j !== i)); setHidden([...hidden, t.source]); }} title="Remove this tab"
+              className={`w-9 h-9 rounded-lg grid place-items-center ${MUTED} hover:bg-[#F6F7FB] hover:text-[#C0201F] disabled:opacity-30`}><IconTrash size={17} stroke={1.8} /></button>
+          </div>
+        ))}
+
+        <div className={`text-[13px] font-medium ${INK} mt-6 mb-2`}>Other lead sources</div>
+        {addable.length === 0 ? <div className={`text-[13px] ${MUTED}`}>None — every source is a tab.</div> : addable.map((s) => (
+          <div key={s} className="flex items-center gap-3 py-2.5 border-t border-gray-100 text-[14px]">
+            <span className={`flex-1 min-w-0 truncate ${INK}`}>{s || "(blank)"}</span>
+            <span className={`text-[12.5px] ${MUTED}`}>{fmt(count(s))} leads{hidden.includes(s) ? " · hidden" : " · new"}</span>
+            <button onClick={() => { setTabs([...tabs, { source: s, label: s || "No source" }]); setHidden(hidden.filter((h) => h !== s)); }}
+              className="h-8 px-3 rounded-lg border border-gray-100 text-brand text-[13px] font-medium inline-flex items-center gap-1 hover:border-brand"><IconPlus size={14} stroke={2} />Add as a tab</button>
+          </div>
+        ))}
+        <div className={`text-[12px] ${MUTED} mt-3 leading-snug`}>Hidden sources (like paid ads) never show as tabs and aren&apos;t flagged as new. A source appears here once the CRM has a lead with it.</div>
+
+        {err && <div className="text-[13px] text-[#C0201F] mt-4">{err}</div>}
+        <div className="flex gap-2.5 mt-6">
+          <button onClick={() => void save()} disabled={busy} className="h-10 px-5 rounded-lg bg-brand text-white text-[14px] font-medium disabled:opacity-50">{busy ? "Saving…" : "Save tabs"}</button>
+          <button onClick={onClose} className={`h-10 px-4 rounded-lg border border-gray-100 text-[14px] font-medium ${INK}`}>Cancel</button>
+        </div>
+      </div>
     </div>
   );
 }
