@@ -6,18 +6,18 @@ import { canSeeTab } from "@/lib/permissions";
 import { guardRate } from "@/lib/api-guard";
 import { syncEbookOrders, lookupEbookPage, ebookTitles, addEbookTitle } from "@/lib/razorpay-ebooks";
 
-// POST /api/materials/ebooks/sync → pull eBook payments from Razorpay into the
-// eBook Orders tab (lib/razorpay-ebooks.ts). Same switch as the tab itself.
+// POST /api/materials/ebooks/sync → pull e-Book payments from Razorpay into the
+// e-Book Orders tab (lib/razorpay-ebooks.ts). Same switch as the tab itself.
 //   { link }                → look the payment page up (nothing saved)
-//   { ebook, link? }        → sync that one eBook (added to the list if new)
-//   {}                      → sync every eBook
+//   { ebook, link? }        → sync that one e-Book (added to the list if new)
+//   {}                      → sync every e-Book
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: Request, { params }: { params: { tab: string } }) {
-  if (params.tab !== "ebooks") return NextResponse.json({ error: "Only eBook orders sync from Razorpay." }, { status: 404 });
+  if (params.tab !== "ebooks") return NextResponse.json({ error: "Only e-Book orders sync from Razorpay." }, { status: 404 });
   const me = await rosterById(getSessionUserId());
-  if (!canSeeTab(me, "mm-ebooks")) return NextResponse.json({ error: "Your access doesn't include eBook Orders." }, { status: 403 });
+  if (!canSeeTab(me, "mm-ebooks")) return NextResponse.json({ error: "Your access doesn't include e-Book Orders." }, { status: 403 });
   const limited = guardRate(req, "ebook-sync", 20, 600_000);
   if (limited) return limited;
   try {

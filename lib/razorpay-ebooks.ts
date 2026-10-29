@@ -1,10 +1,10 @@
-// eBook orders straight from Razorpay (28 Oct). The n8n automations only log a sale
-// from the day they went live, so older sales were missing from the eBook Orders tab
+// e-Book orders straight from Razorpay (28 Oct). The n8n automations only log a sale
+// from the day they went live, so older sales were missing from the e-Book Orders tab
 // (Australia showed 17; Razorpay's own page count is 67). This reads every payment
-// on the account and keeps the eBook ones.
+// on the account and keeps the e-Book ones.
 //
-// Which payment is which eBook:
-//   - notes.product ("Australia Ebook", "New Zealand Ebook", …) — set by the eBook
+// Which payment is which e-Book:
+//   - notes.product ("Australia Ebook", "New Zealand Ebook", …) — set by the e-Book
 //     pages' Product dropdown;
 //   - before that dropdown existed, only the Australia page sold: its payments carry
 //     exactly first_name/last_name/email/phone and were ₹899 or ₹999 plus fees. This
@@ -28,7 +28,7 @@ const AU_LEGACY_AMOUNTS = new Set([91698, 92022, 92597, 101898, 102258, 102897])
 const STATUS: Record<string, string> = { captured: "Paid", refunded: "Refunded", failed: "Failed" };
 const MODE: Record<string, string> = { upi: "UPI", card: "Card", netbanking: "Netbanking", wallet: "Wallet", emi: "EMI" };
 
-// eBooks added on the page (28 Oct) live in mh_settings "ebookTitles"; the built-in
+// e-Books added on the page (28 Oct) live in mh_settings "ebookTitles"; the built-in
 // nine come from the tab's field options. Removed ones (only possible with no orders)
 // are kept in "ebookHidden" so a built-in one stays gone.
 const BUILT_IN = MTABS.find((t) => t.key === "ebooks")!.fields.find((f) => f.key === "ebook")!.options || [];
@@ -53,7 +53,7 @@ export async function ebookTitles(): Promise<string[]> {
 }
 export async function addEbookTitle(raw: string, by: string | null): Promise<string[]> {
   const name = raw.replace(/\s+/g, " ").trim();
-  if (name.length < 2 || name.length > 60) throw new Error("Give the eBook a name (2–60 letters).");
+  if (name.length < 2 || name.length > 60) throw new Error("Give the e-Book a name (2–60 letters).");
   if ((await ebookTitles()).some((t) => same(t, name))) throw new Error(`"${name}" is already in the list.`);
   const hidden = await listSetting("ebookHidden");
   if (hidden.some((h) => same(h, name))) await saveSetting("ebookHidden", hidden.filter((h) => !same(h, name)), by);  // bringing one back
@@ -77,7 +77,7 @@ export async function removeEbookTitle(name: string, by: string | null): Promise
 function ebookOf(p: Payment, added: string[]): string | null {
   if (p.amount < 1000) return null;                                 // ₹1 tests
   const n = (p.notes && !Array.isArray(p.notes) ? p.notes : {}) as Record<string, string>;
-  // A new eBook is picked up when its page's Product says its name ("Japan Ebook").
+  // A new e-Book is picked up when its page's Product says its name ("Japan Ebook").
   if (n.product) return PRODUCT.find(([re]) => re.test(n.product))?.[1] ?? added.find((t) => n.product.toLowerCase().includes(t.toLowerCase())) ?? null;
   const keys = Object.keys(n).sort().join(",");
   if (p.created_at >= AU_PAGE_SINCE && keys === "email,first_name,last_name,phone" && AU_LEGACY_AMOUNTS.has(p.amount)) return "Australia";
@@ -94,14 +94,14 @@ async function rzpGet<T>(path: string): Promise<T> {
 
 // A pasted payment page link → the page (28 Oct). Takes a pl_… id or the page's
 // short link (rzp.io/rzp/QatarHandbook). Returns its name, price, Razorpay's sold
-// count and a suggested eBook name for the list.
+// count and a suggested e-Book name for the list.
 type RzpPage = { id: string; title: string; short_url?: string; status?: string; created_at: number;
   payment_page_items?: { quantity_sold?: number; item?: { amount?: number } }[] };
 const bare = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
 export async function lookupEbookPage(link: string) {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) throw new Error("Razorpay isn't connected (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).");
   const want = bare(link);
-  if (!want) throw new Error("Paste the eBook's payment page link.");
+  if (!want) throw new Error("Paste the e-Book's payment page link.");
   const id = want.match(/pl_[a-z0-9]+/i)?.[0];
   let page: RzpPage | null = null;
   if (id) page = await rzpGet<RzpPage>(`/v1/payment_pages/${id.replace(/^pl_/i, "pl_")}`).catch(() => null);
@@ -139,8 +139,8 @@ async function fetchPayments(since: number): Promise<Payment[]> {
   return out;
 }
 
-/** Add every missing eBook payment; refresh status/amount on ones already there.
- *  `only` limits it to one eBook (the paste-a-link sync). */
+/** Add every missing e-Book payment; refresh status/amount on ones already there.
+ *  `only` limits it to one e-Book (the paste-a-link sync). */
 export async function syncEbookOrders(only?: string) {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) throw new Error("Razorpay isn't connected (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).");
   const sb = getSupabase();
@@ -178,7 +178,7 @@ export async function syncEbookOrders(only?: string) {
   const byEbook: Record<string, { paid: number; added: number }> = {};
   for (const r of rows) { const b = (byEbook[r.ebook] ||= { paid: 0, added: 0 }); if (r.status === "Paid") b.paid++; }
   for (const r of fresh) byEbook[r.ebook].added++;
-  // One eBook: how many paid orders the tab now shows for it (₹1 tests left out, like the cards).
+  // One e-Book: how many paid orders the tab now shows for it (₹1 tests left out, like the cards).
   let paidNow: number | null = null;
   if (only) {
     const { count } = await sb.from("mm_ebook_orders").select("id", { count: "exact", head: true }).eq("ebook", only).eq("status", "Paid").gte("amount", 10).is("deleted_at", null);

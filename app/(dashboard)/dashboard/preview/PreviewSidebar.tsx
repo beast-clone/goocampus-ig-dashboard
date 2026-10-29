@@ -9,8 +9,7 @@ import { playChime } from "./notifChime";
 import {
   IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
-  IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconBook2,
-  IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
+  IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
   IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
   IconChevronRight, IconPhoto, IconMovie, IconCircleDashed, IconTable, IconLayoutKanban,
   IconChecklist, IconWorldWww, IconClick, IconChartArcs, IconSearch, IconBrandGoogle, IconTrendingUp,
@@ -73,7 +72,7 @@ const GROUPS: Group[] = [
       { label: "Marketing Material", href: `${HUB}/materials/materials`,     icon: IconFileDescription },
       { label: "Paid Promotions",    href: `${HUB}/materials/promotions`,    icon: IconSpeakerphone },
       { label: "Subscriptions",      href: `${HUB}/materials/subscriptions`, icon: IconRepeat },
-      { label: "eBook Orders",       href: `${HUB}/materials/ebooks`,        icon: IconBook },
+      { label: "e-Book Orders",      href: `${HUB}/materials/ebooks`,        icon: IconBook },
     ] },
     // Its own tab rather than buried under My Workspace — "Move content calendar
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
@@ -143,7 +142,6 @@ const GROUPS: Group[] = [
       { label: "Transfer",      href: `${HUB}/sales-ops/transfer`,    icon: IconArrowsExchange },
       { label: "Roles",         href: `${HUB}/sales-ops/roles`,       icon: IconIdBadge2 },
     ] },
-    { label: "Organic Sales", href: `${HUB}/organic-sales`,  icon: IconBook2 },
   ] },
   { label: "AI", sec: "ai", items: [
     { label: "Ask GooCampus",   href: `${HUB}/assistant`,   icon: IconMessageChatbot },

@@ -54,7 +54,7 @@ const PREFIX: Record<string, Scope> = {
 function scopeForPath(path: string): Scope {
   const p = path.toLowerCase();
   if (/\/(my-day|briefing|attendance|marketing-hub|content-studio|content-review|scheduler|calendar|radar)(\/|$|\?)/.test(p)) return "post";
-  if (/\/(inbox|leads|sales-ops|organic-sales)(\/|$|\?)/.test(p)) return "lead";
+  if (/\/(inbox|leads|sales-ops)(\/|$|\?)/.test(p)) return "lead";
   if (/\/(ai-reports|reports)(\/|$|\?)/.test(p)) return "report";
   return "all";
 }
@@ -69,7 +69,11 @@ export type SearchPage = { label: string; where: string; href: string };
 function matchPages(pages: SearchPage[], query: string): SearchPage[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
-  const starts = (text: string, w: string) => text.toLowerCase().split(/[^a-z0-9]+/).some((t) => t.startsWith(w));
+  // Also with hyphens dropped, so "ebook" and "e-book" both find "e-Book Orders".
+  const starts = (text: string, w: string) => {
+    const t = text.toLowerCase(), ww = w.replace(/[^a-z0-9]/g, "");
+    return t.split(/[^a-z0-9]+/).some((x) => x.startsWith(w)) || (!!ww && t.replace(/[^a-z0-9\s]+/g, "").split(/\s+/).some((x) => x.startsWith(ww)));
+  };
   const scored = pages
     .filter((p) => words.every((w) => starts(p.label, w) || starts(p.where, w)))
     .map((p) => {

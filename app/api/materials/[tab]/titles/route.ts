@@ -5,15 +5,15 @@ import { rosterById } from "@/lib/team-db";
 import { canSeeTab } from "@/lib/permissions";
 import { ebookTitles, addEbookTitle, removeEbookTitle } from "@/lib/razorpay-ebooks";
 
-// GET /api/materials/ebooks/titles → every eBook (built-in + added on the page).
-// POST { name } → add a new eBook (or bring a removed one back).
-// DELETE { name } → remove an eBook that has no orders. Same switch as the eBook Orders tab.
+// GET /api/materials/ebooks/titles → every e-Book (built-in + added on the page).
+// POST { name } → add a new e-Book (or bring a removed one back).
+// DELETE { name } → remove an e-Book that has no orders. Same switch as the e-Book Orders tab.
 export const dynamic = "force-dynamic";
 
 async function guard(tab: string) {
-  if (tab !== "ebooks") return NextResponse.json({ error: "Only eBook Orders has a list of eBooks." }, { status: 404 });
+  if (tab !== "ebooks") return NextResponse.json({ error: "Only e-Book Orders has a list of e-Books." }, { status: 404 });
   const me = await rosterById(getSessionUserId());
-  if (!canSeeTab(me, "mm-ebooks")) return NextResponse.json({ error: "Your access doesn't include eBook Orders." }, { status: 403 });
+  if (!canSeeTab(me, "mm-ebooks")) return NextResponse.json({ error: "Your access doesn't include e-Book Orders." }, { status: 403 });
   return null;
 }
 
@@ -30,7 +30,7 @@ export async function POST(req: Request, { params }: { params: { tab: string } }
     const { name } = (await req.json()) as { name?: string };
     return NextResponse.json({ titles: await addEbookTitle(String(name || ""), getSessionUserId()) });
   } catch (err) {
-    return NextResponse.json(safeError(err, "Couldn't add the eBook"), { status: 400 });
+    return NextResponse.json(safeError(err, "Couldn't add the e-Book"), { status: 400 });
   }
 }
 
@@ -41,6 +41,6 @@ export async function DELETE(req: Request, { params }: { params: { tab: string }
     const { name } = (await req.json()) as { name?: string };
     return NextResponse.json({ titles: await removeEbookTitle(String(name || ""), getSessionUserId()) });
   } catch (err) {
-    return NextResponse.json(safeError(err, "Couldn't remove the eBook"), { status: 400 });
+    return NextResponse.json(safeError(err, "Couldn't remove the e-Book"), { status: 400 });
   }
 }

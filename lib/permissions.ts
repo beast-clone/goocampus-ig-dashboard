@@ -221,7 +221,7 @@ export const TABS: TabDef[] = [
   { key: "mm-promotions", label: "Paid Promotions", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/promotions`] },
   { key: "mm-subscriptions", label: "Subscriptions", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/subscriptions`] },
   // Buyer names, emails and phones — off for non-admins until switched on (26 Oct).
-  { key: "mm-ebooks", label: "eBook Orders", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/ebooks`] },
+  { key: "mm-ebooks", label: "e-Book Orders", group: "Marketing Hub", sec: "content", adminDefault: true, paths: [`${P}/materials/ebooks`] },
   { key: "content-calendar", label: "Content calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"] },
   { key: "mentorship-calendar", label: "Mentorship calendar", group: "Content", sec: "content", paths: [`${P}/marketing-hub`], tab: ["calendar"], channel: "goocampusworld" },
   { key: "radar", label: "Content Radar", group: "Content", sec: "content", paths: [`${P}/radar`] },
@@ -246,7 +246,6 @@ export const TABS: TabDef[] = [
   { key: "inbox", label: "Inbox", group: "Sales", sec: "sales", paths: [`${P}/inbox`] },
   { key: "leads", label: "Marketing Leads", group: "Sales", sec: "sales", paths: [`${P}/leads`] },
   { key: "sales-hub", label: "Sales Hub", group: "Sales", sec: "sales", paths: [`${P}/sales-ops`] },
-  { key: "organic-sales", label: "Organic Sales", group: "Sales", sec: "sales", paths: [`${P}/organic-sales`] },
   { key: "assistant", label: "Ask GooCampus", group: "AI", sec: "ai", paths: [`${P}/assistant`] },
   { key: "ai-insights", label: "AI Insights", group: "AI", sec: "ai", paths: [`${P}/ai-insights`] },
   { key: "reports", label: "Reports", group: "AI", sec: "ai", paths: [`${P}/ai-reports`, `${P}/reports`] },
@@ -271,7 +270,7 @@ export function canSeeTab(user: { isAdmin?: boolean; sections?: Sections; permis
 const API_TABS: [string, string][] = [
   ["/api/sales-ops", "sales-hub"], ["/api/leads-crm", "sales-hub"],
   ["/api/leads", "leads"], ["/api/dm-leads", "inbox"], ["/api/inbox", "inbox"],
-  ["/api/campaigns", "campaigns"], ["/api/organic-sales", "organic-sales"],
+  ["/api/campaigns", "campaigns"],
   ["/api/ads", "ads"], ["/api/competitors", "competitor-ads"],
   ["/api/ai-insights", "ai-insights"], ["/api/seo", "seo"], ["/api/geo", "geo-seo"],
 ];

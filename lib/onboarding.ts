@@ -156,7 +156,6 @@ export const TAB_INTRO: Record<string, Intro> = {
   leads: { title: "Tip", body: "Click a lead to see its details and open it in the CRM. Not yet = no call, note or status change so far. Paid leads are in Campaigns." },
   inbox: { title: "Messages in one place", body: "Instagram and Facebook DMs and comments, so nothing sits unanswered." },
   sales: { title: "The sales pipeline", body: "Every lead, who owns it, and how long it has been waiting. Red timers are leads nobody has contacted yet." },
-  "organic-sales": { title: "Leads you didn't pay for", body: "Enquiries that arrived without ad spend behind them — the return on the content work." },
   "ai-insights": { title: "Things worth knowing", body: "Patterns picked out of your own numbers — what's working, what's slipping, and what changed this week." },
   "ai-reports": { title: "The monthly report", body: "A full month on one page, ready to share. Save a snapshot and that month is frozen exactly as it was." },
   integrations: { title: "What's connected", body: "Every platform the dashboard talks to and whether its connection is healthy. Red means data on some tab is stale or missing." },

@@ -35,10 +35,10 @@ const isImage = (f: MFile) => (f.mime || "").startsWith("image/") || /\.(png|jpe
 const thumbUrl = (u: string) => (u.includes("/storage/v1/object/public/") ? `${u.replace("/object/public/", "/render/image/public/")}?width=400&resize=contain&quality=70` : u);
 const fileKind = (f: MFile): FileTile["kind"] => (isImage(f) ? "image" : isPdf(f.url, f.mime) ? "pdf" : (f.mime || "").startsWith("video/") ? "video" : "file");
 
-// eBook Orders: pull eBook sales from Razorpay (lib/razorpay-ebooks.ts) — the
-// automations only log sales from the day they went live. Paste an eBook's payment
-// page link: the page's name fills in the eBook, then its sales are synced and
-// checked against Razorpay's own sold count. "Sync every eBook" does them all.
+// e-Book Orders: pull e-Book sales from Razorpay (lib/razorpay-ebooks.ts) — the
+// automations only log sales from the day they went live. Paste an e-Book's payment
+// page link: the page's name fills in the e-Book, then its sales are synced and
+// checked against Razorpay's own sold count. "Sync every e-Book" does them all.
 type RzpPage = { id: string; title: string; url: string; active: boolean; price: number | null; sold: number; ebook: string };
 type SyncResult = { added: number; updated: number; ebookPayments: number; paidNow: number | null; ebook?: string; titles?: string[]; page?: RzpPage | null };
 function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; titles: string[] }) {
@@ -68,7 +68,7 @@ function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; tit
     try {
       const j = await post(all ? {} : { ebook: name, link }) as SyncResult;
       setDone(j); onDone(j);
-      if (all) { showToast({ who: j.added ? `${j.added} order${j.added === 1 ? "" : "s"} added from Razorpay` : "Up to date with Razorpay", body: `${j.ebookPayments} eBook payments checked${j.updated ? ` · ${j.updated} updated` : ""}` }); close(); }
+      if (all) { showToast({ who: j.added ? `${j.added} order${j.added === 1 ? "" : "s"} added from Razorpay` : "Up to date with Razorpay", body: `${j.ebookPayments} e-Book payments checked${j.updated ? ` · ${j.updated} updated` : ""}` }); close(); }
     } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   };
   const isNew = !!name.trim() && !titles.some((t) => t.toLowerCase() === name.trim().toLowerCase());
@@ -77,7 +77,7 @@ function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; tit
   const primary = "h-9 px-4 rounded-lg bg-brand text-white text-[13px] font-medium hover:bg-[#2138B0] disabled:opacity-50";
   return (
     <>
-      <button onClick={() => setOpen(true)} title="Paste an eBook's payment page link to pull its sales from Razorpay"
+      <button onClick={() => setOpen(true)} title="Paste an e-Book's payment page link to pull its sales from Razorpay"
         className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-[#EEF0F4] bg-white text-[13px] font-medium text-[#232D42] hover:border-brand hover:text-brand">
         <IconRefresh size={15} stroke={1.8} />Sync from Razorpay
       </button>
@@ -92,7 +92,7 @@ function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; tit
                 <div className="rounded-xl border border-[#EEF0F4] px-4 py-3"><div className="text-[12px] text-[#8A92A6]">Paid orders here</div><div className="text-[20px] font-medium text-[#232D42]">{done.paidNow ?? "—"}</div></div>
               </div>
               <div className={`mt-3 text-[13px] ${done.paidNow === page.sold ? "text-[#1AA053]" : "text-[#F16A1B]"}`}>
-                {done.paidNow === page.sold ? "The numbers match." : "The numbers don't match. Some sales may name a different eBook in Razorpay's Product field, or were removed here."}
+                {done.paidNow === page.sold ? "The numbers match." : "The numbers don't match. Some sales may name a different e-Book in Razorpay's Product field, or were removed here."}
               </div>
               <div className="mt-1 text-[12px] text-[#8A92A6]">{done.added ? `${done.added} new order${done.added === 1 ? "" : "s"} added` : "No new orders"}{done.updated ? ` · ${done.updated} updated` : ""}</div>
               <div className="flex justify-end mt-5"><button onClick={close} className={primary}>Done</button></div>
@@ -101,23 +101,23 @@ function RazorpaySync({ onDone, titles }: { onDone: (r: SyncResult) => void; tit
                 <div className="text-[14px] font-medium text-[#232D42]">{page.title}</div>
                 <div className="text-[12px] text-[#8A92A6] mt-0.5">{page.url}{page.price != null ? ` · ₹${page.price.toLocaleString("en-IN")}` : ""} · {page.sold} sold{page.active ? "" : " · page is off"}</div>
               </div>
-              <label className="block text-[12px] text-[#8A92A6] mt-4">eBook
+              <label className="block text-[12px] text-[#8A92A6] mt-4">e-Book
                 <input value={name} onChange={(e) => setName(e.target.value)} className={field} />
               </label>
-              {isNew && <div className="mt-1.5 text-[12px] text-[#8A92A6]">New eBook. It will be added to the list.</div>}
+              {isNew && <div className="mt-1.5 text-[12px] text-[#8A92A6]">New e-Book. It will be added to the list.</div>}
               {err && <div className="mt-3 text-[13px] text-[#C03221]">{err}</div>}
               <div className="flex justify-end gap-2 mt-5">
                 <button onClick={() => { setPage(null); setErr(null); }} disabled={!!busy} className={ghost}>Back</button>
                 <button onClick={() => void sync()} disabled={!!busy || name.trim().length < 2} className={primary}>{busy === "sync" ? "Syncing…" : "Sync"}</button>
               </div>
             </>) : (<>
-              <div className="text-[13px] text-[#8A92A6] mt-1">Paste the eBook&apos;s payment page link. Its name fills in and its sales come in.</div>
+              <div className="text-[13px] text-[#8A92A6] mt-1">Paste the e-Book&apos;s payment page link. Its name fills in and its sales come in.</div>
               <label className="block text-[12px] text-[#8A92A6] mt-4">Payment page link
                 <input autoFocus value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void find(); }} placeholder="e.g. https://rzp.io/rzp/QatarHandbook" className={field} />
               </label>
               {err && <div className="mt-3 text-[13px] text-[#C03221]">{err}</div>}
               <div className="flex items-center gap-2 mt-5">
-                <button onClick={() => void sync(true)} disabled={!!busy} className="text-[13px] text-brand font-medium hover:underline disabled:opacity-50">{busy === "all" ? "Syncing every eBook…" : "Sync every eBook"}</button>
+                <button onClick={() => void sync(true)} disabled={!!busy} className="text-[13px] text-brand font-medium hover:underline disabled:opacity-50">{busy === "all" ? "Syncing every e-Book…" : "Sync every e-Book"}</button>
                 <button onClick={close} disabled={!!busy} className={`ml-auto ${ghost}`}>Cancel</button>
                 <button onClick={() => void find()} disabled={!!busy || !link.trim()} className={primary}>{busy === "find" ? "Finding…" : "Find page"}</button>
               </div>
@@ -153,7 +153,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
     setError(null); setRows((j as { rows: Row[] }).rows);
   };
   useEffect(() => { void load(); }, [tab.key]); // eslint-disable-line react-hooks/exhaustive-deps
-  // eBook Orders: the eBook list, including ones added on this page.
+  // e-Book Orders: the e-Book list, including ones added on this page.
   const [titles, setTitles] = useState<string[]>([]);
   useEffect(() => {
     if (tab.key !== "ebooks") return;
@@ -162,7 +162,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
 
   // Choices for a select / multi field: the configured ones plus every value used.
   const optionsFor = (f: MField): string[] => {
-    // eBooks: the saved list (removed ones left out) once it's loaded.
+    // e-Books: the saved list (removed ones left out) once it's loaded.
     const seen = new Set(tab.key === "ebooks" && f.key === "ebook" && titles.length ? titles : f.options || []);
     for (const r of rows || []) { const v = r[f.key]; (Array.isArray(v) ? v : [v]).forEach((x) => { if (typeof x === "string" && x.trim()) seen.add(x.trim()); }); }
     return [...seen].sort((a, b) => a.localeCompare(b));
@@ -216,7 +216,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
 
   const Icon = ICONS[tab.key];
   return (
-    <PreviewDashboardShell active="marketing-materials" title={tab.label} subtitle={tab.intro} hideAccountPicker hideRange>
+    <PreviewDashboardShell active="marketing-materials" title={tab.key === "ebooks" ? `${tab.label} (Organic Sales)` : tab.label} subtitle={tab.intro} hideAccountPicker hideRange>
       {() => (
         <div className="preview-scope space-y-4">
           {rows === null ? <div className="bg-white border border-gray-100 rounded-2xl"><LoadingBlock label={`Loading ${tab.nounPlural}…`} /></div> : <div className={tab.key === "ebooks" ? "flex gap-4 items-start" : ""}>
@@ -340,7 +340,7 @@ export function MaterialsView({ tab }: { tab: MTab }) {
   );
 }
 
-// eBook Orders: every eBook down the left, Scheduler-style; a click shows only its
+// e-Book Orders: every e-Book down the left, Scheduler-style; a click shows only its
 // orders. The count is paid orders (₹1 tests left out, same as the cards).
 function EbookColumn({ names, rows, value, onPick, onAdded, onRemoved }: { names: string[]; rows: Row[]; value: string; onPick: (v: string) => void; onAdded: (titles: string[], name: string) => void; onRemoved: (titles: string[], name: string) => void }) {
   const [adding, setAdding] = useState(false);
@@ -353,12 +353,12 @@ function EbookColumn({ names, rows, value, onPick, onAdded, onRemoved }: { names
     const r = await fetch("/api/materials/ebooks/titles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).catch(() => null);
     const j = r ? await r.json().catch(() => ({})) : {};
     setBusy(false);
-    if (!r || !r.ok) { setErr((j as { error?: string }).error || "Couldn't add the eBook."); return; }
+    if (!r || !r.ok) { setErr((j as { error?: string }).error || "Couldn't add the e-Book."); return; }
     onAdded((j as { titles: string[] }).titles, name.replace(/\s+/g, " ").trim());
-    showToast({ who: "eBook added", body: name.trim(), av: "✓" });
+    showToast({ who: "e-Book added", body: name.trim(), av: "✓" });
     setName(""); setAdding(false);
   };
-  // Only an eBook with no orders at all (paid or failed) can go; Undo brings it back.
+  // Only an e-Book with no orders at all (paid or failed) can go; Undo brings it back.
   const remove = async (n: string) => {
     if (!(await confirmDialog({ title: `Remove ${n}?`, body: "It has no orders. It leaves this list and the order form; you can undo.", action: "Remove", danger: true }))) return;
     const call = (method: "POST" | "DELETE") => fetch("/api/materials/ebooks/titles", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: n }) })
@@ -366,7 +366,7 @@ function EbookColumn({ names, rows, value, onPick, onAdded, onRemoved }: { names
     const { ok, j } = await call("DELETE");
     if (!ok) { showToast({ who: "Couldn't remove", body: j.error || n }); return; }
     onRemoved(j.titles || [], n);
-    showToast({ who: "eBook removed", body: n, av: "✓", action: "Undo", onOpen: async () => {
+    showToast({ who: "e-Book removed", body: n, av: "✓", action: "Undo", onOpen: async () => {
       const back = await call("POST");
       if (back.ok) onAdded(back.j.titles || [], n);
     } });
@@ -393,14 +393,14 @@ function EbookColumn({ names, rows, value, onPick, onAdded, onRemoved }: { names
   };
   return (
     <aside className="w-[220px] flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-2 sticky top-4">
-      <div className="px-3 pt-2 pb-1.5 text-[12px] text-[#8A92A6]">{names.length} eBooks</div>
-      {item("", "All eBooks")}
+      <div className="px-3 pt-2 pb-1.5 text-[12px] text-[#8A92A6]">{names.length} e-Books</div>
+      {item("", "All e-Books")}
       <div className="my-1.5 border-t border-[#EEF0F4]" />
       {names.map((n) => item(n, n))}
       <div className="my-1.5 border-t border-[#EEF0F4]" />
       {adding ? (
         <div className="px-1 pb-1 space-y-1.5">
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="eBook name, e.g. Japan"
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e-Book name, e.g. Japan"
             onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { setAdding(false); setName(""); setErr(null); } }}
             className="w-full h-9 px-3 rounded-lg border border-gray-200 text-[13px] text-[#232D42] outline-none focus:border-brand placeholder:text-[#8A92A6]" />
           {err && <div className="px-1 text-[12px] text-[#C03221]">{err}</div>}
@@ -411,7 +411,7 @@ function EbookColumn({ names, rows, value, onPick, onAdded, onRemoved }: { names
         </div>
       ) : (
         <button type="button" onClick={() => setAdding(true)} className="w-full flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium text-brand hover:bg-[#F6F7FB]">
-          <IconPlus size={15} stroke={2} /> Add eBook
+          <IconPlus size={15} stroke={2} /> Add e-Book
         </button>
       )}
     </aside>
@@ -472,7 +472,7 @@ const Chip = ({ children, tone = "brand" }: { children: React.ReactNode; tone?: 
 function Cell({ f, v }: { f: MField; v: unknown }) {
   if (f.type === "money") return <span className="tabular-nums text-[#232D42]">{v == null || v === "" ? "—" : inr(Number(v))}</span>;
   if (f.type === "date") return <span className="text-[#4A5468] whitespace-nowrap">{fmtDate(v)}</span>;
-  // null = not known (eBook orders imported from Razorpay's history, before the automation).
+  // null = not known (e-Book orders imported from Razorpay's history, before the automation).
   if (f.type === "bool") return v ? <IconCheck size={16} stroke={2} className="text-[#1AA053]" /> : v === null ? <span className="text-[12px] text-[#8A92A6]" title="Sold before the automation — not recorded whether the folder was shared">Not known</span> : <span className="text-[#C2C8D6]">—</span>;
   if (f.type === "multi") {
     const a = Array.isArray(v) ? (v as string[]) : [];

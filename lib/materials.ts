@@ -30,7 +30,7 @@ export type MTab = {
   fields: MField[];
 };
 
-// The nine country eBooks sold on Razorpay (Praveen, 26 Oct 2026). The n8n sale
+// The nine country e-Books sold on Razorpay (Praveen, 26 Oct 2026). The n8n sale
 // workflows write the same names, so the filter chips line up.
 const EBOOKS = ["Australia", "New Zealand", "Canada", "Germany", "India (NEET-PG)", "Ireland", "Qatar", "Saudi Arabia", "UAE"];
 
@@ -97,15 +97,15 @@ export const MTABS: MTab[] = [
       { key: "billing", label: "Paid by", type: "select", col: true },
       { key: "status", label: "Status", type: "select", col: true, options: ["Still in use", "Discontinued"] },
     ] },
-  // eBook sales (Praveen, 26 Oct 2026): written by the n8n Razorpay workflows, one per
-  // eBook, instead of the Airtable "E Book Orders" table. Paid and failed payments both
+  // e-Book sales (Praveen, 26 Oct 2026): written by the n8n Razorpay workflows, one per
+  // e-Book, instead of the Airtable "E Book Orders" table. Paid and failed payments both
   // land here; payment_id is unique so a repeated Razorpay webhook updates the same row.
-  { key: "ebooks", label: "eBook Orders", table: "mm_ebook_orders", noun: "order", nounPlural: "orders",
-    intro: "Every eBook payment from Razorpay — who bought which eBook, whether it went through and whether the Drive folder was shared.",
+  { key: "ebooks", label: "e-Book Orders", table: "mm_ebook_orders", noun: "order", nounPlural: "orders",
+    intro: "Every e-Book payment from Razorpay — who bought which e-Book, whether it went through and whether the Drive folder was shared.",
     sort: { col: "paid_at", asc: false }, date: "order_date", money: "amount",
     fields: [
       { key: "title", label: "Buyer", type: "text" },
-      { key: "ebook", label: "eBook", type: "select", col: true, options: EBOOKS },
+      { key: "ebook", label: "e-Book", type: "select", col: true, options: EBOOKS },
       { key: "order_date", label: "Date", type: "date", col: true },
       { key: "amount", label: "Amount", type: "money", col: true },
       { key: "status", label: "Payment", type: "select", col: true, options: ["Paid", "Failed"] },
