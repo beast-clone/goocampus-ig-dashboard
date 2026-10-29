@@ -2816,7 +2816,9 @@ export function PreviewMyDay({ initialPerson, isAdmin: viewerIsAdmin = false, vi
   // a teammate's day saw "Started 12:05 PM" — the admin's clock — above a timeline
   // that began at the teammate's shift, two hours earlier (Praveen, 25 Sep). Two
   // clocks on one screen, and neither of them the teammate's.
-  const startedAt = loginMin == null ? null : clockOf(Math.max(0, Math.min(loginMin, DAY_MINS)));
+  // The real sign-in time, before 9 AM too — 8:58 read as 9:00 (Praveen, 29 Oct). The
+  // plan below still starts at the shift.
+  const startedAt = loginMin == null ? null : clockOf(Math.min(loginMin, DAY_MINS));
   const planStart = Math.max(shiftStart, loginMin ?? shiftStart);
   // The plan is FIXED from login (Praveen, 23 Oct): the first task starts when they
   // logged in and every task keeps its slot — nothing slides along with the clock

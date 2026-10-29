@@ -58,8 +58,8 @@ function DayControl() {
       if (!alive) return;
       const min = me?.user?.id ? l?.logins?.[me.user.id] : undefined;
       if (typeof min !== "number") { setStarted(null); return; }
-      // Same as My Day's badge: a sign-in before 9 AM reads as 9:00.
-      const t = 9 * 60 + Math.max(0, min), h = Math.floor(t / 60), m = t % 60;
+      // The real sign-in time, before 9 AM too (Praveen, 29 Oct: signed in 8:58, saw 9:00).
+      const t = 9 * 60 + min, h = Math.floor(t / 60), m = t % 60;
       setStarted(`${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`);
     }).catch(() => alive && setStarted(null));
     return () => { alive = false; };
