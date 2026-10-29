@@ -3,7 +3,7 @@ import type { Icon } from "@tabler/icons-react";
 import {
   IconBell, IconAlarm, IconSpeakerphone, IconRadar, IconCalendarEvent, IconMovie, IconHourglass, IconInbox, IconArrowBackUp,
   IconArrowsExchange, IconPin, IconCircleCheck, IconPalette, IconPackage, IconSend,
-  IconUserCheck, IconNews,
+  IconUserCheck, IconNews, IconClockPlus,
 } from "@tabler/icons-react";
 
 // The dashboard's own line icons for notifications — the rows used to show emojis,
@@ -19,7 +19,8 @@ const BY_EMOJI: Record<string, Icon> = {
   "🎬": IconMovie,           // a video is up for grabs
   "⏳": IconHourglass,        // waiting in your pipeline
   "📥": IconInbox,           // handed to you
-  "↩️": IconArrowBackUp,      // sent back for changes
+  "↩️": IconArrowBackUp,      // sent back for changes, or time taken back
+  "⏱️": IconClockPlus,       // task extended
   "🔁": IconArrowsExchange,  // swap request
   "📌": IconPin,             // assigned to you
   "✅": IconCircleCheck,      // approved

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { IconBell } from "@tabler/icons-react";
+import { IconBell, IconX } from "@tabler/icons-react";
+import { NotifIcon } from "@/app/(dashboard)/dashboard/preview/NotifIcon";
 import { shouldPoll } from "@/lib/quiet-hours";
 
 // Marketing Hub top-bar notification bell.
@@ -96,7 +97,8 @@ export default function HubNotificationBell() {
             ) : (
               visible.map((n) => (
                 <div key={n.id} className="flex items-start gap-2.5 px-4 py-2.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 group">
-                  <span className="text-[15px] leading-none mt-0.5">{n.emoji}</span>
+                  {/* Tabler icon for the stored emoji — same as the Notifications tab and My Day */}
+                  <NotifIcon emoji={n.emoji} size={16} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[12.5px] font-medium text-[#232D42] truncate">{n.title}</div>
                     <div className="text-[11.5px] text-gray-500 leading-snug">{n.sub}</div>
@@ -104,9 +106,9 @@ export default function HubNotificationBell() {
                   <button
                     onClick={() => setDismissed((d) => new Set(d).add(n.id))}
                     aria-label="Dismiss"
-                    className="text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 text-sm leading-none"
+                    className="text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 mt-0.5"
                   >
-                    ×
+                    <IconX size={14} stroke={2} />
                   </button>
                 </div>
               ))
