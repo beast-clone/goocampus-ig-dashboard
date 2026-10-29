@@ -1,7 +1,8 @@
 "use client";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { IconSearch } from "@tabler/icons-react";
+import { IconSearch, IconUsers, IconTag, IconHelpCircle, IconLayoutGrid, IconSpeakerphone, IconMessageCircle, IconBrandYoutube, IconWorld, IconCalendarEvent, IconDots, IconCurrencyRupee, IconHeartHandshake, IconPlus, IconArrowLeft, IconExternalLink, IconListDetails, IconChartBar, IconSparkles, type Icon } from "@tabler/icons-react";
+import { addBrand } from "@/lib/use-sbus";
 import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect";
 import { CHANNELS, type ChannelKey, TALKING, brandFor, channelOf, interestKey, isBlankInterest, isWarm, leadBrands } from "@/lib/lead-brand";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
@@ -82,7 +83,9 @@ const INK = "text-[#232D42]", MUTED = "text-[#8A92A6]";
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const pctOf = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const chan = (k: ChannelKey) => CHANNELS.find((c) => c.key === k)!;
-const BRAND_COLORS = ["#3A57E8", "#1AA053", "#F16A1B", "#2138B0", "#0E9F9F", "#7A5AF8", "#C03221", "#B7791F"];
+// Left-list icons — Tabler outline on a soft tint, like Scheduler's Status list.
+const CH_ICON: Record<ChannelKey, Icon> = { ads: IconSpeakerphone, dm: IconMessageCircle, yt: IconBrandYoutube, web: IconWorld, book: IconCalendarEvent, other: IconDots };
+const BRAND_TONE = "#3A57E8";
 
 function MarketingLeads() {
   const [days, setDays] = useState<number | "custom">(30);
@@ -146,6 +149,19 @@ function MarketingLeads() {
   const lead = leadId ? rows.find((l) => l.id === leadId) : undefined;
   const pick = (p: Picked) => { setPicked(p); setLeadId(null); };
 
+  const [adding, setAdding] = useState(false);
+  const [newBrand, setNewBrand] = useState("");
+  const [addErr, setAddErr] = useState<string | null>(null);
+  // Same helper as Marketing Hub's Brand pages — the new brand appears in every brand list.
+  const createBrand = async (name: string): Promise<string | null> => {
+    setAddErr(null);
+    try {
+      const saved = await addBrand(name);
+      const d = await fetch("/api/sbus", { cache: "no-store" }).then((r) => r.json());
+      setBrands(leadBrands(d.sbus || []));
+      return saved;
+    } catch (e) { setAddErr((e as Error).message); return null; }
+  };
   const saveMatch = async (interest: string, brand: string) => {
     const r = await fetch("/api/leads/brand-matches", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interest, brand }) });
     const j = await r.json();
@@ -178,27 +194,46 @@ function MarketingLeads() {
           <div className={`px-[22px] pt-5 pb-3 text-[17px] font-medium ${INK}`}>Brands</div>
           <div className="px-3 pb-3.5">
             {!leads ? <LoadingBlock /> : (<>
-              <NavItem on={picked.kind === "brand" && picked.brand === ALL} onClick={() => pick({ kind: "brand", brand: ALL })} icon="★" color="#3A57E8"
+              <NavItem on={picked.kind === "brand" && picked.brand === ALL} onClick={() => pick({ kind: "brand", brand: ALL })} icon={IconUsers} color="#3A57E8"
                 name="All leads" sub={notCSub(notC(rows.filter(inCh)))} count={rows.filter(inCh).length} />
-              {brandList.map(([b, ls], i) => (
+              {brandList.map(([b, ls]) => (
                 <NavItem key={b} on={picked.kind === "brand" && picked.brand === b} onClick={() => pick({ kind: "brand", brand: b })}
-                  icon={b.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase()} color={BRAND_COLORS[i % BRAND_COLORS.length]} name={b} sub={notCSub(notC(ls))} count={ls.length} />
+                  icon={IconTag} color={BRAND_TONE} name={b} sub={notCSub(notC(ls))} count={ls.length} />
               ))}
-              {byBrand.has(NONE) && <NavItem on={picked.kind === "brand" && picked.brand === NONE} onClick={() => pick({ kind: "brand", brand: NONE })} icon="?" color="#B4540F"
+              {byBrand.has(NONE) && <NavItem on={picked.kind === "brand" && picked.brand === NONE} onClick={() => pick({ kind: "brand", brand: NONE })} icon={IconHelpCircle} color="#D9861B"
                 name="No brand yet" sub={<>interest not matched — fix</>} count={byBrand.get(NONE)!.length} />}
               {quiet.length > 0 && <div className={`text-[12.5px] ${MUTED} px-2.5 pt-2`} title={quiet.join(" · ")}>No leads in this range: {quiet.length} brand{quiet.length > 1 ? "s" : ""}</div>}
+              {isAdmin && (adding ? (
+                <div className="mx-1 mt-3 p-3 border border-gray-100 rounded-xl">
+                  <div className={`text-[12px] ${MUTED} mb-1.5`}>New brand</div>
+                  <input autoFocus value={newBrand} onChange={(e) => setNewBrand(e.target.value)} placeholder="e.g. Ireland Pathway"
+                    onKeyDown={(e) => { if (e.key === "Escape") setAdding(false); }}
+                    className={`h-10 w-full rounded-lg border border-gray-200 px-3 text-[14px] ${INK} outline-none focus:border-brand`} />
+                  {addErr && <div className="text-[12.5px] text-[#C0201F] mt-1.5">{addErr}</div>}
+                  <div className="flex gap-2 mt-2.5">
+                    <button disabled={!newBrand.trim()} onClick={async () => { if (await createBrand(newBrand.trim())) { setNewBrand(""); setAdding(false); } }}
+                      className="h-9 flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand text-white text-[13px] font-medium disabled:opacity-50"><IconPlus size={15} stroke={2} />Add brand</button>
+                    <button onClick={() => { setAdding(false); setNewBrand(""); setAddErr(null); }} className={`h-9 px-3.5 rounded-lg border border-gray-100 text-[13px] font-medium ${INK}`}>Cancel</button>
+                  </div>
+                  <div className={`text-[12px] ${MUTED} mt-2 leading-snug`}>Leads move here when their Primary Interest matches the name — or match an interest under No brand yet.</div>
+                </div>
+              ) : (
+                <button onClick={() => setAdding(true)} className="mx-1 mt-2 w-[calc(100%-8px)] h-10 inline-flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-200 text-brand text-[13.5px] font-medium hover:border-brand">
+                  <IconPlus size={15} stroke={2} />Add brand
+                </button>
+              ))}
 
               {picked.kind === "brand" && (<>
                 <div className={`text-[12px] uppercase tracking-wide ${MUTED} px-2.5 pt-5 pb-1.5`}>Channels</div>
-                <NavItem on={ch === "all"} onClick={() => { setCh("all"); setLeadId(null); }} icon="◎" color="#4A5468" name="All channels" count={inSelBrand.length} />
+                <NavItem on={ch === "all"} onClick={() => { setCh("all"); setLeadId(null); }} icon={IconLayoutGrid} color="#4A5468" name="All channels" count={inSelBrand.length} />
                 {CHANNELS.map((c) => { const ls = inSelBrand.filter((l) => l.ch === c.key); return ls.length ? (
-                  <NavItem key={c.key} on={ch === c.key} onClick={() => { setCh(c.key); setLeadId(null); }} icon="●" color={c.color} name={c.label} sub={notCSub(notC(ls))} count={ls.length} />
+                  <NavItem key={c.key} on={ch === c.key} onClick={() => { setCh(c.key); setLeadId(null); }} icon={CH_ICON[c.key]} color={c.color} name={c.label} sub={notCSub(notC(ls))} count={ls.length} />
                 ) : null; })}
               </>)}
 
               <div className={`text-[12px] uppercase tracking-wide ${MUTED} px-2.5 pt-5 pb-1.5`}>More</div>
-              <NavItem on={picked.kind === "view" && picked.view === "ads"} onClick={() => pick({ kind: "view", view: "ads" })} icon="₹" color="#2138B0" name="Ad campaigns" sub="Meta spend & cost per lead" />
-              <NavItem on={picked.kind === "view" && picked.view === "samvaya"} onClick={() => pick({ kind: "view", view: "samvaya" })} icon="SA" color="#7A5AF8" name="Samvaya" sub="own intake base" />
+              <NavItem on={picked.kind === "view" && picked.view === "ads"} onClick={() => pick({ kind: "view", view: "ads" })} icon={IconCurrencyRupee} color="#2138B0" name="Ad campaigns" sub="Meta spend & cost per lead" />
+              <NavItem on={picked.kind === "view" && picked.view === "samvaya"} onClick={() => pick({ kind: "view", view: "samvaya" })} icon={IconHeartHandshake} color="#7A5AF8" name="Samvaya" sub="own intake base" />
             </>)}
           </div>
         </div>
@@ -249,7 +284,7 @@ function MarketingLeads() {
           <div className="bg-white border border-gray-100 rounded-2xl px-[26px] pt-[22px] pb-[26px]">
             {lead ? <LeadDetail l={lead} brand={lead.brand} channel={chan(lead.ch).label} onBack={() => setLeadId(null)} backLabel={title} />
               : <Summary sel={sel} title={title} showSources={ch === "all"} unmatched={picked.kind === "brand" && picked.brand === NONE}
-                  brands={brands} matches={matches} isAdmin={isAdmin} onMatch={saveMatch} />}
+                  brands={brands} matches={matches} isAdmin={isAdmin} onMatch={saveMatch} onCreate={createBrand} />}
           </div>
         </>)}
       </div>
@@ -260,10 +295,10 @@ function MarketingLeads() {
 
 const notCSub = (n: number) => (n ? <><b className="font-medium text-[#C0201F]">{fmt(n)}</b> not contacted</> : <>all contacted</>);
 
-function NavItem({ on, onClick, icon, color, name, sub, count }: { on: boolean; onClick: () => void; icon: string; color: string; name: string; sub?: ReactNode; count?: number }) {
+function NavItem({ on, onClick, icon: I, color, name, sub, count }: { on: boolean; onClick: () => void; icon: Icon; color: string; name: string; sub?: ReactNode; count?: number }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3 text-left px-2.5 py-[11px] rounded-xl mb-0.5 ${on ? "bg-brand-light" : "hover:bg-[#FAFBFD]"}`}>
-      <span className="w-9 h-9 rounded-[10px] grid place-items-center shrink-0 text-[13px] font-medium" style={{ background: `${color}1F`, color }}>{icon}</span>
+      <span className="w-9 h-9 rounded-[10px] grid place-items-center shrink-0" style={{ background: `${color}1F`, color }}><I size={18} stroke={1.8} /></span>
       <span className="flex-1 min-w-0">
         <span className={`block truncate text-[14.5px] font-medium ${INK}`}>{name}</span>
         {sub && <span className={`block truncate text-[12.5px] ${MUTED} mt-px`}>{sub}</span>}
@@ -273,9 +308,9 @@ function NavItem({ on, onClick, icon, color, name, sub, count }: { on: boolean; 
   );
 }
 
-function Summary({ sel, title, showSources, unmatched, brands, matches, isAdmin, onMatch }: {
+function Summary({ sel, title, showSources, unmatched, brands, matches, isAdmin, onMatch, onCreate }: {
   sel: { contacted: boolean; status: string; counsellor: string; ch: ChannelKey; interest: string }[]; title: string; showSources: boolean; unmatched: boolean;
-  brands: string[]; matches: Record<string, string>; isAdmin: boolean; onMatch: (interest: string, brand: string) => void;
+  brands: string[]; matches: Record<string, string>; isAdmin: boolean; onMatch: (interest: string, brand: string) => void; onCreate: (name: string) => Promise<string | null>;
 }) {
   const cN = sel.filter((l) => l.contacted).length;
   const card = (l: string, v: ReactNode, s: string) => (
@@ -312,7 +347,7 @@ function Summary({ sel, title, showSources, unmatched, brands, matches, isAdmin,
       </>)}
       {unmatched && (<>
         {sec("Match these interests to a brand")}
-        <div className={`text-[13px] ${MUTED} -mt-1.5 mb-2`}>{isAdmin ? "Pick once — every lead with that interest moves there, now and in future." : "An admin can match these to a brand."}</div>
+        <div className={`text-[13px] ${MUTED} -mt-1.5 mb-2`}>{isAdmin ? "Pick once — every lead with that interest moves there, now and in future. Not in the list? Add a new brand from the picker." : "An admin can match these to a brand."}</div>
         {[...um.entries()].sort((a, b) => b[1] - a[1]).map(([i, n]) => {
           const k = interestKey(i);
           return (
@@ -320,7 +355,8 @@ function Summary({ sel, title, showSources, unmatched, brands, matches, isAdmin,
               <span className={`flex-1 ${INK}`}>{i || "(blank)"}</span><span className={`${MUTED} w-10 text-right`}>{fmt(n)}</span>
               <span className="w-[230px]">{isBlankInterest(k) ? <span className={`text-[13px] ${MUTED}`}>no interest — fix in CRM</span>
                 : isAdmin ? <PreviewSelect value={matches[k] || ""} onChange={(b) => onMatch(i, b)} placeholder="Choose a brand…" ariaLabel={`Brand for ${i}`}
-                    options={[{ value: "", label: "Choose a brand…" }, ...brands.map((b) => ({ value: b, label: b }))]} />
+                    options={[{ value: "", label: "Choose a brand…" }, ...brands.map((b) => ({ value: b, label: b }))]}
+                    addOption={{ label: "Add a new brand", onAdd: async (name) => { const b = await onCreate(name); if (b) onMatch(i, b); } }} />
                 : <span className={`text-[13px] ${MUTED}`}>not matched</span>}</span>
             </div>
           );
@@ -346,12 +382,12 @@ function LeadDetail({ l, brand, channel, onBack, backLabel }: { l: Lead; brand: 
   const row = (k: string, v: ReactNode) => <><span className={MUTED}>{k}</span><div className={INK}>{v}</div></>;
   return (
     <>
-      <button onClick={onBack} className="text-brand text-[13px] font-medium mb-3">← {backLabel} summary</button>
+      <button onClick={onBack} className="text-brand text-[13px] font-medium mb-3 inline-flex items-center gap-1"><IconArrowLeft size={15} stroke={1.8} />{backLabel} summary</button>
       <div className={`text-[22px] font-medium ${INK}`}>{l.name || "—"}</div>
       <div className={`${MUTED} text-[13px] mt-0.5 mb-4`}>{fmtWhenTime(l.createdAt)} · {channel}</div>
       <div className="grid grid-cols-[160px_1fr] gap-x-[18px] gap-y-4 text-[14px]">
         {row("Status", <span className="inline-block text-[12px] font-medium rounded-full px-2.5 py-0.5 whitespace-nowrap" style={stStyle(l.status)}>{l.status || "—"}</span>)}
-        {row("Contacted", <>{l.contacted ? <span className="text-[#137A3E] font-medium">● Contacted</span> : <span className={`${MUTED} font-medium`}>● Not contacted yet</span>}{l.callAttempts ? ` · ${l.callAttempts} call${l.callAttempts > 1 ? "s" : ""}` : ""}</>)}
+        {row("Contacted", <><span className={`inline-flex items-center gap-1.5 font-medium ${l.contacted ? "text-[#137A3E]" : MUTED}`}><span className="w-2 h-2 rounded-full" style={{ background: l.contacted ? "#1AA053" : "#C6CBD6" }} />{l.contacted ? "Contacted" : "Not contacted yet"}</span>{l.callAttempts ? ` · ${l.callAttempts} call${l.callAttempts > 1 ? "s" : ""}` : ""}</>)}
         {row("Assigned to", l.counsellor)}
         {row("Brand", brand || "No brand yet")}
         {row("Primary Interest", l.interest || "—")}
@@ -359,7 +395,7 @@ function LeadDetail({ l, brand, channel, onBack, backLabel }: { l: Lead; brand: 
         {row("Campaign", l.campaign || "—")}
         {row("Idle", l.daysUntouched != null ? `${l.daysUntouched} day${l.daysUntouched === 1 ? "" : "s"} since last update` : "—")}
       </div>
-      {l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="inline-block mt-5 text-brand text-[14px] font-medium">Open in CRM ↗</a>}
+      {l.linkToRecord && <a href={l.linkToRecord} target="_blank" rel="noreferrer" className="mt-5 text-brand text-[14px] font-medium inline-flex items-center gap-1">Open in CRM<IconExternalLink size={15} stroke={1.8} /></a>}
     </>
   );
 }
@@ -382,7 +418,7 @@ function AdsTab({ d }: { d: Snap }) {
       <div className="sl-cols">
         <div className="sl-stack">
           <div className="sl-card">
-            <div className="pad" style={{ paddingBottom: 4 }}><H ic="☰" t="By campaign" hint="Meta lead forms" /></div>
+            <div className="pad" style={{ paddingBottom: 4 }}><H ic={IconListDetails} t="By campaign" hint="Meta lead forms" /></div>
             <div className="sl-tblwrap">
               <table className="sl-tbl">
                 <thead><tr><th>Campaign</th><th>Leads</th><th>Spend</th><th>Cost/lead</th></tr></thead>
@@ -425,7 +461,7 @@ function SamvayaTab({ d }: { d: Snap }) {
         <div className="sl-stack">
           {hasIntake && (
             <div className="sl-card pad">
-              <H ic="◈" t="Intake by campaign" hint={`${fmt(intake!.total)} leads`} />
+              <H ic={IconChartBar} t="Intake by campaign" hint={`${fmt(intake!.total)} leads`} />
               <div className="sl-bars">
                 {Object.entries(intake!.byCampaign).sort((a, b) => b[1] - a[1]).map(([name, n]) => {
                   const top = Math.max(...Object.values(intake!.byCampaign));
@@ -438,7 +474,7 @@ function SamvayaTab({ d }: { d: Snap }) {
           )}
           {ads && (
             <div className="sl-card">
-              <div className="pad" style={{ paddingBottom: 4 }}><H ic="☰" t="Samvaya ad campaigns" hint="Meta lead forms" /></div>
+              <div className="pad" style={{ paddingBottom: 4 }}><H ic={IconListDetails} t="Samvaya ad campaigns" hint="Meta lead forms" /></div>
               <div className="sl-tblwrap">
                 <table className="sl-tbl">
                   <thead><tr><th>Campaign</th><th>Leads</th><th>Spend</th><th>Cost/lead</th></tr></thead>
@@ -473,14 +509,14 @@ function Kpi({ lbl, val, foot, accent, warn }: { lbl: string; val: string; foot?
     </div>
   );
 }
-function H({ ic, t, hint }: { ic?: string; t: string; hint?: string }) {
-  return <div className="sl-h">{ic && <span className="ic">{ic}</span>}<h3>{t}</h3>{hint && <span className="hint">{hint}</span>}</div>;
+function H({ ic: I, t, hint }: { ic?: Icon; t: string; hint?: string }) {
+  return <div className="sl-h">{I && <span className="ic"><I size={16} stroke={1.8} /></span>}<h3>{t}</h3>{hint && <span className="hint">{hint}</span>}</div>;
 }
 function AIRail({ lines }: { lines: string[] }) {
   return (
     <aside>
       <div className="sl-ai">
-        <div className="aih"><span className="spark">✦</span><h3>AI Summary</h3><span className="tag">Daily</span></div>
+        <div className="aih"><span className="spark"><IconSparkles size={15} stroke={1.8} /></span><h3>AI Summary</h3><span className="tag">Daily</span></div>
         {lines.filter(Boolean).map((l, i) => <p key={i}>{l}</p>)}
       </div>
     </aside>
