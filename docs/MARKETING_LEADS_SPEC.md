@@ -76,10 +76,15 @@ Period on top: 7d / 30d / 90d / Custom (date boxes open the picker). Then three 
 Note: YouTube leads mostly arrive with a blank Primary Interest, so they sit in "No brand yet"
 until the CRM field is filled.
 
+## Decided (29 Oct 2026)
+- **IMT Programme** → its own brand, added to the brand list (`mh_sbus`); its 120 leads (90 days)
+  match it by name.
+- "Standard Consulting Program" (no country), USA Integrated Consulting Program, College Predictor,
+  UK Bundle - 4 → **left in No brand yet** on purpose.
+- **YouTube** leads with a blank interest stay in No brand yet — the team fills Primary Interest in
+  the CRM; no default brand.
+
 ## Still open
-- Which brand for: IMT Programme (120 leads / 90 days, no brand exists), "Standard Consulting
-  Program" with no country, USA Integrated Consulting Program, College Predictor, UK Bundle - 4.
-- YouTube leads mostly arrive with a blank Primary Interest — fill it in the CRM, or a default brand?
 - Samvaya kept under **More** for now (its own Airtable base, read-only, as before).
 - **Ad spend / cost per lead per brand**: Meta campaigns could be mapped to a brand by the
   interest of their CRM leads, but e.g. "NEET PG Lead Ads_Oct 2026" (141 Meta leads) has no
