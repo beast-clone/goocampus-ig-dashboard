@@ -4,6 +4,7 @@
 // mh_integration_tokens as "youtube:<key>", which lib/youtube.ts reads first.
 import { CHANNELS } from "@/lib/youtube-channels";
 import { saveIntegrationToken } from "@/lib/integration-tokens";
+import { createHmac, timingSafeEqual } from "crypto";
 
 export const YT_SCOPES = "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly";
 
@@ -35,4 +36,42 @@ export async function saveYouTubeGrant(code: string, redirectUri: string, channe
   }
   await saveIntegrationToken(`youtube:${channelKey}`, j.refresh_token, { note: got?.snippet?.title || ch.name });
   return got?.snippet?.title || ch.name;
+}
+
+// ── Connect links (docs/BRANDS_SPEC.md) ──────────────────────────────────────
+// The Brands page hands out a link the channel owner opens on their own device —
+// no dashboard login, no secrets to pass around. The link names one channel and
+// expires in a day; it's signed with SESSION_SECRET so it can't be edited to
+// another channel. It can be reused within the day (to retry after picking the
+// wrong channel), and Google's channel check above still guards what is saved.
+const LINK_TTL_MS = 24 * 60 * 60 * 1000;
+const linkSig = (body: string) => createHmac("sha256", process.env.SESSION_SECRET || "").update(`yt-link:${body}`).digest("hex").slice(0, 32);
+
+export function makeConnectToken(channelKey: string): string {
+  const body = `${channelKey}~${Date.now() + LINK_TTL_MS}`;
+  return `${body}~${linkSig(body)}`;
+}
+
+/** The channel a connect token is for, or null if it's forged, malformed or expired. */
+export function readConnectToken(t: string): string | null {
+  const [key, exp, sig] = t.split("~");
+  if (!key || !exp || !sig || !process.env.SESSION_SECRET) return null;
+  const want = linkSig(`${key}~${exp}`);
+  if (sig.length !== want.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return null;
+  if (Number(exp) < Date.now() || !CHANNELS[key]) return null;
+  return key;
+}
+
+/** Google's sign-in page for a channel; `state` comes back to the callback. */
+export function googleAuthUrl(redirectUri: string, state: string): string {
+  const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  auth.searchParams.set("client_id", process.env.YOUTUBE_CLIENT_ID || "");
+  auth.searchParams.set("redirect_uri", redirectUri);
+  auth.searchParams.set("response_type", "code");
+  auth.searchParams.set("scope", YT_SCOPES);
+  auth.searchParams.set("state", state);
+  // offline + consent = a refresh token every time (otherwise it dies within the hour).
+  auth.searchParams.set("access_type", "offline");
+  auth.searchParams.set("prompt", "consent select_account");
+  return auth.toString();
 }

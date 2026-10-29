@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconCheck, IconUpload, IconLink, IconTrash, IconInfoCircle, IconPlus, IconX, type Icon } from "@tabler/icons-react";
+import { IconBrandInstagram, IconBrandFacebook, IconBrandLinkedin, IconBrandYoutube, IconCheck, IconUpload, IconLink, IconTrash, IconInfoCircle, IconPlus, IconX, IconCopy, type Icon } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { showToast } from "../Toast";
@@ -192,18 +192,23 @@ function AccountCard({ k, b, onConnectMeta, onDisconnectMeta }: { k: PlatKey; b:
       : "Meta's access renews about every 60 days; Integrations warns before it runs out.";
     if (k === "instagram" && b.metaOnPage)
       action = <button onClick={onDisconnectMeta} className={`h-[34px] px-3 rounded-lg border border-gray-100 inline-flex items-center text-[13px] font-medium ${MUTED} hover:text-[#C0201F]`}>Disconnect</button>;
-    if (k === "youtube" && a.channel) action = <a href={`/api/auth/youtube/start?channel=${encodeURIComponent(a.channel)}`} className={`h-[34px] px-3 rounded-lg border border-gray-100 inline-flex items-center text-[13px] font-medium ${INK} hover:border-brand hover:text-brand`}>Reconnect</a>;
+    if (k === "youtube" && a.channel) action = <span className="flex flex-wrap gap-2"><a href={`/api/auth/youtube/start?channel=${encodeURIComponent(a.channel)}`} className={`h-[34px] px-3 rounded-lg border border-gray-100 inline-flex items-center text-[13px] font-medium ${INK} hover:border-brand hover:text-brand`}>Reconnect</a><CopyLink channel={a.channel} /></span>;
   } else if (k === "youtube") {
     if (a.channel) {
-      body = <>The channel ({a.name}) is known, but its Google sign-in was never finished. Whoever owns the channel&apos;s Google account clicks Connect, signs in and picks <b className="font-medium">{a.name}</b>. You come back to the YouTube tab.</>;
-      action = <a href={`/api/auth/youtube/start?channel=${encodeURIComponent(a.channel)}`} className="h-[34px] px-3 rounded-lg bg-brand text-white inline-flex items-center gap-1.5 text-[13px] font-medium hover:bg-brand-dark"><IconLink size={15} stroke={1.8} />Connect YouTube</a>;
+      body = <>Needs the channel owner&apos;s Google sign-in, once. Copy the connect link and send it to them: they open it on their own phone or laptop, sign in, pick <b className="font-medium">{a.name}</b> and click Allow. If you own the channel yourself, click Connect YouTube instead.</>;
+      action = <span className="flex flex-wrap gap-2"><CopyLink channel={a.channel} primary /><a href={`/api/auth/youtube/start?channel=${encodeURIComponent(a.channel)}`} className={`h-[34px] px-3 rounded-lg border border-gray-100 inline-flex items-center gap-1.5 text-[13px] font-medium ${INK} hover:border-brand hover:text-brand`}><IconLink size={15} stroke={1.8} />Connect YouTube</a></span>;
     } else body = "No YouTube channel is set for this brand. Connecting a new channel from here comes later.";
   } else if (k === "linkedin") {
     body = "No LinkedIn company page is linked. Create the page on LinkedIn and make info@goocampus an admin — picking it from here comes later.";
   } else if (k === "facebook") {
     body = "Connects together with Instagram — use the button on the Instagram card.";
   } else {
-    body = <>Pick this brand&apos;s Facebook page. Instagram comes with it — the page must have the brand&apos;s Instagram business account linked, and be managed by the dashboard&apos;s Meta login.</>;
+    body = <>
+      <span className="block mb-1.5">Instagram comes with the brand&apos;s Facebook page. If the page isn&apos;t in the picker yet:</span>
+      <span className="block">1. In <a href="https://business.facebook.com/settings/pages" target="_blank" rel="noreferrer" className="text-brand hover:underline">Meta Business Settings → Pages</a>, click <b className="font-medium">Add → Request access to a Page</b> and enter the brand&apos;s page.</span>
+      <span className="block">2. The page owner clicks <b className="font-medium">Approve</b> on Meta&apos;s notification. Their Instagram must be linked to the page.</span>
+      <span className="block">3. Click Connect below and pick the page.</span>
+    </>;
     action = <button onClick={onConnectMeta} className="h-[34px] px-3 rounded-lg bg-brand text-white inline-flex items-center gap-1.5 text-[13px] font-medium hover:bg-brand-dark"><IconLink size={15} stroke={1.8} />Connect Instagram + Facebook</button>;
   }
   return (
@@ -283,5 +288,24 @@ function PagePicker({ brand, onClose, onDone }: { brand: Brand; onClose: () => v
         </div>
       </div>
     </Overlay>
+  );
+}
+
+// A link the channel owner opens on their own device to connect the channel — no login,
+// no keys passed around. Valid for a day (app/api/brands/youtube-link).
+function CopyLink({ channel, primary }: { channel: string; primary?: boolean }) {
+  const copy = async () => {
+    const r = await fetch("/api/brands/youtube-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast({ who: "Couldn't make the link", body: j.error || `HTTP ${r.status}`, av: "!" }); return; }
+    try { await navigator.clipboard.writeText(j.url); showToast({ who: "Connect link copied", body: "Send it to the channel owner. It works for 24 hours.", av: "✓" }); }
+    catch { window.prompt("Copy this link and send it to the channel owner:", j.url); }
+  };
+  return (
+    <button onClick={() => void copy()} className={primary
+      ? "h-[34px] px-3 rounded-lg bg-brand text-white inline-flex items-center gap-1.5 text-[13px] font-medium hover:bg-brand-dark"
+      : `h-[34px] px-3 rounded-lg border border-gray-100 inline-flex items-center gap-1.5 text-[13px] font-medium ${INK} hover:border-brand hover:text-brand`}>
+      <IconCopy size={15} stroke={1.8} />Copy connect link
+    </button>
   );
 }

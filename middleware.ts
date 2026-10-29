@@ -13,6 +13,10 @@ const PUBLIC_API_ROUTES = new Set<string>([
   "/api/logout",
   "/api/auth/google/start",
   "/api/auth/google/callback",
+  // YouTube connect links: the channel owner has no dashboard login. /link only accepts
+  // a signed token; /callback checks the login itself unless the state carries one.
+  "/api/auth/youtube/link",
+  "/api/auth/youtube/callback",
   "/api/lead-form/submit", // public: leads submit the per-post capture form without a login
   "/api/account/accept-invite", // public: a new member sets their password from an emailed code
   // public: someone locked out asks for a reset code. No session exists by

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSessionIsAdmin, isLoggedIn } from "@/lib/auth";
-import { saveYouTubeGrant, youtubeRedirect } from "@/lib/youtube-connect";
+import { readConnectToken, saveYouTubeGrant, youtubeRedirect } from "@/lib/youtube-connect";
+import { connectPage } from "@/lib/connect-page";
 
 // GET /api/auth/youtube/callback?code=…&state=<nonce>.<channel>
 // Where Google sends the admin back. Saves the grant and returns to the YouTube tab
@@ -12,6 +13,21 @@ export const revalidate = 0;
 export async function GET(req: Request) {
   const here = new URL(req.url);
   const state = here.searchParams.get("state") || "";
+  // From a connect link (state = "link.<token>"): the channel owner, no dashboard login.
+  // The signed token stands in for the login + cookie checks below.
+  if (state.startsWith("link.")) {
+    const linkChannel = readConnectToken(state.slice(5));
+    if (!linkChannel) return connectPage(false, "This link has expired or isn't valid. Ask for a new one.");
+    if (here.searchParams.get("error")) return connectPage(false, "Google permission was cancelled. Nothing changed. Open the link again to retry.");
+    const code = here.searchParams.get("code");
+    if (!code) return connectPage(false, "Google didn't send the permission back. Open the link again to retry.");
+    try {
+      const title = await saveYouTubeGrant(code, youtubeRedirect(req.url), linkChannel);
+      return connectPage(true, `${title} is now connected to the GooCampus dashboard (view-only). You can close this page.`);
+    } catch (e) {
+      return connectPage(false, `${(e as Error).message} Open the link again to retry.`);
+    }
+  }
   const channel = state.split(".")[1] || "";
   const back = (flag: string, why?: string) => {
     const u = new URL("/dashboard/preview/youtube", here.origin);
