@@ -86,9 +86,9 @@ const ADS: NavLink[] = [
 ];
 
 const SALES: NavLink[] = [
-  // "Social Leads" (per-account, from posts/comments/ads) vs "Sales Hub" (the whole
+  // "Marketing Leads" (per-account, from posts/comments/ads) vs "Sales Hub" (the whole
   // CRM) — renamed so the two very different lead numbers stop reading as the same thing.
-  { label: "Social Leads", href: "/dashboard/leads", icon: IconTarget },
+  { label: "Marketing Leads", href: "/dashboard/leads", icon: IconTarget },
   { label: "Sales Hub", href: "/dashboard/sales-ops", icon: IconBriefcase },
 ];
 

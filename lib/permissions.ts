@@ -153,7 +153,7 @@ export const SECTIONS: { key: Section; label: string; tabs: string; adminOnly?: 
   { key: "content", label: "Content", tabs: "Marketing Hub, My Day, Content Radar, Calendar, Review, Scheduler, Community Broadcast, Post Planner, Watchers" },
   { key: "analytics", label: "Analytics", tabs: "Instagram, LinkedIn, YouTube, Facebook, Website, All platforms" },
   { key: "ads", label: "Ads", tabs: "Ads, Competitor Ads, Benchmark" },
-  { key: "sales", label: "Sales", tabs: "Marketing Campaigns, Social Leads, Sales Hub" },
+  { key: "sales", label: "Sales", tabs: "Marketing Campaigns, Marketing Leads, Sales Hub" },
   { key: "ai", label: "AI", tabs: "AI Insights, AI Reports" },
   { key: "system", label: "System", tabs: "Integrations, Diagnostics, Tools, Team, Comments", adminOnly: true },
 ];
@@ -244,7 +244,7 @@ export const TABS: TabDef[] = [
   { key: "competitors", label: "Competitors", group: "Ads", sec: "ads", paths: [`${P}/benchmark`] },
   { key: "campaigns", label: "Marketing Campaigns", group: "Sales", sec: "sales", paths: [`${P}/campaigns`] },
   { key: "inbox", label: "Inbox", group: "Sales", sec: "sales", paths: [`${P}/inbox`] },
-  { key: "leads", label: "Social Leads", group: "Sales", sec: "sales", paths: [`${P}/leads`] },
+  { key: "leads", label: "Marketing Leads", group: "Sales", sec: "sales", paths: [`${P}/leads`] },
   { key: "sales-hub", label: "Sales Hub", group: "Sales", sec: "sales", paths: [`${P}/sales-ops`] },
   { key: "organic-sales", label: "Organic Sales", group: "Sales", sec: "sales", paths: [`${P}/organic-sales`] },
   { key: "assistant", label: "Ask GooCampus", group: "AI", sec: "ai", paths: [`${P}/assistant`] },

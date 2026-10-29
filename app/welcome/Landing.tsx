@@ -21,7 +21,7 @@ const FEATURES = [
   { icon: IconSun, name: "My Day & Workload", line: "Everyone's day laid out hour by hour, with a clock on the task in hand and nothing lost between people." },
   { icon: IconCalendarEvent, name: "Scheduler & Calendar", line: "Approved work queues itself onto Instagram, Facebook and LinkedIn at the time you pick." },
   { icon: IconChartBar, name: "Analytics", line: "Reach, engagement and followers across every channel, measured — never estimated." },
-  { icon: IconMessageCircle, name: "Social Leads", line: "DMs and paid leads in one place, counted only once a contact is shared." },
+  { icon: IconMessageCircle, name: "Marketing Leads", line: "DMs and paid leads in one place, counted only once a contact is shared." },
   { icon: IconRobot, name: "Automations", line: "Who owns a task and who helps on it — set once, applied to every new task." },
 ];
 

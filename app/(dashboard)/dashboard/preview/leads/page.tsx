@@ -62,7 +62,7 @@ const stStyle = (s: string) => { const c = STATUS_STYLE[s] || { bg: "#F0F2F8", f
 
 export default function LeadsPage() {
   return (
-    <PreviewDashboardShell active="leads" title="Social Leads" subtitle="Inbox DMs & paid leads — a lead counts only when a contact is shared; conversions are real Closed-won." hideAccountPicker hideRange>
+    <PreviewDashboardShell active="leads" title="Marketing Leads" subtitle="Inbox DMs & paid leads — a lead counts only when a contact is shared; conversions are real Closed-won." hideAccountPicker hideRange>
       {() => <SocialLeads />}
     </PreviewDashboardShell>
   );
@@ -138,13 +138,15 @@ function DMTab({ d }: { d: Snap }) {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const statusList = Object.entries(leadRows.reduce<Record<string, number>>((m, r) => { m[r.status] = (m[r.status] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
   const shown = statusFilter ? leadRows.filter((r) => r.status === statusFilter) : leadRows;
+  // Leads still worth chasing — "Hot lead" / "Interested" statuses (not "Not interested").
+  const warm = leadRows.filter((r) => /hot|interested/i.test(r.status) && !/not interested/i.test(r.status)).length;
   return (
     <>
       <div className="sl-kpis">
         <Kpi accent lbl="DM Leads · contact shared" val={fmt(dmLeads)} foot="from CRM (IG/FB DMs + DM Booking)" />
         <Kpi lbl="Converted · Closed won" val={fmt(won)} foot={`${convRate}% of DM leads`} />
         <Kpi lbl="Revenue (won)" val={rev > 0 ? fmtINR(rev) : "—"} foot={rev > 0 ? "from Revenue Tracker" : "amounts pending this month"} />
-        <Kpi lbl="Reply rate · @goocampus" val={`${d.dm?.total?.replyRate ?? 0}%`} foot="inbox auto-replies" />
+        <Kpi lbl="Hot & interested" val={fmt(warm)} foot={leadRows.length ? `${Math.round((warm / leadRows.length) * 100)}% of DM leads` : "from lead statuses"} />
       </div>
 
       <div className="sl-cols">
@@ -251,7 +253,7 @@ function DMTab({ d }: { d: Snap }) {
         </div>
         <AIRail lines={[
           `${fmt(dmLeads)} DM leads this period; ${won} already Closed won.`,
-          d.dm?.total?.replyRate ? `Reply rate ${d.dm.total.replyRate}% on @goocampus — automations are firing.` : "",
+          warm ? `${fmt(warm)} hot or interested leads to follow up.` : "",
           (d.dm?.keywords || [])[0] ? `Top hook: ${d.dm.keywords[0].keyword} (${d.dm.keywords[0].n}).` : "",
           (d.comments?.totalComments || 0) > 0 ? `${fmt(d.comments!.totalComments!)} prospect comments across posts; top post drew ${d.comments!.topPosts?.[0]?.comments ?? 0}.` : "",
           (d.comments?.keywords || [])[0] ? `Most-commented keyword: ${d.comments!.keywords![0].keyword} (${d.comments!.keywords![0].n}).` : "",
