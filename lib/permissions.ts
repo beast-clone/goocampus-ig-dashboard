@@ -168,7 +168,7 @@ export const TAB_SECTION: Record<string, Section> = {
   ads: "ads", competitors: "ads", benchmark: "ads",
   leads: "sales", sales: "sales", campaigns: "sales",
   "ai-insights": "ai", "ai-reports": "ai",
-  integrations: "system", diagnostics: "system", tools: "system", team: "system", comments: "system",
+  integrations: "system", diagnostics: "system", brands: "system", tools: "system", team: "system", comments: "system",
 };
 
 export type Sections = Partial<Record<Section, boolean>>;

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brands prototype v1</title>
+<!-- Prototype (Praveen, 29 Oct): a Brands page where an admin adds a brand and connects its
+     Instagram, Facebook, LinkedIn and YouTube — no code change or deploy. Starts from the real
+     current state of the four brands. The sign-in steps are SIMULATED (nothing connects).
+     Opened from the local dashboard it shows the real logos (/api/account-avatars). -->
+<style>
+:root{--brand:#3A57E8;--brand-d:#2138B0;--brand-l:#E9ECFB;--ink:#232D42;--soft:#4A5468;--muted:#8A92A6;--line:#EEF0F4;--bg:#F6F7FB;--ok:#1AA053;--ok-l:#E3F5EA;--warn:#C2410C;--warn-l:#FDF3E7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);font-size:14px}
+.wrap{max-width:1500px;margin:0 auto;padding:24px 32px}
+.hero{background:linear-gradient(90deg,#3A57E8,#5D74F0);color:#fff;border-radius:18px;padding:26px 32px;margin-bottom:20px}
+.hero h1{margin:0;font-size:26px;font-weight:500}.hero p{margin:6px 0 0;opacity:.85}
+.cols{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+.box{background:#fff;border:1px solid var(--line);border-radius:18px}
+.bh{display:flex;align-items:center;justify-content:space-between;padding:20px 22px 12px}.bh h3{margin:0;font-size:17px;font-weight:500}
+.btn{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);font-family:inherit;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}.btn.pri:hover{background:var(--brand-d);color:#fff}
+.btn.sm{height:34px;padding:0 12px;font-size:13px;border-radius:8px}
+.btn.ghost{border-color:transparent;color:var(--muted)}.btn.ghost:hover{color:#C0201F;border-color:transparent}
+.list{padding:4px 12px 14px}
+.it{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;text-align:left;padding:11px 10px;border-radius:12px;cursor:pointer;font:inherit;margin-bottom:2px}
+.it:hover{background:#FAFBFD}.it.on{background:var(--brand-l)}
+.logo{border-radius:50%;flex:none;display:grid;place-items:center;font-weight:500;color:var(--brand-d);background:var(--brand-l);overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:cover}
+.it .n{display:block;font-weight:500;font-size:14.5px}.it .s{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.dots{display:flex;gap:4px;margin-top:5px}.dot{width:20px;height:20px;border-radius:6px;display:grid;place-items:center}
+.dot.y{background:var(--ok-l);color:var(--ok)}.dot.n{background:#F0F2F8;color:#B8BECC}
+.pane{padding:24px 26px 28px}
+.ph{display:flex;align-items:center;gap:18px}
+.ph h2{margin:0;font-size:22px;font-weight:500}.ph .sub{color:var(--muted);font-size:13px;margin-top:3px}
+.ph input{font-family:inherit;font-weight:500;font-size:22px;color:var(--ink);border:1px solid transparent;border-radius:8px;padding:2px 6px;margin-left:-7px;width:100%;max-width:420px}
+.ph input:hover{border-color:var(--line)}.ph input:focus{outline:0;border-color:var(--brand)}
+.sec{font-size:15px;font-weight:500;margin:28px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.conn{border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px}
+.conn .top{display:flex;align-items:center;gap:12px}
+.pic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;flex:none}
+.conn .t{font-weight:500;font-size:15px}.conn .st{font-size:12.5px;margin-top:2px}
+.st.y{color:var(--ok)}.st.n{color:var(--muted)}.st.w{color:var(--warn)}
+.conn .d{font-size:13px;color:var(--soft);line-height:1.45}
+.conn .act{display:flex;gap:8px;margin-top:auto}
+.note{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:10px}
+.where{display:flex;flex-wrap:wrap;gap:8px}.chip{font-size:12.5px;border-radius:99px;padding:5px 11px;background:#F0F2F8;color:var(--soft)}
+.chip.y{background:var(--ok-l);color:#137A3E}
+.modal{position:fixed;inset:0;background:rgba(35,45,66,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:9}
+.modal.on{display:flex}
+.mb{background:#fff;border-radius:18px;width:100%;max-width:560px;max-height:90vh;overflow:auto;padding:24px 26px}
+.mb h3{margin:0;font-size:20px;font-weight:500}.mb .sub{color:var(--muted);font-size:13px;margin-top:3px}
+.mh{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px}.mh .x{margin-left:auto;border:0;background:none;color:var(--muted);cursor:pointer;width:34px;height:34px;border-radius:8px}.mh .x:hover{background:var(--bg)}
+label.f{display:block;font-size:12.5px;color:var(--muted);margin:14px 0 6px}
+input.in{height:42px;width:100%;border:1px solid #E2E6EE;border-radius:10px;padding:0 12px;font-family:inherit;font-size:14px;color:var(--ink)}
+input.in:focus{outline:0;border-color:var(--brand)}
+.drop{border:1.5px dashed #D5DBE8;border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;cursor:pointer;color:var(--soft);font-size:13px}
+.drop:hover{border-color:var(--brand)}
+.opt{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer}
+.opt:hover{border-color:var(--brand)}.opt.dis{opacity:.5;cursor:default}.opt.dis:hover{border-color:var(--line)}
+.opt .n{font-weight:500}.opt .s{font-size:12.5px;color:var(--muted)}
+.steps{display:flex;gap:6px;margin-bottom:16px}.steps i{flex:1;height:4px;border-radius:4px;background:var(--line)}.steps i.on{background:var(--brand)}
+.sim{font-size:12px;color:var(--warn);background:var(--warn-l);border-radius:8px;padding:8px 10px;margin-bottom:14px}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:10px 16px;font-size:13.5px;display:none;z-index:10}
+</style></head><body><div class="wrap">
+<div class="hero"><h1>Brands</h1><p>Every brand the dashboard shows, and which of its accounts are connected. Add a brand here — no developer, no deploy. Prototype v1 · sign-ins are simulated.</p></div>
+<div class="cols">
+  <div class="box"><div class="bh"><h3 id="count">Brands</h3><button class="btn pri sm" id="addBtn"></button></div><div class="list" id="list"></div></div>
+  <div class="box pane" id="pane"></div>
+</div>
+</div>
+<div class="modal" id="modal"><div class="mb" id="mb"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+// ── icons (Tabler outline paths) ───────────────────────────────────────────
+const P={
+ instagram:"M4 8a4 4 0 0 1 4 -4h8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-8a4 4 0 0 1 -4 -4z M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0 M16.5 7.5v.01",
+ facebook:"M7 10v4h3v7h4v-7h3l1 -4h-4v-2a1 1 0 0 1 1 -1h3v-4h-3a5 5 0 0 0 -5 5v2h-3",
+ linkedin:"M8 11v5 M8 8v.01 M12 16v-5 M16 16v-3a2 2 0 1 0 -4 0 M3 7a4 4 0 0 1 4 -4h10a4 4 0 0 1 4 4v10a4 4 0 0 1 -4 4h-10a4 4 0 0 1 -4 -4z",
+ youtube:"M2 8a4 4 0 0 1 4 -4h12a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-12a4 4 0 0 1 -4 -4v-8z M10 9l5 3l-5 3z",
+ plus:"M12 5l0 14 M5 12l14 0", check:"M5 12l5 5l10 -10", x:"M18 6l-12 12 M6 6l12 12",
+ upload:"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2 M7 9l5 -5l5 5 M12 4l0 12",
+ link:"M9 15l6 -6 M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464 M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463",
+ alert:"M12 9v4 M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z M12 16h.01",
+ eye:"M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6",
+};
+const ic=(k,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${P[k]}"/></svg>`;
+const PLAT={
+ instagram:{n:"Instagram",c:"#C13584",how:"Comes with the Facebook page — one Meta login connects both."},
+ facebook:{n:"Facebook",c:"#1877F2",how:"Sign in with Meta and pick the brand's page. The page must be in the GooCampus Meta Business account."},
+ linkedin:{n:"LinkedIn",c:"#0A66C2",how:"Pick the brand's company page from the pages your LinkedIn login manages."},
+ youtube:{n:"YouTube",c:"#FF0000",how:"Whoever owns the channel's Google account signs in once and picks the channel. It renews itself after that."},
+};
+const ORDER=["instagram","facebook","linkedin","youtube"];
+
+// ── real current state (29 Oct) ────────────────────────────────────────────
+let BRANDS=[
+ {id:"goocampus",name:"GooCampus",fixed:true,c:{instagram:"@goocampus",facebook:"GooCampus Edu",linkedin:"GooCampus",youtube:"GooCampus"}},
+ {id:"goocampusworld",name:"GooCampus World",fixed:true,c:{instagram:"@goocampusworld",facebook:"GooCampus World",linkedin:"GooCampus World",youtube:null}},
+ {id:"12thplusdotcom",name:"12thPlus.com",fixed:true,c:{instagram:"@12thplusdotcom",facebook:"12thplus.com",linkedin:null,youtube:"12thplus"}},
+ {id:"samvaya_matrimony",name:"Samvaya Matrimony",fixed:true,c:{instagram:null,facebook:null,linkedin:null,youtube:null},why:{youtube:"Channel added on 8 Oct, but the sign-in was never finished.",instagram:"No access key for this brand yet."}},
+];
+// Pages the (simulated) Meta login can see in the Business account, and YouTube / LinkedIn options.
+const META_PAGES=[{page:"Samvaya Matrimony",ig:"@samvaya_matrimony"},{page:"GooCampus Edu",ig:"@goocampus"},{page:"GooCampus World",ig:"@goocampusworld"},{page:"12thplus.com",ig:"@12thplusdotcom"}];
+const YT_CHANNELS=["Samvaya Matrimony","GooCampus","12thplus"];
+const LI_PAGES=["GooCampus","GooCampus World"];
+let LOGOS={}, sel="samvaya_matrimony";
+
+const B=()=>BRANDS.find(b=>b.id===sel);
+const nConn=b=>ORDER.filter(k=>b.c[k]).length;
+const initials=n=>n.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const logo=(b,s)=>`<span class="logo" style="width:${s}px;height:${s}px;font-size:${Math.round(s/2.8)}px">${b.logo||LOGOS[b.id]?`<img src="${b.logo||LOGOS[b.id]}" alt="">`:initials(b.name)}</span>`;
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const toast=t=>{const e=document.getElementById("toast");e.textContent=t;e.style.display="block";clearTimeout(e._t);e._t=setTimeout(()=>e.style.display="none",2400)};
+
+function render(){
+  document.getElementById("count").textContent=`${BRANDS.length} brands`;
+  document.getElementById("addBtn").innerHTML=`${ic("plus",15)}Add brand`;
+  document.getElementById("list").innerHTML=BRANDS.map(b=>`<button class="it${b.id===sel?" on":""}" data-id="${b.id}">${logo(b,40)}<span style="flex:1;min-width:0"><span class="n">${esc(b.name)}</span><span class="s">${nConn(b)} of 4 connected</span>
+    <span class="dots">${ORDER.map(k=>`<span class="dot ${b.c[k]?"y":"n"}" title="${PLAT[k].n}: ${b.c[k]?"connected":"not connected"}">${ic(k,13)}</span>`).join("")}</span></span></button>`).join("");
+  document.querySelectorAll("#list .it").forEach(x=>x.onclick=()=>{sel=x.dataset.id;render()});
+  const b=B();
+  const where=[["Brand picker",true],["Overview",nConn(b)>0],["Audience",!!(b.c.instagram||b.c.facebook||b.c.youtube)],["Instagram tab",!!b.c.instagram],["Facebook tab",!!b.c.facebook],["LinkedIn tab",!!b.c.linkedin],["YouTube tab",!!b.c.youtube],["Scheduler (posting)",!!(b.c.instagram||b.c.facebook)]];
+  document.getElementById("pane").innerHTML=`
+    <div class="ph">${logo(b,72)}<div style="flex:1;min-width:0">
+      <input id="nm" value="${esc(b.name)}" aria-label="Brand name">
+      <div class="sub">${nConn(b)} of 4 accounts connected${b.fixed?" · one of your four original brands":" · added here"}</div></div>
+      <button class="btn sm" id="logoBtn">${ic("upload",15)}${b.logo||LOGOS[b.id]?"Change logo":"Upload logo"}</button></div>
+    ${!b.logo&&!LOGOS[b.id]?`<div class="note">No logo yet — it fills in from the Instagram profile picture once Instagram is connected, or upload one now.</div>`:""}
+    <div class="sec">Accounts</div>
+    <div class="grid">${ORDER.map(k=>{const v=b.c[k], why=b.why?.[k];
+      return `<div class="conn"><div class="top"><span class="pic" style="background:${PLAT[k].c}14;color:${PLAT[k].c}">${ic(k,20)}</span>
+        <div style="flex:1;min-width:0"><div class="t">${PLAT[k].n}</div><div class="st ${v?"y":why?"w":"n"}">${v?`Connected · ${esc(v)}`:why?"Not connected — needs finishing":"Not connected"}</div></div>
+        ${v?`<span class="dot y" style="width:26px;height:26px">${ic("check",15)}</span>`:""}</div>
+        <div class="d">${v?(k==="youtube"?"Renews itself every hour — nothing to do.":k==="linkedin"?"Member sign-in renews about every 60 days; you'll get a reminder.":"Meta access renews about every 60 days; you'll get a reminder."):esc(why||PLAT[k].how)}</div>
+        <div class="act">${v?`<button class="btn sm" data-re="${k}">Reconnect</button><button class="btn sm ghost" data-off="${k}">Disconnect</button>`:`<button class="btn sm pri" data-on="${k}">${ic("link",15)}Connect ${PLAT[k].n}</button>`}</div></div>`}).join("")}</div>
+    <div class="sec">Where this brand shows up</div>
+    <div class="where">${where.map(([t,y])=>`<span class="chip ${y?"y":""}">${y?"✓ ":""}${t}</span>`).join("")}</div>
+    <div class="note">A tab stays greyed out for this brand until its account is connected, so one brand's numbers never show inside another's.</div>
+    ${b.fixed?"":`<div class="sec">Remove</div><button class="btn sm ghost" id="hide" style="padding-left:0">Hide this brand</button><div class="note">Hiding keeps its history; it just leaves the brand picker.</div>`}`;
+  document.getElementById("nm").onchange=e=>{const v=e.target.value.trim();if(v){b.name=v;render();toast("Renamed")}};
+  document.getElementById("logoBtn").onclick=()=>pickLogo(b);
+  document.querySelectorAll("[data-on],[data-re]").forEach(x=>x.onclick=()=>connect(b,x.dataset.on||x.dataset.re));
+  document.querySelectorAll("[data-off]").forEach(x=>x.onclick=()=>{const k=x.dataset.off;if(k==="instagram"||k==="facebook"){b.c.instagram=null;b.c.facebook=null}else b.c[k]=null;render();toast(`${PLAT[k].n} disconnected`)});
+  const h=document.getElementById("hide"); if(h)h.onclick=()=>{BRANDS=BRANDS.filter(x=>x!==b);sel=BRANDS[0].id;render();toast("Brand hidden")};
+}
+
+function modal(html){const m=document.getElementById("modal");document.getElementById("mb").innerHTML=html;m.classList.add("on");
+  m.onclick=e=>{if(e.target===m)close()};const x=document.querySelector("#mb .x");if(x)x.onclick=close}
+function close(){document.getElementById("modal").classList.remove("on")}
+const head=(t,s)=>`<div class="mh"><div><h3>${t}</h3><div class="sub">${s}</div></div><button class="x" aria-label="Close">${ic("x",18)}</button></div>`;
+
+function pickLogo(b){const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{b.logo=r.result;render();toast("Logo updated")};r.readAsDataURL(f)};i.click()}
+
+// ── simulated sign-ins ─────────────────────────────────────────────────────
+function connect(b,k){
+  if(k==="instagram"||k==="facebook"){
+    modal(head("Connect Instagram + Facebook",`for ${esc(b.name)}`)+`<div class="steps"><i class="on"></i><i class="on"></i></div><div class="sim">Simulated — the real button opens Meta's sign-in, then shows this list.</div>
+      <div style="font-size:13px;color:var(--soft);margin-bottom:10px">Pick the brand's Facebook page. Its Instagram connects with it.</div>
+      ${META_PAGES.map((p,i)=>{const used=BRANDS.find(x=>x!==b&&x.c.facebook===p.page);return `<div class="opt${used?" dis":""}" data-i="${i}"><span class="pic" style="background:#1877F214;color:#1877F2">${ic("facebook",18)}</span><div><div class="n">${esc(p.page)}</div><div class="s">Instagram ${esc(p.ig)}${used?` · already used by ${esc(used.name)}`:""}</div></div></div>`}).join("")}
+      <div class="note">Don't see the page? It isn't in the GooCampus Meta Business account yet — add it there first (Business settings → Pages).</div>`);
+    document.querySelectorAll("#mb .opt:not(.dis)").forEach(o=>o.onclick=()=>{const p=META_PAGES[+o.dataset.i];b.c.facebook=p.page;b.c.instagram=p.ig;close();render();toast(`${b.name}: Instagram + Facebook connected`)});
+  } else if(k==="youtube"){
+    modal(head("Connect YouTube",`for ${esc(b.name)}`)+`<div class="sim">Simulated — the real button opens Google's sign-in for the channel owner.</div>
+      ${YT_CHANNELS.map((c,i)=>{const used=BRANDS.find(x=>x!==b&&x.c.youtube===c);return `<div class="opt${used?" dis":""}" data-i="${i}"><span class="pic" style="background:#FF000014;color:#FF0000">${ic("youtube",18)}</span><div><div class="n">${esc(c)}</div><div class="s">${used?`already used by ${esc(used.name)}`:"YouTube channel"}</div></div></div>`}).join("")}
+      <div class="note">Google ties the sign-in to the one channel picked, so each brand's channel is connected by its own owner, once.</div>`);
+    document.querySelectorAll("#mb .opt:not(.dis)").forEach(o=>o.onclick=()=>{b.c.youtube=YT_CHANNELS[+o.dataset.i];close();render();toast(`${b.name}: YouTube connected`)});
+  } else {
+    modal(head("Connect LinkedIn",`for ${esc(b.name)}`)+`<div class="sim">Simulated — the real list comes from the company pages your LinkedIn login manages.</div>
+      ${LI_PAGES.map((c,i)=>{const used=BRANDS.find(x=>x!==b&&x.c.linkedin===c);return `<div class="opt${used?" dis":""}" data-i="${i}"><span class="pic" style="background:#0A66C214;color:#0A66C2">${ic("linkedin",18)}</span><div><div class="n">${esc(c)}</div><div class="s">${used?`already used by ${esc(used.name)}`:"Company page"}</div></div></div>`}).join("")}
+      <div class="note">No page for this brand? Create it on LinkedIn and make info@goocampus an admin, then it appears here.</div>`);
+    document.querySelectorAll("#mb .opt:not(.dis)").forEach(o=>o.onclick=()=>{b.c.linkedin=LI_PAGES[+o.dataset.i];close();render();toast(`${b.name}: LinkedIn connected`)});
+  }
+}
+
+// ── add a brand ────────────────────────────────────────────────────────────
+document.getElementById("addBtn").onclick=()=>{
+  let logoData=null;
+  modal(head("Add a brand","Name and logo now — connect its accounts on the next screen.")+`<div class="steps"><i class="on"></i><i></i></div>
+    <label class="f">Brand name</label><input class="in" id="bn" placeholder="e.g. GooCampus Ireland">
+    <label class="f">Logo (optional)</label><div class="drop" id="bl"><span class="logo" id="blp" style="width:48px;height:48px;font-size:16px">${ic("upload",18)}</span><span>Upload a square logo — or skip it and it'll use the Instagram picture once connected.</span></div>
+    <div style="display:flex;gap:10px;margin-top:22px"><button class="btn pri" id="bgo">Add brand</button><button class="btn" id="bcancel">Cancel</button></div>`);
+  document.getElementById("bcancel").onclick=close;
+  document.getElementById("bl").onclick=()=>{const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{logoData=r.result;document.getElementById("blp").innerHTML=`<img src="${logoData}" alt="">`};r.readAsDataURL(f)};i.click()};
+  document.getElementById("bgo").onclick=()=>{const n=document.getElementById("bn").value.trim();if(!n){document.getElementById("bn").focus();return}
+    const id=n.toLowerCase().replace(/[^a-z0-9]+/g,"_");BRANDS.push({id,name:n,fixed:false,logo:logoData,c:{instagram:null,facebook:null,linkedin:null,youtube:null}});sel=id;close();render();toast(`${n} added — now connect its accounts`)};
+  setTimeout(()=>document.getElementById("bn")?.focus(),50);
+};
+
+render();
+fetch("/api/account-avatars").then(r=>r.ok?r.json():null).then(j=>{if(j?.avatars){LOGOS=j.avatars;render()}}).catch(()=>{});
+</script></body></html>

@@ -16,6 +16,16 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 type Avatars = Record<string, string>; // accountId -> data URI
 
+// Logos uploaded on the Brands page (docs/BRANDS_SPEC.md) win over the Instagram picture —
+// they're also the only logo a brand without a connected Instagram can have.
+async function uploadedLogos(db: ReturnType<typeof getSupabase>): Promise<Avatars> {
+  if (!db) return {};
+  try {
+    const { data } = await db.from("discover_cache").select("payload").eq("cache_key", "brands:logos").maybeSingle();
+    return (data?.payload as Avatars) || {};
+  } catch { return {}; }
+}
+
 async function toDataUri(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -45,7 +55,7 @@ export async function GET() {
         .maybeSingle();
       const age = data?.last_fetched ? Date.now() - new Date(data.last_fetched).getTime() : Infinity;
       if (data?.payload && age < CACHE_TTL_MS) {
-        return NextResponse.json({ avatars: data.payload as Avatars, cached: true });
+        return NextResponse.json({ avatars: { ...(data.payload as Avatars), ...(await uploadedLogos(db)) }, cached: true });
       }
     } catch {
       /* fall through to a live fetch */
@@ -80,5 +90,5 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ avatars, cached: false });
+  return NextResponse.json({ avatars: { ...avatars, ...(await uploadedLogos(db)) }, cached: false });
 }
