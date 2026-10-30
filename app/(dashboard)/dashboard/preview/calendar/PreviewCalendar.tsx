@@ -5,6 +5,7 @@ import { PreviewSelect } from "@/app/(dashboard)/dashboard/preview/PreviewSelect
 import { PreviewDatePicker } from "@/app/(dashboard)/dashboard/preview/PreviewDatePicker";
 import { fmtDateTime } from "@/lib/date";
 import { SoundVideo } from "@/components/SoundVideo";
+import { CopyLink, taskLinkPath } from "../CopyLink";
 
 // Themed (Version 2) Publishing Calendar — built to match the the dashboard theme reference
 // page 1:1 (special-pages/calender.html): blue hero band → "Calendar" title card
@@ -700,7 +701,11 @@ function DetailModal({ post, onClose, onRetried, onReschedule }: {
         <span className="hcal-modal-status" style={{ color: st.text }}>{st.label}</span>
         <span className="hcal-modal-acct" style={{ background: acct.soft, color: acct.color }}>{acct.handle}</span>
       </div>
-      <button className="hcal-modal-x" onClick={onClose}>×</button>
+      <span className="flex items-center gap-2">
+        {/* A post read straight from Instagram (id "ig-…") has no task — its link is the post itself. */}
+        {post.id.startsWith("ig-") ? (post.instagramUrl && <CopyLink path={post.instagramUrl} iconOnly />) : <CopyLink path={taskLinkPath(post.id)} iconOnly />}
+        <button className="hcal-modal-x" onClick={onClose}>×</button>
+      </span>
     </div>
   );
   const detailsEl = (

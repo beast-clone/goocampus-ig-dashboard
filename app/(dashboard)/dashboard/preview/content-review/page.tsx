@@ -11,6 +11,7 @@ import { PdfThumb, isPdf, pdfPageCount } from "@/components/PdfThumb";
 import { fmtDate } from "@/lib/date";
 import { SoundVideo } from "@/components/SoundVideo";
 import MissingFieldsModal, { gateFromResponse, type GateBlock } from "../MissingFieldsModal";
+import { CopyLink, taskLinkPath } from "../CopyLink";
 import {
   IconChecklist, IconRefresh, IconCalendarPlus, IconArrowBackUp,
   IconClipboardCheck, IconLayoutGrid, IconTable, IconX, IconChevronLeft, IconChevronRight, IconCalendarEvent, IconPlayerPlayFilled,
@@ -258,6 +259,7 @@ function Review() {
               <button disabled={busy} onClick={() => { setFeedbackFor(feedbackFor === p.id ? null : p.id); setFeedbackText(""); }} className="flex items-center gap-1.5 text-xs font-medium text-[#4A5468] border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand disabled:opacity-40">
                 <IconArrowBackUp size={14} stroke={1.9} /> Send back
               </button>
+              <CopyLink path={taskLinkPath(p.id)} iconOnly className="!w-7 !h-7" />
             </div>
           </td>
         </tr>
@@ -368,6 +370,7 @@ function Review() {
               >
                 <IconArrowBackUp size={15} stroke={1.9} /> Send back
               </button>
+              <CopyLink path={taskLinkPath(p.id)} iconOnly className="!h-[38px] !w-[38px]" />
             </div>
           )}
         </div>
@@ -635,6 +638,7 @@ function Review() {
                   <div className="flex items-center gap-2">
                     <button disabled={busy} onClick={() => move(p.id, "Ready to Publish", "Push to Schedule", undefined, p.title)} title="Approve and send to the Scheduler" className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-brand rounded-lg px-3 py-2.5 hover:bg-[#2138B0] disabled:opacity-40 disabled:cursor-not-allowed"><IconCalendarPlus size={15} stroke={1.9} /> Push to Schedule</button>
                     <button disabled={busy} onClick={() => { setFeedbackFor(p.id); setFeedbackText(""); }} className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#4A5468] border border-gray-200 rounded-lg px-4 py-2.5 hover:border-brand hover:text-brand disabled:opacity-40"><IconArrowBackUp size={15} stroke={1.9} /> Send back</button>
+                    <CopyLink path={taskLinkPath(p.id)} className="!py-2.5" />
                   </div>
                 )}
               </div>
