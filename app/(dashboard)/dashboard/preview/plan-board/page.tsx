@@ -61,12 +61,30 @@ function PlanBoard() {
       if (s.hl) { ctx.globalAlpha = 0.28; ctx.globalCompositeOperation = "multiply"; }
       const base = s.hl ? s.w * 5 : s.w;
       if (p.length === 1) { ctx.beginPath(); ctx.arc(p[0][0] * w, p[0][1] * h, base / 2, 0, 7); ctx.fill(); ctx.restore(); continue; }
-      for (let i = 1; i < p.length; i++) {
-        const a = p[i - 1], b = p[i], m = p[i + 1];
-        ctx.lineWidth = s.hl ? base : base * (0.55 + b[2] * 0.9);
-        ctx.beginPath(); ctx.moveTo(a[0] * w, a[1] * h);
-        if (m) ctx.quadraticCurveTo(b[0] * w, b[1] * h, ((b[0] + m[0]) / 2) * w, ((b[1] + m[1]) / 2) * h); else ctx.lineTo(b[0] * w, b[1] * h);
+      // Curves run midpoint to midpoint with each point as the control, so neighbouring
+      // pieces meet exactly — drawing point-to-point left little barbs where they joined.
+      const X = (q: Pt) => q[0] * w, Y = (q: Pt) => q[1] * h;
+      const mid = (a: Pt, b: Pt): [number, number] => [(X(a) + X(b)) / 2, (Y(a) + Y(b)) / 2];
+      const width = (q: Pt) => (s.hl ? base : base * (0.55 + q[2] * 0.9));
+      if (s.hl || p.every((q) => q[2] === p[0][2])) {
+        // Even width (mouse, finger, highlighter): one continuous path.
+        ctx.lineWidth = width(p[0]);
+        ctx.beginPath(); ctx.moveTo(X(p[0]), Y(p[0]));
+        for (let i = 1; i < p.length - 1; i++) { const [mx, my] = mid(p[i], p[i + 1]); ctx.quadraticCurveTo(X(p[i]), Y(p[i]), mx, my); }
+        ctx.lineTo(X(p[p.length - 1]), Y(p[p.length - 1]));
         ctx.stroke();
+      } else {
+        // Pen pressure: the same curve in pieces, each its own width.
+        let [sx, sy] = [X(p[0]), Y(p[0])];
+        for (let i = 1; i < p.length; i++) {
+          const last = i === p.length - 1;
+          const [ex, ey] = last ? [X(p[i]), Y(p[i])] : mid(p[i], p[i + 1]);
+          ctx.lineWidth = width(p[i]);
+          ctx.beginPath(); ctx.moveTo(sx, sy);
+          if (last) ctx.lineTo(ex, ey); else ctx.quadraticCurveTo(X(p[i]), Y(p[i]), ex, ey);
+          ctx.stroke();
+          [sx, sy] = [ex, ey];
+        }
       }
       ctx.restore();
     }
@@ -133,7 +151,15 @@ function PlanBoard() {
     const evs = e.nativeEvent.getCoalescedEvents ? e.nativeEvent.getCoalescedEvents() : [e.nativeEvent];
     if (erasing.current) { evs.forEach((x) => eraseAt(pt(x))); return; }
     if (!cur.current) return;
-    evs.forEach((x) => cur.current!.p.push(pt(x))); draw();
+    // Light smoothing: drop points under ~1.5px apart and ease each new point toward the
+    // last one, so hand / mouse jitter doesn't show as wobbles.
+    const cv = canvasRef.current!, w = cv.clientWidth, h = cv.clientHeight, p = cur.current.p;
+    evs.forEach((x) => {
+      const q = pt(x), l = p[p.length - 1];
+      if (Math.hypot((q[0] - l[0]) * w, (q[1] - l[1]) * h) < 1.5) return;
+      p.push([l[0] + (q[0] - l[0]) * 0.6, l[1] + (q[1] - l[1]) * 0.6, q[2]]);
+    });
+    draw();
   };
   const onUp = () => {
     if (erasing.current) { erasing.current = false; return; }
