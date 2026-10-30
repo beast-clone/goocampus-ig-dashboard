@@ -163,7 +163,7 @@ export async function resolveDateChange(sb: SB, opts: { postId: string; action: 
   if (opts.action === "approve") {
     const { error } = await sb.from("mh_posts").update({ publishing_date: req.to, due_date: req.to }).eq("id", opts.postId);
     if (error) return { ok: false, error: error.message };
-    await sb.from("mh_activity").insert({ post_id: opts.postId, actor_key: opts.approverKey, action: "rescheduled", from_value: fmt(req.from), to_value: fmt(req.to), detail: note || undefined });
+    await sb.from("mh_activity").insert({ post_id: opts.postId, actor_key: opts.approverKey, action: "date_change_approved", from_value: fmt(req.from), to_value: fmt(req.to), detail: note || undefined });
     await postTeamMessage(sb, opts.approverKey, `✅ ${who} approved the publish-date change on “${req.title}” → ${fmt(req.to)}${noteLine}.`);
     await postSlack(`✅ *${who}* approved the publish-date change on *“${req.title}”* → *${fmt(req.to)}*.${noteSlack}`);
   } else {

@@ -4110,6 +4110,9 @@ function wordDiff(oldStr: string, newStr: string): React.ReactNode {
 export const ACT_VERB: Record<string, string> = {
   created: "created this", status_changed: "changed the status", owner_changed: "reassigned this",
   rescheduled: "rescheduled this", due_date_changed: "changed the due date", renamed: "renamed this",
+  // Publish-date approvals (lib/date-approvals): the approver accepts a request, they don't reschedule.
+  date_change_requested: "asked to change the publish date", date_change_approved: "approved the date change request",
+  date_change_rejected: "declined the date change request",
   priority_changed: "changed the priority", type_changed: "changed the type", content_edited: "edited the content",
   caption_edited: "edited the caption", notes_edited: "edited the notes", sbu_changed: "changed the brand",
   platforms_changed: "changed platforms", review_changed: "toggled review", output_link_changed: "updated the output link",

@@ -73,7 +73,7 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
     .from("mh_activity")
     .select("id, post_id, actor_key, action, from_value, to_value, detail, created_at")
     // All edits now log as status_changed / owner_changed / claim (app-attributed).
-    .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "swap_requested", "date_change_requested", "time_extended"])
+    .in("action", ["claim", "status_changed", "owner_changed", "due_date_changed", "rescheduled", "date_change_approved", "swap_requested", "date_change_requested", "time_extended"])
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(160);
@@ -183,6 +183,10 @@ export async function buildNotifs(sb: SupabaseClient, person: string, since: str
       n = mins < 0
         ? { cat: "progress", kind: "message", emoji: "↩️", title: `Time taken back — ${asText}`, sub: `${nameOf(e.actor_key)} removed ${asText} from “${short}”${why ? ` — ${why}` : ""}.`, postId: e.post_id }
         : { cat: "progress", kind: "message", emoji: "⏱️", title: `Task extended — +${asText}`, sub: `${nameOf(e.actor_key)} needs ${asText} longer on “${short}”${why ? ` — ${why}` : ""}.`, postId: e.post_id };
+    } else if (e.action === "date_change_approved") {
+      // An admin approved a requested publish-date change (lib/date-approvals).
+      target = keysWithRole("writer");
+      n = { cat: "dates", kind: "message", emoji: "📅", title: `${nameOf(e.actor_key)} approved a date change`, sub: `"${short}" → ${e.to_value || "updated"}${e.from_value ? ` (was ${e.from_value})` : ""}.` };
     } else if (e.action === "due_date_changed" || e.action === "rescheduled") {
       // A producer moved a date (e.g. make-room rolled a task to tomorrow) →
       // Manya, who created/plans the work, gets the change request in HER
