@@ -38,7 +38,7 @@ export const API_KEYS: ApiKeyEntry[] = [
   { group: "Leads, sales & messages", service: "Airtable", env: ["AIRTABLE_API_KEY"], use: "The CRM leads behind Marketing Leads, Sales Hub and Campaigns." },
   { group: "Leads, sales & messages", service: "Razorpay", env: ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_EBOOK_WEBHOOK_SECRET"], use: "e-Book Orders — every e-Book payment; the webhook secret checks incoming payment alerts." },
   { group: "Leads, sales & messages", service: "SendPulse", env: ["SENDPULSE_CLIENT_ID", "SENDPULSE_CLIENT_SECRET"], use: "Instagram DM bridging (the DM inbox and DM leads)." },
-  { group: "Leads, sales & messages", service: "WhatsApp (WAHA via n8n)", env: ["WAHA_READ_WEBHOOK", "WAHA_SESSION_WEBHOOK"], use: "Community Broadcast — sending WhatsApp messages and linking the number." },
+  { group: "Leads, sales & messages", service: "WhatsApp (WAHA via n8n)", env: ["CRON_SECRET", "WAHA_READ_WEBHOOK", "WAHA_SESSION_WEBHOOK"], use: "Community Broadcast — sending WhatsApp messages and linking the number. Goes through n8n, protected by CRON_SECRET; the two WAHA addresses are built in and only need setting to point elsewhere." },
 
   // Notifications
   { group: "Email & notifications", service: "Gmail", env: ["GMAIL_USER", "GMAIL_APP_PASSWORD"], db: ["gmail", "gmail:"], use: "Sending emails (approvals, digests) and reading the info@ / praveen@ inboxes." },
