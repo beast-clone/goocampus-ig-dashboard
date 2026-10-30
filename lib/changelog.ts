@@ -32,11 +32,32 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
+    date: "2026-10-30",
+    title: "Plan board, Copy link, approval history, and rules that are really in charge",
+    summary: "Plan by hand on the new Plan board, share any task or post with one link, see every date change that was approved, and the Rules page now decides who gets each task.",
+    changes: [
+      { kind: "new", what: "Plan board", detail: "A new tab above Content calendar: write and draw with your mouse, a pen or your finger, like on paper — pen, highlighter, eraser, colours, undo. Nearly straight lines snap straight (turn it off with \"Straight lines\"). Each person's board is saved and only they see it. The calendar boards are coming soon.", where: "Content" },
+      { kind: "fixed", what: "The rules on the Rules page are really used now", detail: "Rules were saved but tasks ignored them — the main switch had been off since 27 Oct, so every approved design task still went to Praveen (a 12thPlus carousel went to Praveen instead of Nandu). The switch is on: who gets a task follows the Rules page, and every \"goes to Praveen\" note now names whoever the rules pick.", where: "Marketing Hub" },
+      { kind: "new", what: "Approvals history", detail: "The Approvals tab has a History view: every publish-date change that was approved or rejected, by whom and when, with counts per admin.", where: "My Workspace" },
+      { kind: "fixed", what: "\"Approved the date change request\", not \"rescheduled this\"", detail: "Approving a date change showed in the task's activity as if the approver had rescheduled it. It now says \"approved the date change request\" (or \"declined…\"), and the request reads \"asked to change the publish date\".", where: "Marketing Hub" },
+      { kind: "new", what: "Copy link on posts and tasks", detail: "Every post in the Scheduler, every item in Content Review and every post in the Publishing Calendar has Copy link — paste it in WhatsApp or Slack and it opens straight on that post. Someone who isn't signed in comes back to it after signing in.", where: "Scheduler" },
+      { kind: "new", what: "API keys tab", detail: "Every outside service the dashboard connects to, what it's used for and whether its key is set (values are never shown). \"Copy as a list\" gives a list ready to send.", where: "System" },
+    ],
+  },
+  {
     date: "2026-10-29",
-    title: "Your real sign-in time",
-    summary: "The Started badge shows when you actually signed in.",
+    title: "Attendance, Marketing Leads, Brands, and maps",
+    summary: "A rebuilt Attendance tab, Marketing Leads for DM leads, a Brands page to connect each brand's accounts, India and world maps wherever geography shows, and Samvaya on Instagram, Facebook and YouTube.",
     changes: [
       { kind: "fixed", what: "Started shows the real time before 9 AM", detail: "Signing in at 8:58 showed \"Started 9:00 AM\" — anything before 9 was rounded up. It now shows 8:58. Today's plan still begins at your shift.", where: "My Day" },
+      { kind: "new", what: "Attendance tab", detail: "Day, week, month or a custom range: when each person arrived and left, hours worked (lunch taken off), a graph, and a PDF report with the graph that you can preview first.", where: "My Workspace" },
+      { kind: "changed", what: "Social Leads is now Marketing Leads", detail: "It shows only DM leads (paid ad leads stay in Campaigns), by brand, with a custom date range, the date and time of each lead, and whether a counsellor has contacted them — the same rule as Sales Hub. New lead sources (like WhatsApp) are flagged so an admin can add them as a tab.", where: "Sales" },
+      { kind: "new", what: "Maps wherever geography shows", detail: "\"Where your followers are\" and every other location list now has the list on the left and a map on the right — India by state, or the world by country.", where: "Analytics" },
+      { kind: "removed", what: "Organic Sales tab", detail: "It repeated e-Book Orders from incomplete Airtable data. e-Book Orders (Organic Sales) is the one e-Book tab.", where: "Sales" },
+      { kind: "new", what: "Brands page", detail: "Every brand, its logo (upload one) and which of its Instagram, Facebook, LinkedIn and YouTube accounts are really connected. Add a brand, connect its Instagram + Facebook by picking its page, and send a YouTube connect link to a channel's owner.", where: "System" },
+      { kind: "new", what: "Samvaya Matrimony is connected", detail: "Instagram, Facebook and YouTube now show Samvaya's real numbers, and its logo is in the brand picker.", where: "Overview" },
+      { kind: "changed", what: "YouTube follows the brand picker", detail: "The YouTube tabs had their own GooCampus / 12thplus / Samvaya buttons on top of the brand dropdown. Now the dropdown at the top decides, like every other tab.", where: "YouTube" },
+      { kind: "fixed", what: "Notification icons", detail: "The bell used emojis; it now uses the dashboard's own icons.", where: "Overview" },
     ],
   },
   {
