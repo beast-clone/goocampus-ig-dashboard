@@ -4,23 +4,26 @@ import { getSupabase } from "@/lib/supabase";
 import { getSessionUserId } from "@/lib/auth";
 import { safeError } from "@/lib/errors";
 import { bustMarketingHubCache } from "@/lib/mh-cache";
-import { listPendingDateChanges, resolveDateChange, getDateChange } from "@/lib/date-approvals";
+import { listPendingDateChanges, listDateChangeHistory, resolveDateChange, getDateChange } from "@/lib/date-approvals";
 import { rosterById } from "@/lib/team-db";
 
 // Publish-date change approvals.
 //   GET  /api/marketing-hub/date-change              → pending requests (for the panel)
+//        ?history=1 adds every approved / rejected one (the Approvals tab's History)
 //   POST /api/marketing-hub/date-change { postId, action:"approve"|"reject", actor? }
 //        → approve writes the date; reject discards. Any admin may resolve, except
 //          the person who asked.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const denied = await requireSection("content");
   if (denied) return denied;
   const sb = getSupabase();
   if (!sb) return NextResponse.json({ requests: [] });
   try {
-    return NextResponse.json({ requests: await listPendingDateChanges(sb) });
+    const withHistory = new URL(req.url).searchParams.get("history") === "1";
+    const [requests, history] = await Promise.all([listPendingDateChanges(sb), withHistory ? listDateChangeHistory(sb) : Promise.resolve(undefined)]);
+    return NextResponse.json({ requests, ...(history ? { history } : {}) });
   } catch (err) {
     return NextResponse.json(safeError(err, "Could not load date-change requests"), { status: 502 });
   }

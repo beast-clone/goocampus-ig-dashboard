@@ -3,7 +3,7 @@ import { onDayPlan } from "@/lib/my-day-task";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { estimateTaskMinutes } from "@/lib/task-estimate";
-import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClock, IconChecks, IconLayoutList, IconExternalLink, IconCalendarDue } from "@tabler/icons-react";
+import { IconUsersGroup, IconRefresh, IconAlertTriangle, IconArrowRight, IconClock, IconChecks, IconLayoutList, IconExternalLink, IconCalendarDue, IconCheck, IconX, IconHistory } from "@tabler/icons-react";
 import { LoadingBlock } from "@/components/LoadingBlock";
 import { useTeam, mergeTeam, NEWCOMER_COLOR } from "@/lib/use-team";
 import { shouldPoll } from "@/lib/quiet-hours";
@@ -18,7 +18,8 @@ import { useAppSettings } from "@/lib/use-app-settings";
 
 type AttRow = { key: string; name: string; role: string; loginAt: string | null; logoutAt: string | null; doneToday: number };
 type MyDayTask = { id: string; title: string; status: string; due: string; detail: { typeLine: string; owner: string; priority: string; brand: string; startAt: string; endAt: string; duration?: number; presenter?: string } };
-type DateReq = { postId: string; title: string; type?: string; owner?: string; createdAt?: string; creator?: string; from: string | null; to: string | null; reason?: string; requestedBy: string };
+type DateReq = { postId: string; title: string; type?: string; owner?: string; createdAt?: string; creator?: string; from: string | null; to: string | null; reason?: string; requestedBy: string;
+  status?: "pending" | "approved" | "rejected" | "superseded"; resolvedBy?: string; resolvedAt?: string; resolvedNote?: string };
 
 // Today's team with colours; Team-page newcomers are appended in TeamCommand.
 const ROSTER = [
@@ -133,6 +134,10 @@ export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } =
   const [approvals, setApprovals] = useState<DateReq[]>([]);
   const [apprBusy, setApprBusy] = useState<string | null>(null);
   const [apprNotes, setApprNotes] = useState<Record<string, string>>({}); // approver's note per request
+  // Approvals → History: every approved / rejected date change (lib/date-approvals LOG_KEY).
+  const [history, setHistory] = useState<DateReq[]>([]);
+  const [apprTab, setApprTab] = useState<"waiting" | "history">("waiting");
+  const [histBy, setHistBy] = useState("");   // "" = everyone
   useEffect(() => { setDateStr(new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })); }, []);
 
   const load = useCallback(async () => {
@@ -140,14 +145,15 @@ export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } =
       const [a, m, ap] = await Promise.all([
         fetch("/api/my-day/attendance?view=day", { cache: "no-store" }).then((r) => (r.ok ? r.json() : { rows: [] })),
         fetch("/api/my-day", { cache: "no-store" }).then((r) => (r.ok ? r.json() : { tasks: [] })),
-        fetch("/api/marketing-hub/date-change", { cache: "no-store" }).then((r) => (r.ok ? r.json() : { requests: [] })),
+        fetch(`/api/marketing-hub/date-change${view === "approvals" ? "?history=1" : ""}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : { requests: [] })),
       ]);
       setAtt((a.rows || []) as AttRow[]);
       setTasks((m.tasks || []) as MyDayTask[]);
       setApprovals((ap.requests || []) as DateReq[]);
+      if (ap.history) setHistory(ap.history as DateReq[]);
       setFetchedAt(new Date());
     } catch { /* keep last */ } finally { setLoading(false); }
-  }, []);
+  }, [view]);
   useEffect(() => {
     load();
     // Only while the tab is on screen — a background tab polling all night costs
@@ -218,6 +224,8 @@ export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } =
         {view === "approvals" ? (
           <div className="tc-hstats">
             <div className="tc-stat"><div className="n">{approvals.length}</div><div className="k">Waiting</div></div>
+            <div className="tc-stat"><div className="n">{history.filter((h) => h.status === "approved").length}</div><div className="k">Approved</div></div>
+            <div className="tc-stat"><div className="n">{history.filter((h) => h.status === "rejected").length}</div><div className="k">Rejected</div></div>
             <button className="tc-refresh" onClick={load} title="Refresh"><IconRefresh size={16} stroke={1.8} className={loading ? "spin" : ""} /></button>
           </div>
         ) : (
@@ -231,10 +239,15 @@ export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } =
         )}
       </div>
 
-      {view === "approvals" ? (
+      {view === "approvals" ? (<>
+        <div className="tc-seg">
+          <button className={apprTab === "waiting" ? "on" : ""} onClick={() => setApprTab("waiting")}><IconCalendarDue size={15} stroke={1.8} />Waiting <span className="c">{approvals.length}</span></button>
+          <button className={apprTab === "history" ? "on" : ""} onClick={() => setApprTab("history")}><IconHistory size={15} stroke={1.8} />History <span className="c">{history.length}</span></button>
+        </div>
+        {apprTab === "history" ? <ApprovalHistory rows={history} by={histBy} setBy={setHistBy} /> : (
         /* APPROVALS — publish-date changes waiting for Maheen */
         approvals.length === 0 ? (
-          <div className="tc-appr-empty"><div className="tc-appr-check">✓</div>No approvals needed right now.</div>
+          <div className="tc-appr-empty"><div className="tc-appr-check"><IconChecks size={22} stroke={1.8} /></div>No approvals needed right now.</div>
         ) : (
           <div className="tc-appr-list">
             {approvals.map((r) => {
@@ -275,8 +288,8 @@ export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } =
               </div>
             ); })}
           </div>
-        )
-      ) : (
+        ))}
+      </>) : (
       /* MASTER–DETAIL */
       <div className="tc-layout">
         {/* Rail — choose a person */}
@@ -380,7 +393,71 @@ export function TeamCommand({ mode = "team" }: { mode?: "team" | "approvals" } =
   );
 }
 
+// Approvals → History: every publish-date change an admin approved or rejected, newest
+// first, with how many each admin decided (Praveen, 30 Oct).
+function ApprovalHistory({ rows, by, setBy }: { rows: DateReq[]; by: string; setBy: (k: string) => void }) {
+  const admins = [...new Set(rows.map((r) => r.resolvedBy || "").filter(Boolean))];
+  const count = (k: string, st: "approved" | "rejected") => rows.filter((r) => r.resolvedBy === k && r.status === st).length;
+  const shown = by ? rows.filter((r) => r.resolvedBy === by) : rows;
+  const when = (d?: string) => (d ? new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "—");
+  if (!rows.length) return <div className="tc-appr-empty">No approvals decided yet.</div>;
+  return (
+    <div className="tc-hist">
+      <div className="tc-hist-by">
+        <button className={!by ? "on" : ""} onClick={() => setBy("")}>Everyone <span className="c">{rows.length}</span></button>
+        {admins.map((k) => {
+          const a = avatarFor(k);
+          return (
+            <button key={k} className={by === k ? "on" : ""} onClick={() => setBy(by === k ? "" : k)}>
+              <span className="tc-ppl-av sm" style={{ background: a.color }}>{a.av}</span>{nameCap(k)}
+              <span className="c">{count(k, "approved")} approved{count(k, "rejected") ? ` · ${count(k, "rejected")} rejected` : ""}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="tc-hist-table">
+        <div className="tc-hist-row head"><span>Task</span><span>Date change</span><span>Requested by</span><span>Decision</span><span>When</span></div>
+        {shown.map((r) => (
+          <div key={`${r.postId}:${r.resolvedAt}`} className="tc-hist-row">
+            <span className="t">
+              <a href={`/dashboard/preview/marketing-hub?tab=master&open=${r.postId}`}>{r.title}</a>
+              {r.resolvedNote ? <span className="note">Note: {r.resolvedNote}</span> : null}
+            </span>
+            <span className="d">{fmtFull(r.from)} <IconArrowRight size={13} stroke={2} /> <b>{fmtFull(r.to)}</b></span>
+            <span>{nameCap(r.requestedBy)}</span>
+            <span><span className={`tc-hist-badge ${r.status}`}>{r.status === "approved" ? <IconCheck size={13} stroke={2.2} /> : <IconX size={13} stroke={2.2} />}{r.status === "approved" ? "Approved" : "Rejected"}</span> by {nameCap(r.resolvedBy)}</span>
+            <span className="w">{when(r.resolvedAt)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const CSS = `
+.tcmd .tc-seg{display:inline-flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;margin-top:16px}
+.tcmd .tc-seg button{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;border-radius:9px;padding:7px 14px;font:500 14px/1 inherit;color:var(--soft);cursor:pointer}
+.tcmd .tc-seg button.on{background:var(--brand);color:#fff}
+.tcmd .tc-seg .c,.tcmd .tc-hist-by .c{font-size:12px;opacity:.75}
+.tcmd .tc-hist{margin-top:14px;max-width:1120px}
+.tcmd .tc-hist-by{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.tcmd .tc-hist-by button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 12px 6px 8px;font:500 13px/1 inherit;color:var(--ink);cursor:pointer}
+.tcmd .tc-hist-by button.on{border-color:var(--brand);background:#E9ECFB;color:var(--brand)}
+.tcmd .tc-ppl-av.sm{width:22px;height:22px;font-size:11px}
+.tcmd .tc-hist-table{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.tcmd .tc-hist-row{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.4fr) minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1fr);gap:12px;align-items:center;padding:11px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--ink)}
+.tcmd .tc-hist-row.head{border-top:0;background:#F6F7FB;font-size:12px;font-weight:500;color:var(--soft);text-transform:uppercase;letter-spacing:.03em}
+.tcmd .tc-hist-row .t a{color:var(--ink);font-weight:500;text-decoration:none}
+.tcmd .tc-hist-row .t a:hover{color:var(--brand)}
+.tcmd .tc-hist-row .note{display:block;font-size:12px;color:var(--soft);margin-top:2px}
+.tcmd .tc-hist-row .d{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+.tcmd .tc-hist-row .d b{font-weight:500}
+.tcmd .tc-hist-row .w{color:var(--soft)}
+.tcmd .tc-hist-badge{display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:2px 8px;font-size:12px;font-weight:500}
+.tcmd .tc-hist-badge.approved{background:#E3F5EA;color:#137A3E}
+.tcmd .tc-hist-badge.rejected{background:#FDECEC;color:#C0201F}
+@media (max-width:900px){.tcmd .tc-hist-row{grid-template-columns:1fr 1fr}.tcmd .tc-hist-row.head{display:none}}
+
 .tcmd{--brand:#3A57E8;--brand-ink:#2138B0;--brand-soft:#E9ECFB;--brand-rgb:58 87 232;--brand-dark-rgb:33 56 176;--brand-light-rgb:233 236 251;--ink:#232D42;--soft:#8A92A6;--line:#EEF0F4;--panel:#fff;--canvas:#F6F7FB;
   flex:1;min-width:0;height:100vh;overflow-y:auto;background:var(--canvas);padding:22px 26px 60px;font-family:Inter,system-ui,sans-serif;color:var(--ink)}
 .tcmd *{box-sizing:border-box}

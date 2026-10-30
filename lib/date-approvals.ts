@@ -38,6 +38,11 @@ export type DateChangeRequest = {
 };
 
 const KEY = (postId: string) => `datechg:${postId}`;
+// The Approvals history (Praveen, 30 Oct: "how many tasks have I approved"). KEY holds
+// only a task's latest request, so a second date change on the same task would write
+// over the first decision — every approve/reject is also kept under its own key.
+const LOG_KEY = (postId: string, at: string) => `datechg-log:${postId}:${at}`;
+const LOG_SOURCE = "mh_date_change_log";
 // Deep link straight to the task's detail modal (?open=<id>) on the live site.
 // Netlify injects `URL` = the site's primary URL in prod; APP_URL overrides it.
 const APP_URL = (process.env.APP_URL || process.env.URL || "https://analytics.goocampus.in").replace(/\/+$/, "");
@@ -130,6 +135,13 @@ export async function listPendingDateChanges(sb: SB): Promise<DateChangeRequest[
   return (data ?? []).map((r) => r.payload as DateChangeRequest);
 }
 
+/** Every approved / rejected date change, newest first. */
+export async function listDateChangeHistory(sb: SB): Promise<DateChangeRequest[]> {
+  const { data } = await sb.from("discover_cache").select("payload").eq("source", LOG_SOURCE)
+    .order("last_fetched", { ascending: false }).limit(1000);
+  return (data ?? []).map((r) => r.payload as DateChangeRequest);
+}
+
 export async function getDateChange(sb: SB, postId: string): Promise<DateChangeRequest | null> {
   const { data } = await sb.from("discover_cache").select("payload").eq("cache_key", KEY(postId)).maybeSingle();
   return (data?.payload as DateChangeRequest) ?? null;
@@ -164,6 +176,10 @@ export async function resolveDateChange(sb: SB, opts: { postId: string; action: 
   const resolved: DateChangeRequest = { ...req, status: opts.action === "approve" ? "approved" : "rejected", resolvedBy: opts.approverKey, resolvedAt: new Date().toISOString(), resolvedNote: note || undefined };
   await sb.from("discover_cache").upsert(
     { cache_key: KEY(opts.postId), source: "mh_date_change_request", last_fetched: new Date().toISOString(), payload: resolved },
+    { onConflict: "cache_key" },
+  );
+  await sb.from("discover_cache").upsert(
+    { cache_key: LOG_KEY(opts.postId, resolved.resolvedAt!), source: LOG_SOURCE, last_fetched: resolved.resolvedAt!, payload: resolved },
     { onConflict: "cache_key" },
   );
   return { ok: true, request: resolved };
