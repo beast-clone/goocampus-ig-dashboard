@@ -7,7 +7,7 @@ import Link from "next/link";
 import { NOTIF_COUNT } from "./NotificationHost";
 import { playChime } from "./notifChime";
 import {
-  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected, IconBuildingStore,
+  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected, IconBuildingStore, IconKey,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
   IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
@@ -161,6 +161,7 @@ const GROUPS: Group[] = [
     { label: "Recycle bin",  href: `${HUB}/recycle-bin`,  icon: IconTrash },
     { label: "Integrations", href: `${HUB}/integrations`, icon: IconSettings },
     { label: "Diagnostics",  href: `${HUB}/diagnostics`,  icon: IconActivityHeartbeat },
+    { label: "API keys",     href: `${HUB}/api-keys`,     icon: IconKey },
     // The scheduled jobs the dashboard depends on all live in n8n, so there was no
     // way to see them from in here — the Airtable import sat switched off and the
     // only way to notice was to open n8n. Read-only register of what runs and when.
