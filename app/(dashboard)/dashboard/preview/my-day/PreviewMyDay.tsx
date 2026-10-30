@@ -1222,7 +1222,7 @@ function TaskBody({ task, label, onStatusChange, onSetDuration, uploadedBy, onSa
               {/* The pool is video work only (agreed 21 Oct): approved design work goes
                   to Praveen by rule. Say so where people look for it (Nandu, 13 Oct). */}
               {!isVideoType(task.detail.typeLine) && (
-                <div style={{ fontSize: 12, color: "#8A92A6", marginTop: 4, width: "100%" }}>The claim pool is for video work — approved design work goes to Praveen.</div>
+                <div style={{ fontSize: 12, color: "#8A92A6", marginTop: 4, width: "100%" }}>The claim pool is for video work — approved design work goes to whoever the Rules page hands it to.</div>
               )}
             </div>
           )}

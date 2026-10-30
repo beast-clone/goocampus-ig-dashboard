@@ -366,10 +366,13 @@ export async function PATCH(req: Request) {
     const actual = (field: string) => (field in saved ? saved[field] : clean[field]);
     let ownershipNote: string | null = null;
     if ("owner_key" in clean && (saved.owner_key ?? null) !== (clean.owner_key ?? null)) {
+      // Name whoever it was actually kept with — the Rules page decides that now, not a fixed person.
       const editorPicked = isEditor(String(clean.owner_key || ""));
+      const keptWith = String(saved.owner_key || "");
+      const kept = keptWith ? keptWith.charAt(0).toUpperCase() + keptWith.slice(1) : "the current owner";
       ownershipNote = editorPicked
-        ? `Kept with Praveen while it's design work. ${String(clean.owner_key).charAt(0).toUpperCase() + String(clean.owner_key).slice(1)} gets it as soon as the format is changed to a video type (e.g. Meta Ads - Video).`
-        : `Design tasks at this stage always belong to Praveen — change the format to a video type first to give it to someone else.`;
+        ? `Kept with ${kept} while it's design work. ${String(clean.owner_key).charAt(0).toUpperCase() + String(clean.owner_key).slice(1)} gets it as soon as the format is changed to a video type (e.g. Meta Ads - Video).`
+        : `The rules keep this task with ${kept} at this stage — change the format or the rule on the Rules page to give it to someone else.`;
     } else if ("type" in clean && isDesigner(String(beforeRow.owner_key || "")) && saved.owner_key == null && saved.status === "Content - Approved") {
       ownershipNote = "It's a video task now, so it went to the editors' claim pool for Nikhil / Nandu to pick up.";
     } else if ("type" in clean && isDesigner(String(beforeRow.owner_key || "")) && typeof saved.owner_key === "string" && !isDesigner(saved.owner_key)) {

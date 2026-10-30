@@ -32,7 +32,7 @@ export type RuleTab = {
 // The path every task takes, drawn as steps at the top of the My Day tab.
 export const TASK_FLOW: { step: string; status: string; who: string }[] = [
   { step: "1 · Writing", status: "Content - Pending", who: "With the writer — whoever has the Writer role on Team & access" },
-  { step: "2 · Approved", status: "Content - Approved", who: "Handed over by the rules below — today design → Praveen, video → the editors' pool" },
+  { step: "2 · Approved", status: "Content - Approved", who: "Handed over by the owner rules below — the first rule that fits decides who gets it" },
   { step: "3 · Producing", status: "Output - In Progress", who: "With whoever is designing or editing" },
   { step: "4 · Review", status: "Output - Ready", who: "Goes to Content Review" },
   { step: "5 · Publish", status: "Ready to Publish", who: "Picked up by the Scheduler" },

@@ -4122,9 +4122,12 @@ function loadHintRules() {
 }
 /** `who` is the person the rules hand it to (null when the hint can't tell — then the old wording). */
 function useApprovalHint(type: string, sbu: string): { hint: string; who: string | null } {
-  const fallback = { hint: isVideoType(type) ? "video work → editors" : "design work → Praveen when approved", who: null };
   const [data, setData] = useState<Awaited<ReturnType<typeof loadHintRules>> | null>(null);
   useEffect(() => { let alive = true; loadHintRules().then((d) => { if (alive) setData(d); }); return () => { alive = false; }; }, []);
+  return approvalHintFor(data, type, sbu);
+}
+function approvalHintFor(data: Awaited<ReturnType<typeof loadHintRules>> | null, type: string, sbu: string): { hint: string; who: string | null } {
+  const fallback = { hint: isVideoType(type) ? "video work → editors" : "design work → Praveen when approved", who: null };
   if (!data?.on || !type) return fallback;
   const kind = isVideoType(type) ? "video" : "design";
   const val = (f: string) => (f === "type" ? type : f === "sbu" ? sbu : f === "kind" ? kind : f === "status" ? "Content - Approved" : undefined);
@@ -4624,7 +4627,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
         title: `Change to ${v}?`,
         body: isVideoType(v)
           ? (rememberedEditor ? `This is approved, so it goes to ${rememberedEditor} (picked as owner earlier).` : "This is approved, so it goes to the video editors' claim pool.")
-          : "This is approved, so it is handed to Praveen as design work.",
+          : `This is approved, so it is handed to ${approvalHintFor(await loadHintRules(), v, sbuCur).who || "Praveen"} as design work.`,
         action: "Change format",
       });
       if (!ok) return;
