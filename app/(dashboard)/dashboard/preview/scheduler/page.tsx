@@ -7,7 +7,8 @@ import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/Previ
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { CreativeThumb } from "@/components/CreativeThumb";
 import { AutoTextarea } from "@/components/AutoTextarea";
-import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook, IconTrash, IconSearch, IconLayoutSidebarRight } from "@tabler/icons-react";
+import { IconChevronRight, IconChevronLeft, IconChevronDown, IconCheck, IconCalendarEvent, IconClock, IconPlus, IconBrandMeta, IconBrandLinkedin, IconFileTypePdf, IconPhoto, IconHeart, IconMessageCircle, IconSend, IconBookmark, IconThumbUp, IconShare3, IconRepeat, IconWorld, IconAlertTriangle, IconDeviceMobile, IconDeviceTablet, IconPaperclip, IconMovie, IconFileText, IconSparkles, IconLock, IconPencil, IconTarget, IconBolt, IconWand, IconTrendingUp, IconChartBar, IconBulb, IconCircleCheck, IconArrowBackUp, IconBrandFacebook, IconTrash, IconSearch, IconLayoutSidebarRight, IconLink } from "@tabler/icons-react";
+import { showToast } from "../Toast";
 import { LinkedInQueue } from "./LinkedInScheduler";
 import { PdfThumb, pdfPageCount } from "@/components/PdfThumb";
 import { ReelThumbnail } from "./ReelThumbnail";
@@ -1235,6 +1236,27 @@ function Scheduler() {
     if (!queueShown.length) { if (paneSel) setPaneSel(null); return; }
     if (!queueShown.some((p) => p.id === paneSel)) setPaneSel(queueShown[0].id);
   }, [listFilter, queueKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Copy link: /dashboard/preview/scheduler?post=<id> opens the Scheduler on that post,
+  // in whichever list it's in now, so a teammate can be sent straight to it.
+  const wantedPost = useRef<string | null>(typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("post"));
+  useEffect(() => {
+    const id = wantedPost.current;
+    if (!id) return;
+    const ready = toSchedule.find((t) => t.id === id);
+    if (ready) { wantedPost.current = null; setListFilter("ready"); openTask(ready); return; }
+    const k = readyToSchedule.some((p) => p.id === id) ? "scheduled" : publishedRecent.some((p) => p.id === id) ? "published"
+      : failed.some((p) => p.id === id) ? "failed" : drafts.some((p) => p.id === id) ? "drafts" : null;
+    if (k) { wantedPost.current = null; setListFilter(k); setPaneSearch(""); setPaneSel(id); }
+  }, [toSchedule, queue]); // eslint-disable-line react-hooks/exhaustive-deps
+  const copyPostLink = async (id: string) => {
+    const url = `${window.location.origin}/dashboard/preview/scheduler?post=${encodeURIComponent(id)}`;
+    try { await navigator.clipboard.writeText(url); showToast({ who: "Link copied", body: "Anyone on the team can open this post with it.", av: "✓" }); }
+    catch { window.prompt("Copy this link:", url); }
+  };
+  const copyLinkBtn = (id: string) => (
+    <button onClick={() => void copyPostLink(id)} title="Copy a link that opens this post"
+      className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 text-[#232D42] hover:border-brand hover:text-brand inline-flex items-center gap-1"><IconLink size={14} stroke={1.8} />Copy link</button>
+  );
   const stepPane = (d: number) => {
     if (listFilter === "ready") {
       const i = readyList.findIndex((t) => t.id === selectedTaskId);
@@ -1409,6 +1431,7 @@ function Scheduler() {
                       </div>
                       <div className="sched-acts">
                         {panePager(readyList.findIndex((x) => x.id === openTaskObj.id), readyList.length)}
+                        {copyLinkBtn(openTaskObj.id)}
                         <button onClick={() => sendBackToReview(openTaskObj)} title="Take it out of the Scheduler and send it back to Content Review"
                           className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand-light/40 inline-flex items-center gap-1"><IconArrowBackUp size={14} stroke={1.8} />Send back</button>
                         <button onClick={() => deleteToSchedule(openTaskObj)} title="Delete it — it goes to the recycle bin"
@@ -1541,6 +1564,7 @@ function Scheduler() {
                     </div>
                     <div className="sched-acts">
                       {panePager(queueShown.findIndex((x) => x.id === openPost.id), queueShown.length)}
+                      {copyLinkBtn(openPost.id)}
                       {openPost.effectiveStatus === "publishing" ? <span className="text-xs text-gray-500">Can&apos;t be changed now</span>
                       : listFilter === "drafts" ? (<>
                         <button onClick={() => openDraft(openPost)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dark">Open in Create post</button>
