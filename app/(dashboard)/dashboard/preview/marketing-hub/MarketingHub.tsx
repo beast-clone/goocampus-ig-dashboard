@@ -4107,6 +4107,48 @@ function wordDiff(oldStr: string, newStr: string): React.ReactNode {
   if (suf > CTX) push(" …", "text-gray-400");
   return <span className="whitespace-pre-wrap break-words leading-relaxed">{out}</span>;
 }
+// The "(design work → … when approved)" hint under a task's title (30 Oct): read from the
+// Rules page when its rules are switched on, so a 12thPlus carousel says Nandu, not the
+// old fixed "Praveen". Owner rules are checked top-down, first fit wins — as the database
+// does (mh_rules_engine_before). A rule that depends on something this hint can't know
+// (who wrote it, the previous status…) stops the guess, and the old wording is shown.
+type HintRule = { active: boolean; trigger_spec: { on?: string; statuses?: string[] }; conditions?: { conditions?: { field: string; op: string; value?: unknown }[]; conjunction?: string }; actions?: { type: string; to?: string }[] };
+let hintRulesP: Promise<{ on: boolean; rules: HintRule[]; people: Record<string, string> }> | null = null;
+function loadHintRules() {
+  hintRulesP ??= fetch("/api/marketing-hub/rules-engine", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null))
+    .then((j) => ({ on: !!j?.engineOn, rules: (j?.rules || []) as HintRule[], people: Object.fromEntries(((j?.people || []) as { value: string; label: string }[]).map((p) => [p.value, p.label])) }))
+    .catch(() => ({ on: false, rules: [], people: {} }));
+  return hintRulesP;
+}
+/** `who` is the person the rules hand it to (null when the hint can't tell — then the old wording). */
+function useApprovalHint(type: string, sbu: string): { hint: string; who: string | null } {
+  const fallback = { hint: isVideoType(type) ? "video work → editors" : "design work → Praveen when approved", who: null };
+  const [data, setData] = useState<Awaited<ReturnType<typeof loadHintRules>> | null>(null);
+  useEffect(() => { let alive = true; loadHintRules().then((d) => { if (alive) setData(d); }); return () => { alive = false; }; }, []);
+  if (!data?.on || !type) return fallback;
+  const kind = isVideoType(type) ? "video" : "design";
+  const val = (f: string) => (f === "type" ? type : f === "sbu" ? sbu : f === "kind" ? kind : f === "status" ? "Content - Approved" : undefined);
+  for (const r of data.rules) {
+    const owner = (r.actions || []).find((a) => a.type === "owner");
+    if (!r.active || !owner) continue;
+    if (r.trigger_spec?.on !== "status" || !(r.trigger_spec.statuses || []).includes("Content - Approved")) continue;
+    const conds = r.conditions?.conditions || [];
+    if (conds.some((c) => val(c.field) === undefined)) return fallback;   // can't tell from here
+    const test = (c: { field: string; op: string; value?: unknown }) => {
+      const v = val(c.field) || "", list = Array.isArray(c.value) ? (c.value as string[]) : [String(c.value ?? "")];
+      return c.op === "is" ? v === list[0] : c.op === "isNot" ? v !== list[0] : c.op === "isAnyOf" ? list.includes(v) : c.op === "isNoneOf" ? !list.includes(v)
+        : c.op === "isEmpty" ? !v : c.op === "isNotEmpty" ? !!v : false;
+    };
+    const fits = r.conditions?.conjunction === "or" ? conds.some(test) : conds.every(test);
+    if (!fits) continue;
+    if (owner.to === "__pool__") return { hint: `${kind} work → the claim pool when approved`, who: null };
+    if (!owner.to || owner.to.startsWith("__")) return fallback;
+    const who = data.people[owner.to] || owner.to.charAt(0).toUpperCase() + owner.to.slice(1);
+    return { hint: `${kind} work → ${who} when approved`, who };
+  }
+  return fallback;
+}
+
 export const ACT_VERB: Record<string, string> = {
   created: "created this", status_changed: "changed the status", owner_changed: "reassigned this",
   rescheduled: "rescheduled this", due_date_changed: "changed the due date", renamed: "renamed this",
@@ -4571,6 +4613,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
   const rememberedKey = typeof customNow.intended_owner === "string" ? customNow.intended_owner : "";
   const rememberedEditor = rememberedKey ? (TEAM.find((m) => m.key === rememberedKey)?.label || rememberedKey) : "";
   const [guideOpen, setGuideOpen] = useState(false);
+  const approvalHint = useApprovalHint(typeCur, sbuCur);
   const changeType = async (v: string) => {
     if (!v || v === typeCur) return;
     // Past approval the type decides who produces it — a database rule hands design
@@ -4921,7 +4964,7 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
               <span className="text-gray-300">·</span>
               <PreviewSelect bare value={typeCur || ""} onChange={changeType} ariaLabel="Format" title="Change the format" placeholder="— format"
                 options={Array.from(new Set([...(typeCur ? [typeCur] : []), ...ALL_TYPES])).map((o) => ({ value: o, label: o }))} />
-              {typeCur && <span className="text-[11.5px] text-[#8A92A6]">({isVideoType(typeCur) ? "video work → editors" : "design work → Praveen when approved"})</span>}
+              {typeCur && <span className="text-[11.5px] text-[#8A92A6]">({approvalHint.hint})</span>}
               <button type="button" onClick={() => setGuideOpen((o) => !o)} title="How tasks are assigned"
                 className="w-[18px] h-[18px] rounded-full border border-gray-200 text-[11px] leading-none text-[#8A92A6] hover:text-brand hover:border-brand">?</button>
               <span className="text-gray-300">·</span><span className="inline-flex items-center gap-1"><IconCalendarEvent size={14} />Publishing {fmtDate(row.publishingDate)}</span>
@@ -5064,8 +5107,8 @@ export function DetailModal({ row, onClose }: { row: Row; onClose: () => void })
                     : !isVideoType(typeCur)
                       ? (rememberedEditor
                         ? `Stays with Praveen while it's design work — goes to ${rememberedEditor} when the format is changed to a video type.`
-                        : handed ? "Went to Praveen when it was approved. You can still change the owner and it will stay."
-                          : "Once approved, design work goes to Praveen.")
+                        : handed ? `Went to ${approvalHint.who || "Praveen"} when it was approved. You can still change the owner and it will stay.`
+                          : `Once approved, design work goes to ${approvalHint.who || "Praveen"}.`)
                       : handed ? "Video work: pick an editor, or leave it in the claim pool for Nikhil / Nandu."
                         : "Once approved, video work goes to the editors' claim pool.";
                   return note ? <div className="pl-[174px] -mt-1.5 pb-1 text-[11.5px] text-[#8A92A6]">{note}</div> : null;
