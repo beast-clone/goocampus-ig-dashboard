@@ -163,7 +163,7 @@ export const GRANTABLE_SECTIONS = SECTIONS.filter((s) => !s.adminOnly);
 // Each PreviewTab -> its section, so the sidebar can filter what a person sees.
 export const TAB_SECTION: Record<string, Section> = {
   overview: "overview",
-  "marketing-hub": "content", "my-day": "content", radar: "content", calendar: "content", "content-review": "content", scheduler: "content", broadcast: "content", "post-planner": "content", watchers: "content",
+  "marketing-hub": "content", "my-day": "content", radar: "content", calendar: "content", "content-review": "content", scheduler: "content", broadcast: "content", "post-planner": "content", "plan-board": "content", watchers: "content",
   instagram: "analytics", linkedin: "analytics", youtube: "analytics", facebook: "analytics", website: "analytics", audience: "analytics",
   ads: "ads", competitors: "ads", benchmark: "ads",
   leads: "sales", sales: "sales", campaigns: "sales",

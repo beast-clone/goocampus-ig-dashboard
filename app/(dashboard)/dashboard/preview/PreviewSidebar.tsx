@@ -7,7 +7,7 @@ import Link from "next/link";
 import { NOTIF_COUNT } from "./NotificationHost";
 import { playChime } from "./notifChime";
 import {
-  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected, IconBuildingStore, IconKey,
+  IconSunHigh, IconLayoutGrid, IconChartBar, IconCalendarEvent, IconRadar2, IconSparkles, IconBell, IconPlugConnected, IconBuildingStore, IconKey, IconWriting,
   IconClockHour4, IconCurrencyRupee, IconBrandInstagram, IconBrandLinkedin, IconBrandYoutube, IconBrandFacebook,
   IconUsers, IconUserCheck, IconSpeakerphone, IconTargetArrow, IconChartHistogram, IconUserDollar, IconReportMoney, IconBulb, IconReportAnalytics, IconSettings, IconTools, IconUsersGroup, IconMessageCircle, IconActivityHeartbeat,
   IconCalendarStats, IconChartPie, IconTimeline, IconArrowsExchange, IconIdBadge2,
@@ -77,6 +77,7 @@ const GROUPS: Group[] = [
     // Its own tab rather than buried under My Workspace — "Move content calendar
     // from my workspace and create a separate tab" (Manya, 28 Sept). Same page, the
     // calendar view of the Marketing Hub; only where you reach it from changed.
+    { label: "Plan board",          href: `${HUB}/plan-board`,                icon: IconWriting },
     { label: "Content calendar",    href: `${HUB}/marketing-hub?tab=calendar`, icon: IconCalendarEvent },
     // No separate "Mentorship calendar" any more (26 Oct): the Content calendar has a
     // rail of saved views — "Mentorship" is one of them, and anyone can add their own.

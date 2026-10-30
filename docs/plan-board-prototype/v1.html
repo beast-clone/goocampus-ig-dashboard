@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plan board — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#3A57E8;--brand-dk:#2138B0;--brand-lt:#E9ECFB;--ink:#232D42;--muted:#8A92A6;--line:#EEF0F5;--bg:#F6F7FB;--ok:#1AA053;--ok-bg:#E3F5EA;--warn:#C0201F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font:400 14px/1.45 Inter,system-ui,sans-serif;color:var(--ink)}
+.wrap{max-width:1500px;margin:0 auto;padding:20px 24px 40px}
+.hero{background:linear-gradient(115deg,#3A57E8 0%,#4A64EA 45%,#6B7CF2 100%);color:#fff;border-radius:16px;padding:22px 26px 52px}
+.hero h1{margin:0;font-size:24px;font-weight:500}
+.hero p{margin:4px 0 0;opacity:.85;font-size:13.5px}
+.bar{position:relative;margin:-34px 4px 16px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;gap:4px;background:var(--bg);border-radius:11px;padding:4px}
+.seg button{border:0;background:transparent;border-radius:8px;padding:7px 14px;font:500 13.5px Inter,sans-serif;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--brand);color:#fff}
+.sep{width:1px;height:28px;background:var(--line)}
+.tool{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+.tool.on{border-color:var(--brand);background:var(--brand-lt);color:var(--brand)}
+.tool:disabled{opacity:.35;cursor:default}
+.dot{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer}
+.dot.on{box-shadow:0 0 0 2px var(--brand)}
+.sizes{display:inline-flex;gap:4px}
+.sizes button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer}
+.sizes button.on{border-color:var(--brand);background:var(--brand-lt)}
+.sizes i{display:block;background:var(--ink);border-radius:50%}
+.grow{flex:1}
+.saved{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+.btn{height:36px;border-radius:9px;padding:0 14px;font:500 13.5px Inter,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn:hover{border-color:var(--brand)}
+.hint{font-size:12.5px;color:var(--muted);margin:0 4px 10px;display:flex;align-items:center;gap:6px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px}
+.card-h{display:flex;align-items:center;gap:8px;padding:14px 16px 10px;font-weight:500;font-size:15px}
+.card-h svg{color:var(--brand)}
+.card-h .sub{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:auto}
+/* calendar grid */
+.week-lbl{padding:8px 16px 6px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:500}
+.dows{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:0 12px;font-size:12px;color:var(--muted);font-weight:500}
+.dows div{padding:0 6px 6px}
+.grid{user-select:none;-webkit-user-select:none;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;margin:0 12px 12px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.day{border-right:1px solid var(--line);border-bottom:1px solid var(--line);position:relative;min-height:150px;background:#fff}
+.paper .day{min-height:230px}
+.day:nth-child(7n){border-right:0}
+.day.today .num{background:var(--brand);color:#fff}
+.day .num{position:absolute;top:6px;left:8px;font-size:12px;font-weight:500;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;z-index:2;pointer-events:none}
+/* A — paper */
+.paper{position:relative}
+.paper .day .rule{position:absolute;left:10px;right:10px;border-top:1px dashed #E4E7EF;pointer-events:none}
+.paper canvas.ink{position:absolute;inset:0;width:100%;height:100%;z-index:3;touch-action:none;cursor:crosshair}
+.tally-paper{position:relative;height:430px;margin:0 12px 12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:repeating-linear-gradient(#fff 0 35px,#EEF0F5 35px 36px)}
+.tally-paper canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+/* B — slots */
+.slots .day{padding:32px 6px 6px;display:flex;flex-direction:column;gap:6px}
+.slot{border:1px solid var(--line);border-radius:10px;background:#FCFCFE;display:flex;flex-direction:column;overflow:hidden}
+.slot.has{border-color:#D6DCF7;background:#fff}
+.slot .pad{position:relative;height:72px}
+.slot canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.slot .ph{position:absolute;inset:0;display:grid;place-items:center;color:#C5CAD6;font-size:11.5px;pointer-events:none}
+.slot .meta{display:flex;align-items:center;gap:4px;padding:4px 5px;border-top:1px solid var(--line)}
+.slot select{flex:1;min-width:0;border:0;background:transparent;font:500 11.5px Inter,sans-serif;color:var(--ink);padding:2px;cursor:pointer;outline:none}
+.slot select.empty{color:var(--muted);font-weight:400}
+.rtog{border:1px solid var(--line);border-radius:6px;background:#fff;font:500 10.5px Inter,sans-serif;color:var(--muted);padding:2px 5px;cursor:pointer}
+.rtog.on{background:#FFF1E6;border-color:#F7C79C;color:#B4570B}
+.slot .x{border:0;background:transparent;color:#C5CAD6;cursor:pointer;padding:0 2px;display:grid;place-items:center}
+.slot .x:hover{color:var(--warn)}
+.tally{padding:0 14px 14px}
+.trow{display:grid;grid-template-columns:12px minmax(0,1fr) auto 56px;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.trow:first-child{border-top:0}
+.trow .sw{width:10px;height:10px;border-radius:3px}
+.trow .n{font-weight:500;font-size:13px}
+.trow .n small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.trow .cnt{font-weight:500;font-size:15px;min-width:38px;text-align:right}
+.trow .cnt.met{color:var(--ok)}
+.trow input{width:56px;height:30px;border:1px solid var(--line);border-radius:8px;text-align:center;font:500 13px Inter,sans-serif;color:var(--ink)}
+.tally-h{display:grid;grid-template-columns:12px minmax(0,1fr) auto 56px;gap:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 0 4px}
+.tally-total{display:flex;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.tally-total b{color:var(--ink);font-weight:500}
+.foot{padding:12px 14px 14px;border-top:1px solid var(--line)}
+.foot .btn{width:100%;justify-content:center}
+.foot p{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%) translateY(-120%);background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;transition:transform .2s;z-index:50;max-width:440px}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast .ic{width:26px;height:26px;border-radius:7px;background:var(--brand);color:#fff;display:grid;place-items:center;flex:none}
+.toast b{font-weight:500;display:block}
+.toast span{font-size:12.5px;color:var(--muted)}
+.hide{display:none!important}
+.dd{position:relative}
+.dd-btn{display:flex;align-items:center;gap:10px;height:44px;padding:0 12px 0 8px;border:1px solid var(--line);border-radius:11px;background:#fff;cursor:pointer;font:inherit;color:var(--ink);text-align:left;min-width:220px}
+.dd-btn:hover{border-color:var(--brand)}
+.dd-k{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;line-height:1.2}
+.dd-v{display:block;font-weight:500;font-size:14px;line-height:1.25}
+.dd-ch{margin-left:auto;color:var(--muted)}
+.dd-ic{width:30px;height:30px;border-radius:8px;background:var(--brand-lt);color:var(--brand);display:grid;place-items:center;flex:none}
+.dd-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:20;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px;width:320px}
+.dd-menu button{display:flex;gap:10px;align-items:flex-start;width:100%;border:0;background:transparent;border-radius:9px;padding:9px 10px;text-align:left;cursor:pointer;font:inherit;color:var(--ink)}
+.dd-menu button:hover,.dd-menu button.on{background:var(--bg)}
+.dd-menu b{display:block;font-weight:500;font-size:14px}
+.dd-menu small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+.blank{position:relative;height:calc(100vh - 230px);min-height:520px;margin:0 12px 12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff radial-gradient(#D9DDE8 1px,transparent 1.2px) 0 0/22px 22px}
+.blank canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+@media (max-width:1100px){.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>Plan board</h1>
+    <p>Sketch the next two weeks by hand, see how many of each topic you have, then turn it into tasks.</p>
+  </div>
+
+  <div class="bar">
+    <div class="dd" id="ver">
+      <button class="dd-btn" id="verBtn"><span class="dd-ic" id="verIc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/></svg></span><span><span class="dd-k">Board</span><span class="dd-v" id="verLbl">Calendar</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="dd-ch"><path d="M6 9l6 6l6 -6"/></svg></button>
+      <div class="dd-menu hide" id="verMenu">
+        <button data-v="A"><span class="dd-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/></svg></span><span><b>Calendar</b><small>Two weeks — write anywhere, like paper</small></span></button>
+        <button data-v="B"><span class="dd-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6h-6z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6h-6z"/><path d="M14 14h6v6h-6z"/></svg></span><span><b>Calendar with boxes</b><small>Write in each post's box, pick a topic — it counts for you</small></span></button>
+        <button data-v="C"><span class="dd-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14z"/><path d="M7 15l3 -5l3 4l2 -2l2 3"/></svg></span><span><b>Blank board</b><small>An empty page — brainstorm, mind-map, anything</small></span></button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <button class="tool on" data-tool="pen" title="Pen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/></svg></button>
+    <button class="tool" data-tool="hl" title="Highlighter"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M12.5 5.5l4 4"/><path d="M4.5 13.5l4 4"/><path d="M21 15v4h-8l4 -4z"/></svg></button>
+    <button class="tool" data-tool="erase" title="Eraser — touch a line to remove it"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3"/><path d="M18 13.3l-6.3 -6.3"/></svg></button>
+    <div class="sep"></div>
+    <span class="dot on" data-c="#232D42" style="background:#232D42" title="Black"></span>
+    <span class="dot" data-c="#3A57E8" style="background:#3A57E8" title="Blue"></span>
+    <span class="dot" data-c="#C0201F" style="background:#C0201F" title="Red"></span>
+    <span class="dot" data-c="#1AA053" style="background:#1AA053" title="Green"></span>
+    <span class="dot" data-c="#E08A00" style="background:#E08A00" title="Orange"></span>
+    <div class="sep"></div>
+    <div class="sizes" id="sizes">
+      <button data-s="1.6" title="Thin"><i style="width:4px;height:4px"></i></button>
+      <button data-s="2.6" class="on" title="Medium"><i style="width:7px;height:7px"></i></button>
+      <button data-s="4.2" title="Thick"><i style="width:10px;height:10px"></i></button>
+    </div>
+    <div class="sep"></div>
+    <button class="tool" id="undo" title="Undo (Ctrl+Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14l-4 -4l4 -4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/></svg></button>
+    <button class="tool" id="redo" title="Redo (Ctrl+Y)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l4 -4l-4 -4"/><path d="M19 10h-11a4 4 0 1 0 0 8h1"/></svg></button>
+    <button class="btn" id="clear"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/></svg>Clear page</button>
+    <div class="grow"></div>
+    <span class="saved" id="saved"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"/></svg>Saved in this browser</span>
+  </div>
+
+  <div class="hint" id="hint"></div>
+
+  <!-- A · PAPER -->
+  <div id="vA" class="layout">
+    <div class="card">
+      <div class="card-h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/></svg>Next two weeks<span class="sub" id="rangeA"></span></div>
+      <div class="dows" id="dowsA"></div>
+      <div class="paper" id="paperA"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>Tally<span class="sub">write your counts</span></div>
+      <div class="tally-paper"><canvas id="tallyA"></canvas></div>
+    </div>
+  </div>
+
+  <!-- C · BLANK -->
+  <div id="vC" class="hide">
+    <div class="card">
+      <div class="card-h"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14z"/><path d="M7 15l3 -5l3 4l2 -2l2 3"/></svg>Blank board<span class="sub">write, draw, mind-map — anything</span></div>
+      <div class="blank"><canvas id="blankC"></canvas></div>
+    </div>
+  </div>
+
+  <!-- B · SLOTS -->
+  <div id="vB" class="layout hide">
+    <div class="card">
+      <div class="card-h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/></svg>Next two weeks<span class="sub" id="rangeB"></span></div>
+      <div class="dows" id="dowsB"></div>
+      <div class="slots" id="slotsB"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>Tally<span class="sub" id="tallyWeekLbl"></span></div>
+      <div style="padding:0 14px 8px"><div class="seg" id="weekSeg"><button data-w="0" class="on">Week 1</button><button data-w="1">Week 2</button><button data-w="all">Both</button></div></div>
+      <div class="tally"><div class="tally-h"><span></span><span>Topic</span><span>Planned</span><span>Target</span></div><div id="tallyB"></div></div>
+      <div class="tally-total"><span>Posts planned</span><b id="totalB">0</b></div>
+      <div class="foot">
+        <button class="btn primary" id="makeTasks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></svg>Create tasks</button>
+        <p>Each box with a topic becomes a task on that day — topic as its primary interest, Reel or Carousel as its format, your handwriting attached as the brief.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"><div class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"/></svg></div><div><b id="tt"></b><span id="tb"></span></div></div>
+
+<script>
+(() => {
+// ── settings ───────────────────────────────────────────────────────────────
+const TOPICS = [
+  { k: "aus_batch", n: "Aus batch", c: "#3A57E8" },
+  { k: "neet_pg", n: "NEET PG", c: "#1AA053" },
+  { k: "nz_ebook", n: "NZ Ebook", c: "#E08A00" },
+  { k: "aus_ebook", n: "Aus Ebook", c: "#8E44AD" },
+  { k: "10k", n: "10K Mentorship", c: "#C0201F" },
+  { k: "usmle", n: "USMLE", c: "#0E8C8C" },
+  { k: "general", n: "General Content", c: "#8A92A6" },
+];
+const SLOTS_PER_DAY = 2;
+const LS = "planboard-proto-v1";
+
+// Two weeks from this Monday.
+const now = new Date(); now.setHours(0,0,0,0);
+const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d; });
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const fmt = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+let state = { A: { board: [], tally: [] }, B: { slots: {}, targets: {} }, C: { board: [] } };
+try { const s = JSON.parse(localStorage.getItem(LS) || "null"); if (s) state = Object.assign(state, s); } catch {}
+state.C = state.C || { board: [] };
+const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch {} };
+
+// ── tools ──────────────────────────────────────────────────────────────────
+const tool = { mode: "pen", color: "#232D42", size: 2.6 };
+document.querySelectorAll("[data-tool]").forEach((b) => b.onclick = () => { tool.mode = b.dataset.tool; document.querySelectorAll("[data-tool]").forEach((x) => x.classList.toggle("on", x === b)); });
+document.querySelectorAll(".dot").forEach((b) => b.onclick = () => { tool.color = b.dataset.c; if (tool.mode === "erase") document.querySelector('[data-tool="pen"]').click(); document.querySelectorAll(".dot").forEach((x) => x.classList.toggle("on", x === b)); });
+document.querySelectorAll("#sizes button").forEach((b) => b.onclick = () => { tool.size = +b.dataset.s; document.querySelectorAll("#sizes button").forEach((x) => x.classList.toggle("on", x === b)); });
+
+// ── ink surface ────────────────────────────────────────────────────────────
+// Strokes are stored in 0..1 coordinates of their surface, so they redraw at any size.
+const undoStack = [], redoStack = [];
+const surfaces = new Set();
+function inkSurface(canvas, strokes, onChange) {
+  const ctx = canvas.getContext("2d");
+  let cur = null;
+  const size = () => { const r = canvas.getBoundingClientRect(); return { w: r.width, h: r.height }; };
+  function fit() {
+    const { w, h } = size(), dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(w * dpr)); canvas.height = Math.max(1, Math.round(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); draw();
+  }
+  function stroke(s) {
+    const { w, h } = size(), p = s.p;
+    if (!p.length) return;
+    ctx.save();
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.strokeStyle = s.c; ctx.globalAlpha = s.hl ? 0.28 : 1;
+    if (s.hl) ctx.globalCompositeOperation = "multiply";
+    const base = s.hl ? s.w * 5 : s.w;
+    if (p.length === 1) { ctx.fillStyle = s.c; ctx.beginPath(); ctx.arc(p[0][0]*w, p[0][1]*h, base/2, 0, 7); ctx.fill(); ctx.restore(); return; }
+    for (let i = 1; i < p.length; i++) {
+      const a = p[i-1], b = p[i], m = p[i+1];
+      ctx.lineWidth = s.hl ? base : base * (0.55 + (b[2] ?? .5) * 0.9);
+      ctx.beginPath();
+      ctx.moveTo(a[0]*w, a[1]*h);
+      if (m) ctx.quadraticCurveTo(b[0]*w, b[1]*h, (b[0]+m[0])/2*w, (b[1]+m[1])/2*h); else ctx.lineTo(b[0]*w, b[1]*h);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function draw() { const { w, h } = size(); ctx.clearRect(0, 0, w, h); strokes.forEach(stroke); if (cur) stroke(cur); }
+  const pt = (e) => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, e.pointerType === "pen" ? (e.pressure || .5) : .5]; };
+  function eraseAt(q) {
+    const { w, h } = size(), R = 9;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      if (strokes[i].p.some((a) => Math.hypot((a[0]-q[0])*w, (a[1]-q[1])*h) < R + strokes[i].w)) {
+        const [gone] = strokes.splice(i, 1);
+        undoStack.push({ s: api, undo: () => strokes.splice(i, 0, gone), redo: () => strokes.splice(strokes.indexOf(gone), 1) });
+        redoStack.length = 0; draw(); onChange();
+      }
+    }
+  }
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    canvas.setPointerCapture(e.pointerId); e.preventDefault();
+    if (tool.mode === "erase") { eraseAt(pt(e)); cur = { erasing: true }; return; }
+    cur = { c: tool.color, w: tool.size, hl: tool.mode === "hl", p: [pt(e)] }; draw();
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!cur) return;
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    if (cur.erasing) { evs.forEach((x) => eraseAt(pt(x))); return; }
+    evs.forEach((x) => cur.p.push(pt(x))); draw();
+  });
+  const end = () => {
+    if (!cur) return;
+    if (!cur.erasing) {
+      const s = cur; strokes.push(s);
+      undoStack.push({ s: api, undo: () => strokes.splice(strokes.indexOf(s), 1), redo: () => strokes.push(s) });
+      redoStack.length = 0; onChange();
+    }
+    cur = null; draw(); syncUndo();
+  };
+  canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end);
+  const api = { fit, draw, strokes, onChange, canvas, clear() { const was = strokes.splice(0); if (was.length) { undoStack.push({ s: api, undo: () => strokes.push(...was), redo: () => strokes.splice(0) }); redoStack.length = 0; } draw(); onChange(); } };
+  surfaces.add(api); fit();
+  return api;
+}
+function syncUndo() { document.getElementById("undo").disabled = !undoStack.length; document.getElementById("redo").disabled = !redoStack.length; }
+function doUndo() { const a = undoStack.pop(); if (!a) return; a.undo(); redoStack.push(a); a.s.draw(); a.s.onChange(); syncUndo(); }
+function doRedo() { const a = redoStack.pop(); if (!a) return; a.redo(); undoStack.push(a); a.s.draw(); a.s.onChange(); syncUndo(); }
+document.getElementById("undo").onclick = doUndo; document.getElementById("redo").onclick = doRedo;
+window.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.target.tagName === "INPUT") return;
+  if (e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); doUndo(); }
+  if (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey)) { e.preventDefault(); doRedo(); }
+});
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => surfaces.forEach((s) => s.fit()), 80); });
+
+// ── shared bits ────────────────────────────────────────────────────────────
+const range = `${fmt(days[0])} – ${fmt(days[13])}`;
+document.getElementById("rangeA").textContent = range;
+document.getElementById("rangeB").textContent = range;
+["dowsA","dowsB"].forEach((id) => document.getElementById(id).innerHTML = DOW.map((d) => `<div>${d}</div>`).join(""));
+let toastT;
+function toast(t, b) { document.getElementById("tt").textContent = t; document.getElementById("tb").textContent = b; const el = document.getElementById("toast"); el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 3200); }
+let savedT; const markSaved = () => { save(); const s = document.getElementById("saved"); s.style.opacity = .4; clearTimeout(savedT); savedT = setTimeout(() => s.style.opacity = 1, 250); };
+
+// ── A · paper ──────────────────────────────────────────────────────────────
+const paper = document.getElementById("paperA");
+paper.innerHTML = [0, 1].map((w) => `<div class="week-lbl">Week ${w+1}</div><div class="grid">${days.slice(w*7, w*7+7).map((d) =>
+  `<div class="day${ymd(d) === ymd(now) ? " today" : ""}"><span class="num">${d.getDate()}</span>${Array.from({ length: SLOTS_PER_DAY - 1 }, (_, i) => `<div class="rule" style="top:${(i+1) / SLOTS_PER_DAY * 100 + 8}%"></div>`).join("")}</div>`).join("")}</div>`).join("");
+const boardCanvas = document.createElement("canvas"); boardCanvas.className = "ink"; paper.appendChild(boardCanvas);
+const A1 = inkSurface(boardCanvas, state.A.board, markSaved);
+const A2 = inkSurface(document.getElementById("tallyA"), state.A.tally, markSaved);
+const C1 = inkSurface(document.getElementById("blankC"), state.C.board, markSaved);
+
+// ── B · slots ──────────────────────────────────────────────────────────────
+const slotsEl = document.getElementById("slotsB");
+slotsEl.innerHTML = [0, 1].map((w) => `<div class="week-lbl">Week ${w+1}</div><div class="grid">${days.slice(w*7, w*7+7).map((d) =>
+  `<div class="day${ymd(d) === ymd(now) ? " today" : ""}"><span class="num">${d.getDate()}</span>${Array.from({ length: SLOTS_PER_DAY }, (_, i) => `
+    <div class="slot" data-k="${ymd(d)}#${i}">
+      <div class="pad"><span class="ph">write here</span><canvas></canvas></div>
+      <div class="meta">
+        <select><option value="">Topic…</option>${TOPICS.map((t) => `<option value="${t.k}">${t.n}</option>`).join("")}</select>
+        <button class="rtog" title="Reel">R</button>
+        <button class="x" title="Clear this box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
+      </div>
+    </div>`).join("")}</div>`).join("")}</div>`).join("");
+const slotSurfaces = [];
+slotsEl.querySelectorAll(".slot").forEach((el) => {
+  const k = el.dataset.k;
+  const s = state.B.slots[k] || (state.B.slots[k] = { strokes: [], topic: "", reel: false });
+  const sel = el.querySelector("select"), r = el.querySelector(".rtog"), ph = el.querySelector(".ph");
+  const paint = () => { sel.value = s.topic; sel.classList.toggle("empty", !s.topic); r.classList.toggle("on", s.reel); el.classList.toggle("has", !!(s.topic || s.strokes.length)); ph.classList.toggle("hide", s.strokes.length > 0); const t = TOPICS.find((x) => x.k === s.topic); el.style.borderLeft = t ? `3px solid ${t.c}` : ""; };
+  const surf = inkSurface(el.querySelector("canvas"), s.strokes, () => { paint(); markSaved(); tally(); });
+  slotSurfaces.push(surf);
+  sel.onchange = () => { s.topic = sel.value; paint(); markSaved(); tally(); };
+  r.onclick = () => { s.reel = !s.reel; paint(); markSaved(); tally(); };
+  el.querySelector(".x").onclick = () => { surf.clear(); s.topic = ""; s.reel = false; paint(); markSaved(); tally(); };
+  paint();
+});
+let week = "0";
+document.querySelectorAll("#weekSeg button").forEach((b) => b.onclick = () => { week = b.dataset.w; document.querySelectorAll("#weekSeg button").forEach((x) => x.classList.toggle("on", x === b)); tally(); });
+function tally() {
+  const keys = (week === "all" ? days : days.slice(+week * 7, +week * 7 + 7)).map(ymd);
+  const inWeek = Object.entries(state.B.slots).filter(([k]) => keys.includes(k.split("#")[0])).map(([, v]) => v);
+  const tk = `w${week}`; const tg = state.B.targets[tk] || (state.B.targets[tk] = {});
+  document.getElementById("tallyWeekLbl").textContent = week === "all" ? range : `${fmt(days[+week*7])} – ${fmt(days[+week*7+6])}`;
+  document.getElementById("tallyB").innerHTML = TOPICS.map((t) => {
+    const mine = inWeek.filter((v) => v.topic === t.k), n = mine.length, reels = mine.filter((v) => v.reel).length, target = tg[t.k] ?? "";
+    return `<div class="trow"><span class="sw" style="background:${t.c}"></span><span class="n">${t.n}<small>${n ? `${reels} reel${reels === 1 ? "" : "s"} · ${n - reels} carousel${n - reels === 1 ? "" : "s"}` : "none yet"}</small></span><span class="cnt${target !== "" && n >= +target && +target > 0 ? " met" : ""}">${n}${target !== "" ? `<span style="color:var(--muted);font-weight:400"> / ${target}</span>` : ""}</span><input type="number" min="0" max="30" data-t="${t.k}" value="${target}" placeholder="—"></div>`;
+  }).join("");
+  document.querySelectorAll("#tallyB input").forEach((i) => i.onchange = () => { if (i.value === "") delete tg[i.dataset.t]; else tg[i.dataset.t] = +i.value; markSaved(); tally(); });
+  document.getElementById("totalB").textContent = inWeek.filter((v) => v.topic).length;
+}
+tally();
+document.getElementById("makeTasks").onclick = () => {
+  const ready = Object.values(state.B.slots).filter((v) => v.topic).length;
+  const blank = Object.values(state.B.slots).filter((v) => !v.topic && v.strokes.length).length;
+  toast(ready ? `${ready} task${ready === 1 ? "" : "s"} would be created` : "Pick a topic on at least one box", ready ? `Prototype only — nothing is saved to the dashboard.${blank ? ` ${blank} box${blank === 1 ? " has" : "es have"} writing but no topic, so ${blank === 1 ? "it's" : "they're"} skipped.` : ""}` : "A box needs a topic to become a task.");
+};
+
+// ── switching + clear ──────────────────────────────────────────────────────
+const HINT = {
+  A: "Write anywhere on the two weeks, like on paper — mouse, pen or finger. Eraser removes a whole line you touch. Your page stays in this browser.",
+  B: "Write the post in a box, pick its topic and tap R for a reel. The tally on the right counts them for you — set a target to see when you're there.",
+  C: "An empty page to write or draw on — ideas, a mind map, a rough list. It's kept separately from the calendar.",
+};
+const LABEL = { A: "Calendar", B: "Calendar with boxes", C: "Blank board" };
+const verMenu = document.getElementById("verMenu");
+document.getElementById("verBtn").onclick = (e) => { e.stopPropagation(); verMenu.classList.toggle("hide"); };
+document.addEventListener("click", () => verMenu.classList.add("hide"));
+let v = "A";
+function show(nv) {
+  v = nv;
+  verMenu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+  document.getElementById("verLbl").textContent = LABEL[v];
+  document.getElementById("verIc").innerHTML = verMenu.querySelector(`[data-v="${v}"] .dd-ic`).innerHTML;
+  ["A","B","C"].forEach((k) => document.getElementById("v" + k).classList.toggle("hide", v !== k));
+  verMenu.classList.add("hide");
+  document.getElementById("hint").innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/></svg>${HINT[v]}`;
+  requestAnimationFrame(() => surfaces.forEach((s) => s.fit()));
+}
+verMenu.querySelectorAll("button").forEach((b) => b.onclick = () => show(b.dataset.v));
+document.getElementById("clear").onclick = () => {
+  if (!confirm(v === "A" ? "Clear the whole page and the tally?" : v === "B" ? "Clear every box?" : "Clear the blank board?")) return;
+  if (v === "A") { A1.clear(); A2.clear(); } else if (v === "B") { slotsEl.querySelectorAll(".slot .x").forEach((x) => x.click()); } else C1.clear();
+  markSaved(); syncUndo();
+};
+show("A"); syncUndo();
+})();
+</script>
+</body>
+</html>
