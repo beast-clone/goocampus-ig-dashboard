@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   IconPencil, IconHighlight, IconEraser, IconArrowBackUp, IconArrowForwardUp, IconTrash, IconCheck, IconChevronDown,
-  IconPhoto, IconCalendar, IconLayoutGrid, IconLoader2, IconAlertTriangle, type Icon,
+  IconPhoto, IconCalendar, IconLayoutGrid, IconLoader2, IconAlertTriangle, IconLine, type Icon,
 } from "@tabler/icons-react";
 import { PreviewDashboardShell } from "@/app/(dashboard)/dashboard/preview/PreviewDashboardShell";
 import { confirmDialog } from "../ConfirmDialog";
@@ -47,6 +47,9 @@ function PlanBoard() {
   const [loaded, setLoaded] = useState(false);
   const [save, setSave] = useState<"saved" | "saving" | "error">("saved");
   const [menu, setMenu] = useState(false);
+  const [straighten, setStraighten] = useState(true);   // snap nearly-straight lines straight
+  const straightenRef = useRef(true);
+  straightenRef.current = straighten;
   const tool = useRef({ mode, color, size });
   tool.current = { mode, color, size };
 
@@ -148,7 +151,8 @@ function PlanBoard() {
     cur.current = { c: t.color, w: t.size, hl: t.mode === "hl", p: [pt(e)] }; draw();
   };
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const evs = e.nativeEvent.getCoalescedEvents ? e.nativeEvent.getCoalescedEvents() : [e.nativeEvent];
+    const co = e.nativeEvent.getCoalescedEvents?.() || [];
+    const evs = co.length ? co : [e.nativeEvent];   // some browsers report none — use the event itself
     if (erasing.current) { evs.forEach((x) => eraseAt(pt(x))); return; }
     if (!cur.current) return;
     // Light smoothing: drop points under ~1.5px apart and ease each new point toward the
@@ -161,9 +165,27 @@ function PlanBoard() {
     });
     draw();
   };
+  // A stroke drawn as a line — every point within 4% of its length (min 3px) of the line from
+  // its start to its end, and at least 30px long — becomes that exact line. Within 4° of flat
+  // or upright it is levelled. Anything curvier (writing, circles) is left as drawn.
+  const straightened = (s: Stroke): Stroke => {
+    const cv = canvasRef.current; if (!cv || s.hl || s.p.length < 3) return s;
+    const w = cv.clientWidth, h = cv.clientHeight, a = s.p[0], b = s.p[s.p.length - 1];
+    const ax = a[0] * w, ay = a[1] * h, bx = b[0] * w, by = b[1] * h, len = Math.hypot(bx - ax, by - ay);
+    if (len < 30) return s;
+    const far = Math.max(...s.p.map((q) => Math.abs((bx - ax) * (ay - q[1] * h) - (ax - q[0] * w) * (by - ay)) / len));
+    if (far > Math.max(3, len * 0.04)) return s;
+    let end: Pt = [b[0], b[1], b[2]];
+    const deg = Math.abs((Math.atan2(by - ay, bx - ax) * 180) / Math.PI);
+    if (deg < 4 || deg > 176) end = [b[0], a[1], b[2]];            // level
+    else if (Math.abs(deg - 90) < 4) end = [a[0], b[1], b[2]];     // upright
+    const pr = s.p.reduce((t, q) => t + q[2], 0) / s.p.length;
+    return { ...s, p: [[a[0], a[1], pr], [end[0], end[1], pr]] };
+  };
   const onUp = () => {
     if (erasing.current) { erasing.current = false; return; }
-    const s = cur.current; if (!s) return;
+    const drawn = cur.current; if (!drawn) return;
+    const s = straightenRef.current ? straightened(drawn) : drawn;
     cur.current = null; strokes.current.push(s);
     push({ undo: () => { const j = strokes.current.indexOf(s); if (j >= 0) strokes.current.splice(j, 1); }, redo: () => strokes.current.push(s) });
     draw();
@@ -227,6 +249,10 @@ function PlanBoard() {
         {toolBtn("pen", IconPencil, "Pen")}
         {toolBtn("hl", IconHighlight, "Highlighter")}
         {toolBtn("erase", IconEraser, "Eraser — touch a line to remove it")}
+        <button type="button" onClick={() => setStraighten((v) => !v)} aria-pressed={straighten}
+          title={straighten ? "Straight lines: on — a nearly straight line snaps straight when you lift. Click to turn off." : "Straight lines: off — lines stay exactly as drawn. Click to turn on."}
+          className={`h-9 px-2.5 rounded-[9px] border inline-flex items-center gap-1.5 text-[13px] font-medium ${straighten ? "border-brand bg-brand-light text-brand" : "border-gray-100 bg-white text-[#8A92A6] hover:border-brand"}`}>
+          <IconLine size={17} stroke={1.8} />Straight lines</button>
         {sep}
         {COLORS.map(([c, n]) => (
           <button key={c} type="button" title={n} aria-label={n} onClick={() => { setColor(c); if (mode === "erase") setMode("pen"); }}
